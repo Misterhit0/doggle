@@ -250,16 +250,28 @@ export async function getMatchesForUser(userId: number) {
     return [];
   }
 
-  // Get all matches where user is either userId1 or userId2
-  const result = await db.select().from(matches).where(
-    eq(matches.userId1, userId)
-  );
-  
-  const result2 = await db.select().from(matches).where(
-    eq(matches.userId2, userId)
-  );
-  
-  return [...result, ...result2]
+  try {
+    const connection = getPool();
+    if (!connection) return [];
+
+    const query = `
+      SELECT m.id, m.createdAt, m.compatibilityScore,
+             m.userId1 as user1Id, m.userId2 as user2Id,
+             m.userId1, m.userId2,
+             u1.name as user1Name, u1.profilePhotoUrl as user1Photo,
+             u2.name as user2Name, u2.profilePhotoUrl as user2Photo
+      FROM matches m
+      JOIN users u1 ON m.userId1 = u1.id
+      JOIN users u2 ON m.userId2 = u2.id
+      WHERE m.userId1 = ? OR m.userId2 = ?
+      ORDER BY m.createdAt DESC
+    `;
+    const [rows] = await connection.execute(query, [userId, userId]);
+    return (rows as any[]) || [];
+  } catch (error) {
+    console.error("[Database] Failed to get matches for user:", error);
+    return [];
+  }
 }
 
 export async function sendMessage(matchId: number, senderId: number, content: string) {
