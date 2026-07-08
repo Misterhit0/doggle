@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - preprod
   pull_request:
     branches:
       - main
+      - preprod
 
 jobs:
   test-and-build:
@@ -48,7 +50,7 @@ jobs:
       - name: Build Application
         run: pnpm build
 
-  deploy:
+  deploy-prod:
     name: Deploy to Production
     needs: test-and-build
     runs-on: ubuntu-latest
@@ -72,3 +74,28 @@ jobs:
       - name: Run production build and restart app
         run: |
           ssh -i ~/.ssh/id_rsa root@187.55.227.99 "cd /var/www/doggle && pnpm approve-builds && pnpm install && pnpm build && pm2 restart doggle"
+
+  deploy-preprod:
+    name: Deploy to Pre-production
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/preprod' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H 187.55.227.99 >> ~/.ssh/known_hosts
+
+      - name: Deploy files with Rsync
+        run: |
+          rsync -avz -e "ssh -i ~/.ssh/id_rsa" --exclude 'node_modules' --exclude '.git' --exclude 'client/dist' --exclude '.env' ./ root@187.55.227.99:/var/www/doggle-preprod/
+
+      - name: Run preprod build and restart app
+        run: |
+          ssh -i ~/.ssh/id_rsa root@187.55.227.99 "cd /var/www/doggle-preprod && pnpm approve-builds && pnpm install && pnpm build && pm2 restart doggle-preprod"
