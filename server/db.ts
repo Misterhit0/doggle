@@ -1069,3 +1069,46 @@ export async function updateVerificationStatus(
     throw error;
   }
 }
+
+export async function healStuckMatches() {
+  const pool = getPool();
+  if (!pool) return;
+
+  try {
+    console.log("[Database] Running self-healing check for stuck matches...");
+    
+    // Find all pairs (user A, user B) who have both swiped liked: true,
+    // but no corresponding match exists in the matches table.
+    const query = `
+      SELECT s1.userId as userA, s1.targetUserId as userB
+      FROM swipes s1
+      JOIN swipes s2 ON s1.userId = s2.targetUserId AND s1.targetUserId = s2.userId
+      LEFT JOIN matches m ON 
+        (m.userId1 = s1.userId AND m.userId2 = s1.targetUserId) OR
+        (m.userId1 = s1.targetUserId AND m.userId2 = s1.userId)
+      WHERE s1.liked = 1 AND s2.liked = 1 AND m.id IS NULL
+    `;
+    
+    const [stuckSwipes] = await pool.execute(query);
+    const pairs = stuckSwipes as Array<{ userA: number; userB: number }>;
+    
+    if (pairs.length > 0) {
+      console.log(`[Database] Found ${pairs.length} stuck mutual likes. Self-healing them...`);
+      for (const pair of pairs) {
+        // Double-check to avoid duplicates
+        const checkQuery = "SELECT id FROM matches WHERE (userId1 = ? AND userId2 = ?) OR (userId1 = ? AND userId2 = ?)";
+        const [existing] = await pool.execute(checkQuery, [pair.userA, pair.userB, pair.userB, pair.userA]);
+        if ((existing as any[]).length === 0) {
+          console.log(`[Database] Creating missing match between User ${pair.userA} and User ${pair.userB}`);
+          const insertQuery = "INSERT INTO matches (userId1, userId2, compatibilityScore) VALUES (?, ?, ?)";
+          await pool.execute(insertQuery, [pair.userA, pair.userB, 50.0]);
+        }
+      }
+      console.log("[Database] Self-healing completed.");
+    } else {
+      console.log("[Database] No stuck matches found.");
+    }
+  } catch (error) {
+    console.error("[Database] Error during self-healing matches check:", error);
+  }
+}
