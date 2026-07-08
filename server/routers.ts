@@ -125,6 +125,18 @@ export const appRouter = router({
         if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
 
         await db.updateUserProfile(ctx.user.id, updateData);
+
+        // Fetch updated user to trigger webhook
+        const updatedUser = await db.getUserById(ctx.user.id);
+        triggerN8nWebhook("profile.updated", {
+          userId: ctx.user.id,
+          name: updatedUser?.name,
+          email: updatedUser?.email,
+          phoneNumber: updatedUser?.phoneNumber,
+          age: updatedUser?.age,
+          bio: updatedUser?.bio
+        });
+
         return { success: true };
       }),
 
