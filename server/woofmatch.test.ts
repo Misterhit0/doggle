@@ -138,6 +138,23 @@ describe("Compagnon tRPC Procedures", () => {
         expect(error.message).toBeDefined();
       }
     });
+
+    it("should handle swipe fallback when dog/profile is missing", async () => {
+      const { ctx } = createAuthContext(1);
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const result = await caller.discovery.swipe({
+          targetUserId: 9999,
+          liked: true,
+        });
+        expect(result).toBeDefined();
+      } catch (error: any) {
+        // Since database is not available in test env, it might fail,
+        // but it should NOT throw a BAD_REQUEST error for missing dog/profile info.
+        expect(error.message).not.toContain("Missing profile or dog information");
+      }
+    });
   });
 
   describe("match procedures", () => {

@@ -447,40 +447,47 @@ export const appRouter = router({
             const currentUserDogs = await db.getDogsByUserId(ctx.user.id);
             const targetUserDogs = await db.getDogsByUserId(input.targetUserId);
 
-            if (!currentUser || !targetUser || currentUserDogs.length === 0 || targetUserDogs.length === 0) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "Missing profile or dog information" });
+            // Calculate compatibility using the intelligent algorithm
+            let overallScore = 50.0;
+
+            if (currentUser && targetUser && currentUserDogs.length > 0 && targetUserDogs.length > 0) {
+              try {
+                const currentUserDog = currentUserDogs[0];
+                const targetUserDog = targetUserDogs[0];
+
+                const compatibilityResult = calculateCompatibility(
+                  {
+                    breed: currentUserDog.breed || undefined,
+                    age: currentUserDog.age || undefined,
+                    personality: currentUserDog.personality ? JSON.parse(currentUserDog.personality as unknown as string) : undefined,
+                  },
+                  {
+                    age: currentUser.age || undefined,
+                    interests: currentUser.interests ? JSON.parse(currentUser.interests as unknown as string) : undefined,
+                    walkingHabits: currentUser.walkingHabits ? [currentUser.walkingHabits] : undefined,
+                    whatISeek: currentUser.whatISeek ? JSON.parse(currentUser.whatISeek as unknown as string) : undefined,
+                  },
+                  {
+                    breed: targetUserDog.breed || undefined,
+                    age: targetUserDog.age || undefined,
+                    personality: targetUserDog.personality ? JSON.parse(targetUserDog.personality as unknown as string) : undefined,
+                  },
+                  {
+                    age: targetUser.age || undefined,
+                    interests: targetUser.interests ? JSON.parse(targetUser.interests as unknown as string) : undefined,
+                    walkingHabits: targetUser.walkingHabits ? [targetUser.walkingHabits] : undefined,
+                    whatISeek: targetUser.whatISeek ? JSON.parse(targetUser.whatISeek as unknown as string) : undefined,
+                  }
+                );
+                overallScore = compatibilityResult.overallScore;
+              } catch (calcError) {
+                console.error("[Swipe] Failed to calculate compatibility score, using default 50.0:", calcError);
+              }
+            } else {
+              console.info("[Swipe] Missing profile or dog information for compatibility calculation, using default 50.0");
             }
 
-            // Calculate compatibility using the intelligent algorithm
-            const currentUserDog = currentUserDogs[0];
-            const targetUserDog = targetUserDogs[0];
-
-            const compatibilityResult = calculateCompatibility(
-              {
-                breed: currentUserDog.breed || undefined,
-                age: currentUserDog.age || undefined,
-                personality: currentUserDog.personality ? JSON.parse(currentUserDog.personality as unknown as string) : undefined,
-              },
-              {
-                age: currentUser.age || undefined,
-                interests: currentUser.interests ? JSON.parse(currentUser.interests as unknown as string) : undefined,
-                walkingHabits: currentUser.walkingHabits ? [currentUser.walkingHabits] : undefined,
-                whatISeek: currentUser.whatISeek ? JSON.parse(currentUser.whatISeek as unknown as string) : undefined,
-              },
-              {
-                breed: targetUserDog.breed || undefined,
-                age: targetUserDog.age || undefined,
-                personality: targetUserDog.personality ? JSON.parse(targetUserDog.personality as unknown as string) : undefined,
-              },
-              {
-                age: targetUser.age || undefined,
-                interests: targetUser.interests ? JSON.parse(targetUser.interests as unknown as string) : undefined,
-                walkingHabits: targetUser.walkingHabits ? [targetUser.walkingHabits] : undefined,
-                whatISeek: targetUser.whatISeek ? JSON.parse(targetUser.whatISeek as unknown as string) : undefined,
-              }
-            );
-
-            await db.createMatch(ctx.user.id, input.targetUserId, compatibilityResult.overallScore);
+            await db.createMatch(ctx.user.id, input.targetUserId, overallScore);
 
             // Create notifications for both users
             await db.createNotification(
