@@ -31,9 +31,81 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // Validate JWT Secret strength in production
+  if (process.env.NODE_ENV === "production") {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret || jwtSecret.trim().length < 32) {
+      console.error("❌ CRITICAL ERROR: JWT_SECRET is empty or too short (must be at least 32 characters in production)!");
+      process.exit(1);
+    }
+  }
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Custom HTTP Security Headers
+  app.use((req, res, next) => {
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://maps.googleapis.com;"
+    );
+    next();
+  });
+
+  // Custom CORS Configuration
+  app.use((req, res, next) => {
+    const allowedOrigins = ["https://doggle.cloud", "https://preprod.doggle.cloud", "http://localhost:3000", "http://localhost:3001"];
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PUT,PATCH,DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Custom Rate Limiting Middlewares
+  const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  function createRateLimiter(limit: number, windowMs: number) {
+    return (req: any, res: any, next: any) => {
+      const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+      const now = Date.now();
+      let record = rateLimitMap.get(ip);
+
+      if (!record || now > record.resetTime) {
+        record = { count: 1, resetTime: now + windowMs };
+        rateLimitMap.set(ip, record);
+      } else {
+        record.count++;
+      }
+
+      if (record.count > limit) {
+        res.setHeader("Retry-After", Math.ceil((record.resetTime - now) / 1000));
+        return res.status(429).json({
+          error: {
+            message: "Too many requests. Please try again later.",
+          }
+        });
+      }
+      next();
+    };
+  }
+
+  app.use("/api/trpc/auth.login", createRateLimiter(5, 60 * 1000));
+  app.use("/api/trpc/auth.signup", createRateLimiter(5, 60 * 1000));
+  app.use("/api", createRateLimiter(200, 15 * 60 * 1000));
+
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API
