@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { logger } from "./_core/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: mysql.Pool | null = null;
@@ -1115,5 +1116,20 @@ export async function healStuckMatches() {
     }
   } catch (error) {
     console.error("[Database] Error during self-healing matches check:", error);
+  }
+}
+
+export async function getSwipedUserIds(userId: number): Promise<number[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const query = "SELECT targetUserId FROM swipes WHERE userId = ?";
+    const [rows] = await pool.execute(query, [userId]);
+    logger.database(query);
+    return (rows as any[]).map(r => Number(r.targetUserId));
+  } catch (error: any) {
+    logger.database("SELECT targetUserId FROM swipes WHERE userId = ?", error?.message || String(error));
+    console.error("[Database] Failed to get swiped user ids:", error);
+    return [];
   }
 }
