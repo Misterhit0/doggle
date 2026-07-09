@@ -33,6 +33,9 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Enable trust proxy so Express parses X-Forwarded-For headers from Nginx proxy
+  app.set("trust proxy", true);
+
   // Validate JWT Secret strength in production
   if (process.env.NODE_ENV === "production") {
     const jwtSecret = process.env.JWT_SECRET;
