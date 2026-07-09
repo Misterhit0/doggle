@@ -86,10 +86,16 @@ export default function DogsPage() {
   };
 
   const handleAddPhotoUrl = () => {
-    setFormData(prev => ({
-      ...prev,
-      photoUrls: [...prev.photoUrls, ""],
-    }));
+    setFormData(prev => {
+      if (prev.photoUrls.length >= 3) {
+        toast.error("Vous pouvez ajouter jusqu'à 3 photos maximum.");
+        return prev;
+      }
+      return {
+        ...prev,
+        photoUrls: [...prev.photoUrls, ""],
+      };
+    });
   };
 
   const handlePhotoUrlChange = (index: number, value: string) => {
@@ -104,6 +110,17 @@ export default function DogsPage() {
       ...prev,
       photoUrls: prev.photoUrls.filter((_, i) => i !== index),
     }));
+  };
+
+  const handleSetFavoritePhoto = (index: number) => {
+    if (index === 0) return;
+    setFormData(prev => {
+      const newUrls = [...prev.photoUrls];
+      const [fav] = newUrls.splice(index, 1);
+      newUrls.unshift(fav);
+      return { ...prev, photoUrls: newUrls };
+    });
+    toast.success("Photo principale mise à jour!");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -264,34 +281,62 @@ export default function DogsPage() {
               </div>
 
               <div>
-                <Label className="mb-3 block">Photos du chien (URLs)</Label>
-                <div className="space-y-2">
+                <div className="flex justify-between items-center mb-3">
+                  <Label className="block">Photos du chien (3 max, la 1ère est la favorite ⭐)</Label>
+                  <span className="text-xs text-muted-foreground">{formData.photoUrls.length}/3</span>
+                </div>
+                <div className="space-y-3">
                   {formData.photoUrls.map((url, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        value={url}
-                        onChange={(e) => handlePhotoUrlChange(index, e.target.value)}
-                        placeholder="https://..."
-                      />
+                    <div key={index} className="flex gap-2 items-center">
+                      <Button
+                        type="button"
+                        variant={index === 0 ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleSetFavoritePhoto(index)}
+                        className={`h-10 px-3 border-2 border-black ${
+                          index === 0 
+                            ? "bg-yellow-400 text-black hover:bg-yellow-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+                            : "bg-white text-neutral-400 hover:text-black"
+                        }`}
+                        title={index === 0 ? "Photo favorite" : "Définir comme favorite"}
+                      >
+                        ★
+                      </Button>
+                      <div className="flex-1 relative">
+                        <Input
+                          value={url}
+                          onChange={(e) => handlePhotoUrlChange(index, e.target.value)}
+                          placeholder={index === 0 ? "URL de la photo principale (Favorite) *" : `URL de la photo ${index + 1}`}
+                          className={`pr-10 ${index === 0 ? "border-yellow-400 border-2" : ""}`}
+                        />
+                        {index === 0 && (
+                          <span className="absolute right-3 top-2.5 text-[9px] uppercase font-black tracking-wider text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded border border-yellow-300">
+                            Favori
+                          </span>
+                        )}
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => handleRemovePhotoUrl(index)}
+                        className="h-10 w-10 border-2 border-black hover:bg-red-100 text-red-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                       >
                         <Trash2 size={16} />
                       </Button>
                     </div>
                   ))}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleAddPhotoUrl}
-                  className="mt-2 w-full"
-                >
-                  + Ajouter une photo
-                </Button>
+                {formData.photoUrls.length < 3 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAddPhotoUrl}
+                    className="mt-3 w-full border-2 border-dashed border-black font-bold uppercase hover:bg-neutral-50"
+                  >
+                    + Ajouter une photo
+                  </Button>
+                )}
               </div>
 
               <div className="flex gap-4">

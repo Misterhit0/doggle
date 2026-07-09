@@ -82,6 +82,30 @@ describe("Compagnon tRPC Procedures", () => {
       }
     });
 
+    it("should reject dog profile creation with more than 3 photos", async () => {
+      const { ctx } = createAuthContext();
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        await caller.dog.createDog({
+          name: "Buddy",
+          breed: "Golden Retriever",
+          age: 3,
+          description: "A friendly golden retriever",
+          personality: ["Joueur"],
+          photoUrls: [
+            "https://example.com/1.jpg",
+            "https://example.com/2.jpg",
+            "https://example.com/3.jpg",
+            "https://example.com/4.jpg",
+          ],
+        });
+        throw new Error("Should have failed with validation error");
+      } catch (error: any) {
+        expect(error.message).toContain("have <=3 items");
+      }
+    });
+
     it("should get user's dogs", async () => {
       const { ctx } = createAuthContext();
       const caller = appRouter.createCaller(ctx);

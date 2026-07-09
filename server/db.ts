@@ -273,7 +273,22 @@ export async function getMatchesForUser(userId: number) {
       ORDER BY m.createdAt DESC
     `;
     const [rows] = await connection.execute(query, [userId, userId]);
-    return (rows as any[]) || [];
+    const matchesList = (rows as any[]) || [];
+
+    const withDogs = await Promise.all(
+      matchesList.map(async (match) => {
+        const isUser1 = Number(match.user1Id) === userId;
+        const otherUserId = isUser1 ? Number(match.user2Id) : Number(match.user1Id);
+        
+        const otherDogs = await getDogsByUserId(otherUserId);
+        
+        return {
+          ...match,
+          otherDog: otherDogs.length > 0 ? otherDogs[0] : null,
+        };
+      })
+    );
+    return withDogs;
   } catch (error) {
     console.error("[Database] Failed to get matches for user:", error);
     return [];

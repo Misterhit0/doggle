@@ -211,7 +211,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).optional(),
+          photoUrls: z.array(z.string().url()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -237,7 +237,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).optional(),
+          photoUrls: z.array(z.string().url()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
