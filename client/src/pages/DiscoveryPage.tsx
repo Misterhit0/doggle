@@ -137,8 +137,14 @@ export default function DiscoveryPage() {
   };
 
   const compatibility = useMemo(() => {
+    if (currentDuo?.compatibility) {
+      return currentDuo.compatibility;
+    }
     return getCompatibilityScore(currentDog, targetUser);
-  }, [myDog, currentDog, user, targetUser]);
+  }, [currentDuo, currentDog, targetUser, myDog, user]);
+
+  const affinities = currentDuo?.affinities || [];
+
 
   if (isLoading) {
     return (
@@ -337,6 +343,25 @@ export default function DiscoveryPage() {
                         <p className="text-xs text-foreground/80 font-medium line-clamp-2 mb-3 bg-muted/30 p-2 rounded border border-black/5">
                           "{currentDog.description}"
                         </p>
+                      )}
+
+                      {/* Affinities (Atomes crochus) */}
+                      {affinities && affinities.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-wider mb-1 leading-none">
+                            Atomes crochus
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {affinities.map((aff: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 border border-black bg-yellow-100 text-yellow-900 rounded text-[9px] font-black uppercase shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1"
+                              >
+                                {aff}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {/* Dog Traits tags */}
