@@ -8,7 +8,19 @@ import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Star, Dog, Camera } from "lucide-react";
+
+// Helper to safely parse JSON fields
+function parsePhotoUrls(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(raw); } catch { return []; }
+}
+function parsePersonality(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(raw); } catch { return []; }
+}
 
 export default function DogsPage() {
   const { user } = useAuth();
@@ -23,14 +35,7 @@ export default function DogsPage() {
     onSuccess: () => {
       toast.success("Chien créé avec succès!");
       setIsCreating(false);
-      setFormData({
-        name: "",
-        breed: "",
-        age: "",
-        description: "",
-        personality: [],
-        photoUrls: [],
-      });
+      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
       refetch();
     },
     onError: (error) => {
@@ -43,14 +48,7 @@ export default function DogsPage() {
     onSuccess: () => {
       toast.success("Chien mis à jour avec succès!");
       setEditingDogId(null);
-      setFormData({
-        name: "",
-        breed: "",
-        age: "",
-        description: "",
-        personality: [],
-        photoUrls: [],
-      });
+      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
       refetch();
     },
     onError: (error) => {
@@ -70,10 +68,7 @@ export default function DogsPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handlePersonalityToggle = (trait: string) => {
@@ -91,10 +86,7 @@ export default function DogsPage() {
         toast.error("Vous pouvez ajouter jusqu'à 3 photos maximum.");
         return prev;
       }
-      return {
-        ...prev,
-        photoUrls: [...prev.photoUrls, ""],
-      };
+      return { ...prev, photoUrls: [...prev.photoUrls, ""] };
     });
   };
 
@@ -125,12 +117,10 @@ export default function DogsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!formData.name.trim()) {
       toast.error("Le nom du chien est obligatoire");
       return;
     }
-
     const payload = {
       name: formData.name,
       breed: formData.breed || undefined,
@@ -139,12 +129,8 @@ export default function DogsPage() {
       personality: formData.personality.length > 0 ? formData.personality : undefined,
       photoUrls: formData.photoUrls.filter(url => url.trim()).length > 0 ? formData.photoUrls.filter(url => url.trim()) : undefined,
     };
-
     if (editingDogId) {
-      await updateDogMutation.mutateAsync({
-        dogId: editingDogId,
-        ...payload,
-      });
+      await updateDogMutation.mutateAsync({ dogId: editingDogId, ...payload });
     } else {
       await createDogMutation.mutateAsync(payload);
     }
@@ -157,22 +143,15 @@ export default function DogsPage() {
       breed: dog.breed || "",
       age: dog.age?.toString() || "",
       description: dog.description || "",
-      personality: dog.personality && typeof dog.personality === 'string' ? JSON.parse(dog.personality) : [],
-      photoUrls: dog.photoUrls && typeof dog.photoUrls === 'string' ? JSON.parse(dog.photoUrls) : [],
+      personality: parsePersonality(dog.personality),
+      photoUrls: parsePhotoUrls(dog.photoUrls),
     });
   };
 
   const cancelEdit = () => {
     setEditingDogId(null);
     setIsCreating(false);
-    setFormData({
-      name: "",
-      breed: "",
-      age: "",
-      description: "",
-      personality: [],
-      photoUrls: [],
-    });
+    setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
   };
 
   if (isLoading) {
@@ -186,6 +165,7 @@ export default function DogsPage() {
   return (
     <div className="min-h-screen bg-background py-12">
       <div className="container max-w-4xl">
+        {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold uppercase text-foreground mb-2">Mes Chiens</h1>
@@ -194,7 +174,7 @@ export default function DogsPage() {
           {!isCreating && editingDogId === null && (
             <Button
               onClick={() => setIsCreating(true)}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] transition-all"
             >
               <Plus size={20} />
               Ajouter un chien
@@ -204,7 +184,7 @@ export default function DogsPage() {
 
         {/* Form for creating/editing dog */}
         {(isCreating || editingDogId !== null) && (
-          <Card className="p-8 mb-8">
+          <Card className="p-8 mb-8 border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-2xl font-bold uppercase text-foreground mb-6">
               {editingDogId ? "Modifier le chien" : "Ajouter un nouveau chien"}
             </h2>
@@ -212,52 +192,22 @@ export default function DogsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="name">Nom du chien *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Nom du chien"
-                    required
-                  />
+                  <Input id="name" name="name" value={formData.name} onChange={handleInputChange} placeholder="Nom du chien" required />
                 </div>
                 <div>
                   <Label htmlFor="breed">Race</Label>
-                  <Input
-                    id="breed"
-                    name="breed"
-                    value={formData.breed}
-                    onChange={handleInputChange}
-                    placeholder="ex: Labrador"
-                  />
+                  <Input id="breed" name="breed" value={formData.breed} onChange={handleInputChange} placeholder="ex: Labrador" />
                 </div>
               </div>
 
               <div>
                 <Label htmlFor="age">Âge (années)</Label>
-                <Input
-                  id="age"
-                  name="age"
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={formData.age}
-                  onChange={handleInputChange}
-                  placeholder="Âge du chien"
-                />
+                <Input id="age" name="age" type="number" min="0" max="50" value={formData.age} onChange={handleInputChange} placeholder="Âge du chien" />
               </div>
 
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Décrivez votre chien..."
-                  maxLength={500}
-                  rows={4}
-                />
+                <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} placeholder="Décrivez votre chien..." maxLength={500} rows={4} />
               </div>
 
               <div>
@@ -272,9 +222,7 @@ export default function DogsPage() {
                         onChange={() => handlePersonalityToggle(trait)}
                         className="rounded"
                       />
-                      <label htmlFor={`trait-${trait}`} className="text-sm cursor-pointer">
-                        {trait}
-                      </label>
+                      <label htmlFor={`trait-${trait}`} className="text-sm cursor-pointer">{trait}</label>
                     </div>
                   ))}
                 </div>
@@ -294,8 +242,8 @@ export default function DogsPage() {
                         size="sm"
                         onClick={() => handleSetFavoritePhoto(index)}
                         className={`h-10 px-3 border-2 border-black ${
-                          index === 0 
-                            ? "bg-yellow-400 text-black hover:bg-yellow-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+                          index === 0
+                            ? "bg-yellow-400 text-black hover:bg-yellow-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                             : "bg-white text-neutral-400 hover:text-black"
                         }`}
                         title={index === 0 ? "Photo favorite" : "Définir comme favorite"}
@@ -332,8 +280,9 @@ export default function DogsPage() {
                     type="button"
                     variant="outline"
                     onClick={handleAddPhotoUrl}
-                    className="mt-3 w-full border-2 border-dashed border-black font-bold uppercase hover:bg-neutral-50"
+                    className="mt-3 w-full border-2 border-dashed border-black font-bold uppercase hover:bg-neutral-50 gap-2"
                   >
+                    <Camera size={16} />
                     + Ajouter une photo
                   </Button>
                 )}
@@ -343,16 +292,11 @@ export default function DogsPage() {
                 <Button
                   type="submit"
                   disabled={createDogMutation.isPending || updateDogMutation.isPending}
-                  className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase"
+                  className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
                 >
                   {createDogMutation.isPending || updateDogMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={cancelEdit}
-                  className="flex-1"
-                >
+                <Button type="button" variant="outline" onClick={cancelEdit} className="flex-1 border-2 border-black">
                   Annuler
                 </Button>
               </div>
@@ -360,66 +304,132 @@ export default function DogsPage() {
           </Card>
         )}
 
-        {/* Dogs list */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Dogs list — Tinder-style cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {dogs && dogs.length > 0 ? (
-            dogs.map((dog: any) => (
-              <Card key={dog.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="mb-4">
-                  <h3 className="text-2xl font-bold uppercase text-foreground">{dog.name}</h3>
-                  {dog.breed && <p className="text-sm text-muted-foreground">{dog.breed}</p>}
-                </div>
+            dogs.map((dog: any) => {
+              const photos = parsePhotoUrls(dog.photoUrls);
+              const personality = parsePersonality(dog.personality);
+              const favoritePhoto = photos[0] || null;
 
-                {dog.photoUrls && typeof dog.photoUrls === 'string' && JSON.parse(dog.photoUrls).length > 0 && (
-                  <div className="mb-4 rounded-lg overflow-hidden h-48 bg-muted">
-                    <img
-                      src={JSON.parse(dog.photoUrls)[0]}
-                      alt={dog.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-
-                {dog.description && (
-                  <p className="text-sm text-foreground mb-3">{dog.description}</p>
-                )}
-
-                {dog.age && (
-                  <p className="text-sm text-muted-foreground mb-3">Âge : {dog.age} ans</p>
-                )}
-
-                {dog.personality && typeof dog.personality === 'string' && JSON.parse(dog.personality).length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {JSON.parse(dog.personality).map((trait: string) => (
-                      <span key={trait} className="px-2 py-1 bg-accent/20 text-accent rounded text-xs font-semibold">
-                        {trait}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => startEdit(dog)}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-2"
+              return (
+                <div key={dog.id} className="group">
+                  {/* Tinder-style dog card */}
+                  <div
+                    className="relative h-[420px] rounded-2xl overflow-hidden border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                    style={{ borderWidth: '3px' }}
                   >
-                    <Edit2 size={16} />
-                    Modifier
-                  </Button>
+                    {/* Background photo or placeholder */}
+                    {favoritePhoto ? (
+                      <img
+                        src={favoritePhoto}
+                        alt={dog.name}
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const placeholder = parent.querySelector('.photo-placeholder') as HTMLElement;
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }
+                        }}
+                      />
+                    ) : null}
+
+                    {/* No photo placeholder */}
+                    <div
+                      className="photo-placeholder absolute inset-0 bg-gradient-to-br from-amber-100 to-orange-200 flex flex-col items-center justify-center"
+                      style={{ display: favoritePhoto ? 'none' : 'flex' }}
+                    >
+                      <Dog size={64} className="text-amber-400 mb-2" />
+                      <span className="text-amber-600 font-bold text-sm uppercase tracking-wider">Pas de photo</span>
+                    </div>
+
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+
+                    {/* Favorite star badge */}
+                    {photos.length > 0 && (
+                      <div className="absolute top-3 left-3 flex items-center gap-1 bg-yellow-400 text-black text-xs font-black px-2 py-1 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        <Star size={10} fill="black" />
+                        Photo favorite
+                      </div>
+                    )}
+
+                    {/* Photos count badge */}
+                    {photos.length > 1 && (
+                      <div className="absolute top-3 right-3 bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-full border border-white/30">
+                        {photos.length} 📷
+                      </div>
+                    )}
+
+                    {/* Dog info overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+                      <div className="flex items-end justify-between mb-2">
+                        <div>
+                          <h3 className="text-3xl font-black tracking-tight drop-shadow-lg">{dog.name}</h3>
+                          <p className="text-sm font-semibold text-white/90 drop-shadow">
+                            {[dog.breed, dog.age ? `${dog.age} ans` : null].filter(Boolean).join(" • ")}
+                          </p>
+                        </div>
+                      </div>
+
+                      {dog.description && (
+                        <p className="text-xs text-white/80 mb-3 line-clamp-2 leading-relaxed">{dog.description}</p>
+                      )}
+
+                      {personality.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                          {personality.slice(0, 3).map((trait: string) => (
+                            <span
+                              key={trait}
+                              className="px-2 py-0.5 bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold rounded-full border border-white/40"
+                            >
+                              {trait}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => startEdit(dog)}
+                          size="sm"
+                          className="flex-1 gap-2 bg-white text-black hover:bg-white/90 font-bold uppercase border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all text-xs"
+                        >
+                          <Edit2 size={14} />
+                          Modifier
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thumbnail strip for additional photos */}
+                  {photos.length > 1 && (
+                    <div className="flex gap-2 mt-2 px-1">
+                      {photos.slice(1).map((url: string, idx: number) => (
+                        <div key={idx} className="w-16 h-16 rounded-lg overflow-hidden border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex-shrink-0">
+                          <img
+                            src={url}
+                            alt={`${dog.name} photo ${idx + 2}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </Card>
-            ))
+              );
+            })
           ) : (
-            <div className="col-span-full text-center py-12">
-              <p className="text-muted-foreground mb-4">Aucun chien pour le moment</p>
+            <div className="col-span-full text-center py-20">
+              <Dog size={64} className="mx-auto mb-4 text-muted-foreground/30" />
+              <p className="text-muted-foreground mb-4 text-lg font-semibold">Aucun chien pour le moment</p>
               <Button
                 onClick={() => setIsCreating(true)}
-                className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase"
+                className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
               >
                 Ajouter votre premier chien
               </Button>
