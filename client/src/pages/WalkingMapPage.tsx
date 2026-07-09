@@ -10,12 +10,14 @@ import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, S
 import { toast } from 'sonner';
 import WalkingMapFilters from '@/components/WalkingMapFilters';
 import { createDogMarkerIcon, getDefaultMarkerIcon } from '@/lib/dogMarkerUtils';
+import maplibregl from 'maplibre-gl';
 
 export default function WalkingMapPage() {
   const { user } = useAuth();
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
-  const [homeMarker, setHomeMarker] = useState<google.maps.Marker | null>(null);
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  const [markers, setMarkers] = useState<maplibregl.Marker[]>([]);
+  const [userMarker, setUserMarker] = useState<maplibregl.Marker | null>(null);
+  const [homeMarker, setHomeMarker] = useState<maplibregl.Marker | null>(null);
   const [settingHome, setSettingHome] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -71,12 +73,12 @@ export default function WalkingMapPage() {
     if (!map || !activeWalkers) return;
 
     // Clear old markers
-    markers.forEach(marker => marker.setMap(null));
+    markers.forEach(marker => marker.remove());
     setMarkers([]);
 
     // Create markers with dog photos
     const createMarkersWithPhotos = async () => {
-      const newMarkers: google.maps.Marker[] = [];
+      const newMarkers: maplibregl.Marker[] = [];
 
       for (const walker of filteredWalkers) {
         if (!walker.latitude || !walker.longitude) continue;
@@ -86,7 +88,7 @@ export default function WalkingMapPage() {
         const photoUrl = photoUrls?.[0] || undefined;
         const markerId = `${walker.id}-${walker.dogs?.[0]?.id}`;
 
-        // Get or create marker icon
+        // Get or create marker icon DataURL
         let iconUrl = markerIconsRef.current.get(markerId);
         if (!iconUrl) {
           try {
@@ -103,32 +105,29 @@ export default function WalkingMapPage() {
           }
         }
 
-        const marker = new google.maps.Marker({
-          position: { lat: walker.latitude, lng: walker.longitude },
-          map,
-          title: `${walker.name || 'Maître'} (${dogName})`,
-          icon: {
-            url: iconUrl,
-            scaledSize: new google.maps.Size(50, 50),
-            origin: new google.maps.Point(0, 0),
-            anchor: new google.maps.Point(25, 25),
-          },
-        });
+        // Create DOM element for MapLibre Marker
+        const el = document.createElement("div");
+        el.className = "cursor-pointer hover:scale-110 transition-transform";
+        el.style.width = "50px";
+        el.style.height = "50px";
+        el.style.backgroundImage = `url(${iconUrl})`;
+        el.style.backgroundSize = "contain";
+        el.style.backgroundPosition = "center";
+        el.style.backgroundRepeat = "no-repeat";
 
-        // Add info window
-        const infoWindow = new google.maps.InfoWindow({
-          content: `
-            <div class="p-2">
-              <h3 class="font-bold">${walker.name || 'Maître'}</h3>
-              <p class="text-sm">${dogName}</p>
-              <p class="text-xs text-gray-600">${walker.age || '?'} ans</p>
-            </div>
-          `,
-        });
+        // Info popup
+        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+          <div class="p-2 text-black">
+            <h3 class="font-bold">${walker.name || 'Maître'}</h3>
+            <p class="text-sm">${dogName}</p>
+            <p class="text-xs text-gray-600">${walker.age || '?'} ans</p>
+          </div>
+        `);
 
-        marker.addListener('click', () => {
-          infoWindow.open(map, marker);
-        });
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([walker.longitude, walker.latitude])
+          .setPopup(popup)
+          .addTo(map);
 
         newMarkers.push(marker);
       }
@@ -137,83 +136,121 @@ export default function WalkingMapPage() {
     };
 
     createMarkersWithPhotos();
-  }, [map, filteredWalkers]);
+  }, [map, filteredWalkers, activeWalkers]);
 
   // Add current user marker
   useEffect(() => {
     if (!map || !currentLat || !currentLon) return;
 
-    const userMarker = new google.maps.Marker({
-      position: { lat: currentLat, lng: currentLon },
-      map,
-      title: 'Vous',
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#4F46E5',
-        fillOpacity: 0.9,
-        strokeColor: '#312E81',
-        strokeWeight: 2,
-      },
-    });
+    if (userMarker) userMarker.remove();
 
-    return () => userMarker.setMap(null);
+    const el = document.createElement("div");
+    el.className = "w-5 h-5 bg-indigo-600 rounded-full border-2 border-white ring-4 ring-indigo-900/30 animate-pulse shadow-md";
+
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat([currentLon, currentLat])
+      .addTo(map);
+
+    setUserMarker(marker);
+
+    return () => {
+      marker.remove();
+    };
   }, [map, currentLat, currentLon]);
 
-  // Add home marker
+  // Helper to create GeoJSON circle geometry (for privacy circle)
+  const createGeoJSONCircle = (center: [number, number], radiusInKm: number, points: number = 64) => {
+    const coords = {
+      latitude: center[1],
+      longitude: center[0]
+    };
+
+    const km = radiusInKm;
+    const ret: [number, number][] = [];
+    const distanceX = km / (111.32 * Math.cos((coords.latitude * Math.PI) / 180));
+    const distanceY = km / 110.57;
+
+    for (let i = 0; i < points; i++) {
+      const theta = (i / points) * (2 * Math.PI);
+      const x = distanceX * Math.cos(theta);
+      const y = distanceY * Math.sin(theta);
+      ret.push([coords.longitude + x, coords.latitude + y]);
+    }
+    ret.push(ret[0]); // close the loop
+
+    return {
+      type: "Feature" as const,
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [ret]
+      },
+      properties: {}
+    };
+  };
+
+  // Add home marker & privacy circle
   useEffect(() => {
     if (!map || !homeLat || !homeLon) return;
 
-    if (homeMarker) homeMarker.setMap(null);
+    if (homeMarker) homeMarker.remove();
 
-    const newHomeMarker = new google.maps.Marker({
-      position: { lat: homeLat, lng: homeLon },
-      map,
-      title: 'Domicile',
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 8,
-        fillColor: '#10B981',
-        fillOpacity: 0.7,
-        strokeColor: '#047857',
-        strokeWeight: 2,
-      },
-    });
+    // Create home pin DOM element
+    const el = document.createElement("div");
+    el.className = "w-4 h-4 bg-emerald-500 rounded-full border-2 border-white ring-2 ring-emerald-900/20 shadow-md";
 
-    // Draw privacy radius circle
-    const circle = new google.maps.Circle({
-      center: { lat: homeLat, lng: homeLon },
-      radius: 200, // 200 meters
-      map,
-      fillColor: '#10B981',
-      fillOpacity: 0.1,
-      strokeColor: '#10B981',
-      strokeOpacity: 0.3,
-      strokeWeight: 1,
-    });
+    const newHomeMarker = new maplibregl.Marker({ element: el })
+      .setLngLat([homeLon, homeLat])
+      .addTo(map);
 
     setHomeMarker(newHomeMarker);
 
+    // Draw Privacy zone circle in MapLibre GL layer
+    const sourceId = "privacy-zone-source";
+    const layerId = "privacy-zone-layer";
+    const fillLayerId = "privacy-zone-fill";
+
+    // Add source and layers
+    const circleData = createGeoJSONCircle([homeLon, homeLat], 0.2); // 200 meters = 0.2 km
+
+    map.addSource(sourceId, {
+      type: "geojson",
+      data: circleData
+    });
+
+    map.addLayer({
+      id: fillLayerId,
+      type: "fill",
+      source: sourceId,
+      paint: {
+        "fill-color": "#10B981",
+        "fill-opacity": 0.1
+      }
+    });
+
+    map.addLayer({
+      id: layerId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": "#10B981",
+        "line-opacity": 0.3,
+        "line-width": 1.5
+      }
+    });
+
     return () => {
-      newHomeMarker.setMap(null);
-      circle.setMap(null);
+      newHomeMarker.remove();
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
   }, [map, homeLat, homeLon]);
 
   // Center map on current location
   useEffect(() => {
     if (!map || !currentLat || !currentLon) return;
-    map.setCenter({ lat: currentLat, lng: currentLon });
+    map.setCenter([currentLon, currentLat]);
   }, [map, currentLat, currentLon]);
-
-  // Handle setting home location by clicking on map
-  const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (!settingHome || !e.latLng) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    setHomeLocation(lat, lng);
-    setSettingHome(false);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -254,21 +291,7 @@ export default function WalkingMapPage() {
 
       <div className="h-screen flex flex-col">
         {/* Map */}
-        <div className="flex-1 relative" onClick={(e) => {
-          if (settingHome && map) {
-            const bounds = map.getBounds();
-            if (bounds) {
-              const ne = bounds.getNorthEast();
-              const sw = bounds.getSouthWest();
-              const latRange = ne.lat() - sw.lat();
-              const lngRange = ne.lng() - sw.lng();
-              const clickLat = sw.lat() + (latRange * (e.clientY / (e.currentTarget as HTMLElement).offsetHeight));
-              const clickLng = sw.lng() + (lngRange * (e.clientX / (e.currentTarget as HTMLElement).offsetWidth));
-              setHomeLocation(clickLat, clickLng);
-              setSettingHome(false);
-            }
-          }
-        }}>
+        <div className="flex-1 relative">
           {/* Filters Panel */}
           <WalkingMapFilters
             isOpen={filtersOpen}
@@ -277,12 +300,22 @@ export default function WalkingMapPage() {
           />
 
           <MapView
-            onMapReady={(mapInstance: google.maps.Map) => {
+            onMapReady={(mapInstance: maplibregl.Map) => {
               setMap(mapInstance);
               if (currentLat && currentLon) {
-                mapInstance.setCenter({ lat: currentLat, lng: currentLon });
+                mapInstance.setCenter([currentLon, currentLat]);
                 mapInstance.setZoom(15);
               }
+
+              // Handle setting home click
+              mapInstance.on("click", (e) => {
+                // If setting home mode is active
+                if (settingHome) {
+                  const { lat, lng } = e.lngLat;
+                  setHomeLocation(lat, lng);
+                  setSettingHome(false);
+                }
+              });
             }}
             className="w-full h-full"
           />

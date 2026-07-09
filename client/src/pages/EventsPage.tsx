@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, Users, Plus, Map } from "lucide-react";
 import { toast } from "sonner";
 import { MapView } from "@/components/Map";
+import maplibregl from "maplibre-gl";
 
 const EVENT_TYPES = [
   "Dressage canin",
@@ -65,9 +66,8 @@ export default function EventsPage() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [selectedEventType, setSelectedEventType] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -102,12 +102,10 @@ export default function EventsPage() {
     if (!map || !nearbyEvents || !Array.isArray(nearbyEvents)) return;
 
     // Clear existing markers
-    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    // Close any open info window
-    if (infoWindowRef.current) infoWindowRef.current.close();
-    infoWindowRef.current = new google.maps.InfoWindow();
+    const bounds = new maplibregl.LngLatBounds();
 
     (nearbyEvents as any[]).forEach((event) => {
       if (!event.latitude || !event.longitude) return;
@@ -121,78 +119,68 @@ export default function EventsPage() {
         minute: "2-digit",
       });
 
-      const marker = new google.maps.Marker({
-        position: { lat: Number(event.latitude), lng: Number(event.longitude) },
-        map,
-        title: event.title,
-        label: {
-          text: icon,
-          fontSize: "20px",
-        },
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 18,
-          fillColor: "#f59e0b",
-          fillOpacity: 1,
-          strokeColor: "#000000",
-          strokeWeight: 2,
-        },
-      });
+      // Create beautiful custom DOM Element for the marker (retro Memphis styled)
+      const el = document.createElement("div");
+      el.className = "flex items-center justify-center bg-amber-500 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform cursor-pointer";
+      el.style.width = "38px";
+      el.style.height = "38px";
+      el.style.fontSize = "20px";
+      el.innerText = icon;
 
-      marker.addListener("click", () => {
-        infoWindowRef.current?.setContent(`
-          <div style="font-family: sans-serif; max-width: 220px; padding: 4px;">
-            <div style="font-size: 18px; margin-bottom: 4px;">${icon}</div>
-            <h3 style="font-weight: 900; font-size: 14px; margin: 0 0 4px 0; text-transform: uppercase;">${event.title}</h3>
-            <p style="font-size: 11px; color: #666; margin: 0 0 6px 0;">${event.eventType}</p>
-            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
-              <span style="font-size: 11px;">📅 ${eventDate}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <span style="font-size: 11px;">📍 ${event.location}</span>
-            </div>
+      // Define Popup
+      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+        <div style="font-family: sans-serif; max-width: 220px; padding: 4px;">
+          <div style="font-size: 18px; margin-bottom: 4px;">${icon}</div>
+          <h3 style="font-weight: 900; font-size: 14px; margin: 0 0 4px 0; text-transform: uppercase; color: #000;">${event.title}</h3>
+          <p style="font-size: 11px; color: #666; margin: 0 0 6px 0;">${event.eventType}</p>
+          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 11px;">
+            <span>📅 ${eventDate}</span>
           </div>
-        `);
-        infoWindowRef.current?.open(map, marker);
-      });
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 11px;">
+            <span>📍 ${event.location}</span>
+          </div>
+        </div>
+      `);
+
+      // Add to map
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([Number(event.longitude), Number(event.latitude)])
+        .setPopup(popup)
+        .addTo(map);
 
       markersRef.current.push(marker);
+      bounds.extend([Number(event.longitude), Number(event.latitude)]);
     });
 
     // Fit map to markers
     if (markersRef.current.length > 0) {
-      const bounds = new google.maps.LatLngBounds();
-      markersRef.current.forEach(m => {
-        const pos = m.getPosition();
-        if (pos) bounds.extend(pos);
-      });
-      if (latitude && longitude) bounds.extend({ lat: latitude, lng: longitude });
-      map.fitBounds(bounds);
+      if (longitude && latitude) {
+        bounds.extend([longitude, latitude]);
+      }
+      map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
     }
-  }, [map, nearbyEvents]);
+  }, [map, nearbyEvents, latitude, longitude]);
 
-  // Center map on user when available
+  // Handle user position marker
   useEffect(() => {
     if (!map || !latitude || !longitude) return;
+
+    // Create user marker element
+    const el = document.createElement("div");
+    el.className = "w-4 h-4 bg-indigo-600 rounded-full border-2 border-white ring-2 ring-indigo-900 ring-offset-1 animate-pulse";
+
+    const userMarker = new maplibregl.Marker({ element: el })
+      .setLngLat([longitude, latitude])
+      .addTo(map);
+
     if (markersRef.current.length === 0) {
-      map.setCenter({ lat: latitude, lng: longitude });
+      map.setCenter([longitude, latitude]);
       map.setZoom(13);
     }
 
-    // Add user position marker
-    new google.maps.Marker({
-      position: { lat: latitude, lng: longitude },
-      map,
-      title: "Vous êtes ici",
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 9,
-        fillColor: "#6366f1",
-        fillOpacity: 1,
-        strokeColor: "#312E81",
-        strokeWeight: 2,
-      },
-    });
+    return () => {
+      userMarker.remove();
+    };
   }, [map, latitude, longitude]);
 
   const handleCreateEvent = async () => {
@@ -285,7 +273,7 @@ export default function EventsPage() {
             onMapReady={(mapInstance) => {
               setMap(mapInstance);
               if (latitude && longitude) {
-                mapInstance.setCenter({ lat: latitude, lng: longitude });
+                mapInstance.setCenter([longitude, latitude]);
                 mapInstance.setZoom(13);
               }
             }}

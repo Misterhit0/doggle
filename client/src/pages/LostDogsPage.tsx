@@ -11,8 +11,9 @@ import { AlertCircle, MapPin, Phone, Heart, Plus, Clock, AlertTriangle, Eye, Sea
 import { toast } from "sonner";
 import MemphisBackground from "@/components/MemphisBackground";
 import { MapView } from "@/components/Map";
+import maplibregl from "maplibre-gl";
 
-// ── Mini map component with click-to-pin + address search ──────────────────
+// ── Mini map component with MapLibre & Nominatim (OSM) Geocoding ───────────
 interface LocationPickerMapProps {
   onLocationPicked: (lat: number, lng: number, address: string) => void;
   initialLat?: number | null;
@@ -21,100 +22,145 @@ interface LocationPickerMapProps {
 }
 
 function LocationPickerMap({ onLocationPicked, initialLat, initialLng, label }: LocationPickerMapProps) {
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [marker, setMarker] = useState<google.maps.Marker | null>(null);
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  const [marker, setMarker] = useState<maplibregl.Marker | null>(null);
   const [pickedAddress, setPickedAddress] = useState<string>("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Init Places Autocomplete on the search input
-  const initAutocomplete = useCallback((mapInstance: google.maps.Map) => {
-    if (!searchInputRef.current || !window.google) return;
-    try {
-      autocompleteRef.current = new google.maps.places.Autocomplete(searchInputRef.current, {
-        types: ["geocode"],
-        componentRestrictions: { country: "fr" },
-      });
-      autocompleteRef.current.addListener("place_changed", () => {
-        const place = autocompleteRef.current?.getPlace();
-        if (!place?.geometry?.location) return;
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        const address = place.formatted_address || place.name || "";
-        mapInstance.setCenter({ lat, lng });
-        mapInstance.setZoom(16);
-        placeMarker(mapInstance, lat, lng, address);
-      });
-    } catch (e) {
-      console.warn("[LocationPickerMap] Autocomplete init failed:", e);
+  // Address search using Nominatim (OpenStreetMap Geocoding API)
+  const handleAddressSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
     }
-  }, []);
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=fr&limit=5`
+      );
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (e) {
+      console.error("Geocoding failed:", e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
-  function placeMarker(mapInstance: google.maps.Map, lat: number, lng: number, address: string) {
-    // Remove previous marker
+  // Debounced search trigger
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        handleAddressSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const selectSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    const address = result.display_name;
+
+    setSearchQuery(address);
+    setSearchResults([]);
+
+    if (map) {
+      map.setCenter([lon, lat]);
+      map.setZoom(16);
+      placeMarkerOnMap(map, lat, lon, address);
+    }
+  };
+
+  const placeMarkerOnMap = (mapInstance: maplibregl.Map, lat: number, lng: number, address: string) => {
     setMarker(prev => {
-      if (prev) prev.setMap(null);
-      const newMarker = new google.maps.Marker({
-        position: { lat, lng },
-        map: mapInstance,
-        title: "Lieu sélectionné",
-        animation: google.maps.Animation.DROP,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 14,
-          fillColor: "#ef4444",
-          fillOpacity: 1,
-          strokeColor: "#7f1d1d",
-          strokeWeight: 2,
-        },
-      });
+      if (prev) prev.remove();
+
+      // Create a nice retro pin element
+      const el = document.createElement("div");
+      el.className = "w-6 h-6 bg-red-600 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ring-4 ring-red-500/30 animate-bounce";
+
+      const newMarker = new maplibregl.Marker({ element: el })
+        .setLngLat([lng, lat])
+        .addTo(mapInstance);
+
       return newMarker;
     });
+
     setPickedAddress(address);
     onLocationPicked(lat, lng, address);
-    if (searchInputRef.current && address) {
-      searchInputRef.current.value = address;
+  };
+
+  const handleReverseGeocode = async (mapInstance: maplibregl.Map, lat: number, lng: number) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      const data = await res.json();
+      const address = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      placeMarkerOnMap(mapInstance, lat, lng, address);
+      setSearchQuery(address);
+    } catch (e) {
+      const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      placeMarkerOnMap(mapInstance, lat, lng, fallback);
+      setSearchQuery(fallback);
     }
-  }
+  };
 
-  function handleMapClick(mapInstance: google.maps.Map, lat: number, lng: number) {
-    // Reverse geocode the click
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      const address = status === "OK" && results?.[0]
-        ? results[0].formatted_address
-        : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      placeMarker(mapInstance, lat, lng, address);
-    });
-  }
-
-  const handleMapReady = useCallback((mapInstance: google.maps.Map) => {
+  const handleMapReady = useCallback((mapInstance: maplibregl.Map) => {
     setMap(mapInstance);
-    initAutocomplete(mapInstance);
 
-    // Add click listener
-    mapInstance.addListener("click", (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      handleMapClick(mapInstance, lat, lng);
+    // Initial marker if coordinates exist
+    if (initialLat && initialLng) {
+      handleReverseGeocode(mapInstance, initialLat, initialLng);
+    }
+
+    // Add click event for placing pins
+    mapInstance.on("click", (e) => {
+      const { lat, lng } = e.lngLat;
+      handleReverseGeocode(mapInstance, lat, lng);
     });
-  }, [initAutocomplete]);
+  }, [initialLat, initialLng]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 relative">
       {/* Address search input */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-3 text-muted-foreground" />
         <input
-          ref={searchInputRef}
           type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Rechercher une adresse..."
-          className="w-full pl-9 pr-4 py-2.5 border-2 border-black rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          className="w-full pl-9 pr-4 py-2.5 border-2 border-black rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white text-black"
         />
+        {isSearching && (
+          <span className="absolute right-3 top-3.5 text-xs text-muted-foreground animate-pulse">Recherche...</span>
+        )}
       </div>
 
-      {/* Map */}
+      {/* Search results dropdown */}
+      {searchResults.length > 0 && (
+        <div className="absolute left-0 right-0 z-50 bg-white border-2 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-h-48 overflow-y-auto divide-y divide-gray-100">
+          {searchResults.map((res, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => selectSearchResult(res)}
+              className="w-full text-left px-3 py-2 text-xs font-semibold hover:bg-yellow-50 text-black flex items-start gap-2"
+            >
+              <MapPin size={12} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <span>{res.display_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Map container */}
       <div className="rounded-xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] relative">
         <div className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 flex items-center gap-2">
           <Navigation size={12} />
@@ -186,8 +232,8 @@ export default function LostDogsPage() {
   }, []);
 
   // Map for showing all lost dogs
-  const [listMap, setListMap] = useState<google.maps.Map | null>(null);
-  const listMarkersRef = useRef<google.maps.Marker[]>([]);
+  const [listMap, setListMap] = useState<maplibregl.Map | null>(null);
+  const listMarkersRef = useRef<maplibregl.Marker[]>([]);
 
   const reportLostDogMutation = trpc.lostDogs.reportLostDog.useMutation();
   const reportSightingMutation = trpc.lostDogs.reportSighting.useMutation();
@@ -204,53 +250,54 @@ export default function LostDogsPage() {
   // Place markers for lost dogs on the overview map
   useEffect(() => {
     if (!listMap || !nearbyLostDogs || !Array.isArray(nearbyLostDogs)) return;
-    listMarkersRef.current.forEach(m => m.setMap(null));
+
+    // Clear old markers
+    listMarkersRef.current.forEach(m => m.remove());
     listMarkersRef.current = [];
 
-    const infoWindow = new google.maps.InfoWindow();
+    const bounds = new maplibregl.LngLatBounds();
 
     (nearbyLostDogs as any[]).forEach((dog) => {
       if (!dog.latitude || !dog.longitude) return;
+
       const lostDate = new Date(dog.lostDate).toLocaleDateString("fr-FR", {
         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
       });
-      const marker = new google.maps.Marker({
-        position: { lat: Number(dog.latitude), lng: Number(dog.longitude) },
-        map: listMap,
-        title: dog.name,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 16,
-          fillColor: "#ef4444",
-          fillOpacity: 0.9,
-          strokeColor: "#7f1d1d",
-          strokeWeight: 2,
-        },
-        label: { text: "🐕", fontSize: "14px" },
-      });
-      marker.addListener("click", () => {
-        infoWindow.setContent(`
-          <div style="font-family: sans-serif; max-width: 200px; padding: 4px;">
-            <h3 style="font-weight: 900; font-size: 14px; color: #dc2626; margin: 0 0 3px 0;">${dog.name}</h3>
-            <p style="font-size: 11px; color: #666; margin: 0 0 4px 0;">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
-            <p style="font-size: 11px; margin: 0 0 3px 0;">📅 Perdu le ${lostDate}</p>
-            <p style="font-size: 11px; margin: 0;">📍 ${dog.lostLocation}</p>
-            ${dog.reward ? `<p style="font-size: 11px; font-weight: 900; color: #dc2626; margin: 4px 0 0 0;">💰 Récompense</p>` : ""}
-          </div>
-        `);
-        infoWindow.open(listMap, marker);
-      });
+
+      // Custom marker DOM element
+      const el = document.createElement("div");
+      el.className = "flex items-center justify-center bg-red-500 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform cursor-pointer";
+      el.style.width = "34px";
+      el.style.height = "34px";
+      el.style.fontSize = "16px";
+      el.innerText = "🐕";
+
+      // Popup
+      const popup = new maplibregl.Popup({ offset: 20 }).setHTML(`
+        <div style="font-family: sans-serif; max-width: 200px; padding: 4px;">
+          <h3 style="font-weight: 900; font-size: 14px; color: #dc2626; margin: 0 0 3px 0; text-transform: uppercase;">${dog.name}</h3>
+          <p style="font-size: 11px; color: #666; margin: 0 0 4px 0;">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
+          <p style="font-size: 11px; margin: 0 0 3px 0;">📅 Perdu le ${lostDate}</p>
+          <p style="font-size: 11px; margin: 0;">📍 ${dog.lostLocation}</p>
+          ${dog.reward ? `<p style="font-size: 11px; font-weight: 900; color: #dc2626; margin: 4px 0 0 0;">💰 Récompense</p>` : ""}
+        </div>
+      `);
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([Number(dog.longitude), Number(dog.latitude)])
+        .setPopup(popup)
+        .addTo(listMap);
+
       listMarkersRef.current.push(marker);
+      bounds.extend([Number(dog.longitude), Number(dog.latitude)]);
     });
 
     // Fit bounds
     if (listMarkersRef.current.length > 0) {
-      const bounds = new google.maps.LatLngBounds();
-      listMarkersRef.current.forEach(m => { const p = m.getPosition(); if (p) bounds.extend(p); });
-      if (latitude && longitude) bounds.extend({ lat: latitude, lng: longitude });
-      listMap.fitBounds(bounds);
+      if (longitude && latitude) bounds.extend([longitude, latitude]);
+      listMap.fitBounds(bounds, { padding: 40, maxZoom: 14 });
     }
-  }, [listMap, nearbyLostDogs]);
+  }, [listMap, nearbyLostDogs, latitude, longitude]);
 
   const handleReportLostDog = async () => {
     if (!formData.dogId || !formData.description || !formData.lostDate || !formData.lostLocation) {
@@ -506,7 +553,7 @@ export default function LostDogsPage() {
               <MapView
                 onMapReady={(mapInstance) => {
                   setListMap(mapInstance);
-                  mapInstance.setCenter({ lat: latitude, lng: longitude });
+                  mapInstance.setCenter([longitude, latitude]);
                   mapInstance.setZoom(12);
                 }}
                 initialCenter={{ lat: latitude, lng: longitude }}
@@ -540,7 +587,7 @@ export default function LostDogsPage() {
                         </div>
                         <div className="flex items-center gap-2 text-gray-700">
                           <Clock size={18} className="text-orange-600" />
-                          <span>Disparu depuis {Math.round((Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24))} jours</span>
+                          <span>Disparu depuis {Math.round((Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24))} days</span>
                         </div>
                         {dog.contactPhone && (
                           <div className="flex items-center gap-2 font-semibold">
