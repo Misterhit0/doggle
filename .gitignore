@@ -116,3 +116,7 @@ client/public/__manus__/version.json
 # Agent directories
 .manus/
 .manus-logs/
+
+# Local deployment scripts
+deploy_preprod.sh
+deploy_main.sh
