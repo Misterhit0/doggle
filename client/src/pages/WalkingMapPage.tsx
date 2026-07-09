@@ -6,7 +6,7 @@ import { MapView } from '@/components/Map';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MapPin, Navigation, Home, AlertCircle, Check, X } from 'lucide-react';
+import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import WalkingMapFilters from '@/components/WalkingMapFilters';
 import { createDogMarkerIcon, getDefaultMarkerIcon } from '@/lib/dogMarkerUtils';
@@ -38,12 +38,16 @@ export default function WalkingMapPage() {
     setHomeLocation,
   } = useWalkingTracking();
 
-  // Get active walkers
+  // RGPD: only show other walkers if the current user has opted in to location sharing
+  const isShareEnabled = (user as any)?.isShareLocationActive === true;
+
+  // Get active walkers — server already filters by isShareLocationActive=true
   const { data: activeWalkers, refetch: refetchWalkers } = trpc.discovery.getActiveWalkers.useQuery(
     currentLat && currentLon
       ? { latitude: currentLat, longitude: currentLon, radiusKm }
       : { latitude: 0, longitude: 0, radiusKm },
-    { enabled: !!currentLat && !!currentLon && isTracking }
+    // Only fetch if user has enabled sharing AND is currently tracking
+    { enabled: !!currentLat && !!currentLon && isTracking && isShareEnabled }
   );
 
   // Filter walkers by breed and size
@@ -286,9 +290,31 @@ export default function WalkingMapPage() {
 
         {/* Control Panel */}
         <div className="bg-background border-t-3 border-black p-4 md:p-6 space-y-4">
-          {/* Privacy Shield Info Card */}
+          {/* RGPD Opt-in Banner — shown when user has NOT enabled location sharing */}
+          {!isShareEnabled && (
+            <Card className="p-4 border-2 border-amber-500 bg-amber-50 flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <EyeOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-black text-xs uppercase tracking-wider text-amber-900 mb-1">
+                  🔒 Partage de position désactivé (RGPD)
+                </h4>
+                <p className="text-xs text-amber-800 font-semibold leading-relaxed mb-2">
+                  Vous ne verrez pas les autres maîtres en balade sur la carte, et votre position ne leur est pas partagée. Activez le partage dans votre profil pour rejoindre la communauté.
+                </p>
+                <a
+                  href="/profile"
+                  className="inline-flex items-center gap-1 text-xs font-black text-amber-900 underline underline-offset-2 hover:text-amber-700"
+                >
+                  <Settings className="w-3 h-3" />
+                  Activer dans mon profil →
+                </a>
+              </div>
+            </Card>
+          )}
+
+          {/* Privacy Shield Info Card — always shown */}
           <Card className="p-4 border-2 border-black bg-blue-50/70 flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
               <h4 className="font-black text-xs uppercase tracking-wider text-blue-950">Zone de Protection Confidentielle</h4>
               <p className="text-xs text-blue-900 mt-1 font-semibold leading-relaxed">
