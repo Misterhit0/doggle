@@ -129,7 +129,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Outfit', sans-serif;
   }
   
   /* Memphis Typography - bold, uppercase, with shadow */
@@ -285,7 +285,7 @@
   .memphis-line-accent {
     position: relative;
   }
-  
+
   .memphis-line-accent::after {
     content: '';
     position: absolute;
@@ -295,4 +295,39 @@
     height: 3px;
     background-color: currentColor;
   }
+
+  /* Swipe Overlays */
+  @keyframes stamp-pop {
+    0%   { transform: scale(0.4) rotate(-15deg); opacity: 0; }
+    60%  { transform: scale(1.2) rotate(-15deg); opacity: 1; }
+    100% { transform: scale(1) rotate(-15deg); opacity: 1; }
+  }
+
+  @keyframes stamp-pop-right {
+    0%   { transform: scale(0.4) rotate(15deg); opacity: 0; }
+    60%  { transform: scale(1.2) rotate(15deg); opacity: 1; }
+    100% { transform: scale(1) rotate(15deg); opacity: 1; }
+  }
+
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    30%       { transform: scale(1.3); }
+    60%       { transform: scale(1.12); }
+  }
+
+  @keyframes confetti-fall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(120px) rotate(540deg); opacity: 0; }
+  }
+
+  @keyframes match-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(82, 38, 217, 0.5); }
+    70%  { box-shadow: 0 0 0 18px rgba(82, 38, 217, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(82, 38, 217, 0); }
+  }
+
+  .animate-stamp-pop { animation: stamp-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .animate-stamp-pop-right { animation: stamp-pop-right 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .animate-heartbeat { animation: heartbeat 0.5s ease-in-out; }
+  .animate-match-pulse { animation: match-pulse 1s ease-out 2; }
 }

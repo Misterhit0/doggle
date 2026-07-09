@@ -7,6 +7,7 @@ import { useLocation } from "wouter";
 import { Heart, MessageCircle, Users } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
+import { motion } from "framer-motion";
 
 const parsePhotos = (photoUrls: any): string[] => {
   if (!photoUrls) return [];
@@ -46,7 +47,7 @@ export default function MatchesPage() {
 
         {matches && matches.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {matches.map((match: any) => {
+            {matches.map((match: any, index: number) => {
               // Determine if current user is user1 or user2
               const currentUserId = Number(user?.id);
               const isUser1 = Number(match.user1Id) === currentUserId;
@@ -58,12 +59,18 @@ export default function MatchesPage() {
               const dogName = dog?.name || "Son chien";
               const dogBreed = dog?.breed || "Race inconnue";
               const dogAge = dog?.age;
-              
+
               const photoList = parsePhotos(dog?.photoUrls);
               const dogPhoto = photoList.length > 0 ? photoList[0] : null;
 
               return (
-                <Card 
+                <motion.div
+                  key={match.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.07, type: "spring", stiffness: 320, damping: 28 }}
+                >
+                <Card
                   key={match.id} 
                   className="relative overflow-hidden h-[450px] border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all group"
                 >
@@ -128,6 +135,7 @@ export default function MatchesPage() {
                       <Button
                         variant="outline"
                         className="flex-1 bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all gap-2"
+                        onClick={() => setLocation(`/profile/${otherUserId}`)}
                       >
                         <Users size={18} />
                         Profil
@@ -135,6 +143,7 @@ export default function MatchesPage() {
                     </div>
                   </div>
                 </Card>
+                </motion.div>
               );
             })}
           </div>

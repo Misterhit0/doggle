@@ -182,6 +182,12 @@ export const appRouter = router({
         await db.toggleLocationSharing(ctx.user.id, input.isActive);
         return { success: true };
       }),
+
+    getPublicProfile: protectedProcedure
+      .input(z.object({ targetUserId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await db.getPublicUserProfile(ctx.user.id, input.targetUserId);
+      }),
   }),
 
   // Dog Profile Management
@@ -648,6 +654,10 @@ export const appRouter = router({
         logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, `Swipe recorded, not mutual`);
         return { success: true, matched: false };
       }),
+
+    getDailySwipeCount: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getDailySwipeCount(ctx.user.id);
+    }),
   }),
 
   // Matches

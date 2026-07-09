@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import {
   Heart,
   User,
@@ -149,33 +149,35 @@ export default function AppNav() {
       </nav>
 
       {/* Mobile Sticky Bottom Navigation Bar (Hidden on Desktop) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t-3 border-black pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.08)] flex justify-around items-center h-20">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t-3 border-black pb-safe shadow-[0_-4px_16px_rgba(0,0,0,0.10)] flex justify-around items-center h-20">
         {BOTTOM_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.href;
+          const isMatches = item.href === '/matches';
           return (
-            <a
+            <motion.a
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center w-16 h-14 transition-all duration-150 ${
-                isActive
-                  ? 'text-primary scale-105'
-                  : 'text-muted-foreground active:scale-95'
-              }`}
+              whileTap={{ scale: 0.88 }}
+              className="relative flex flex-col items-center justify-center w-16 h-14"
             >
-              <div
-                className={`p-1.5 rounded-xl border-2 transition-all ${
-                  isActive
-                    ? 'bg-accent border-black shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] text-accent-foreground'
-                    : 'border-transparent text-foreground/75'
-                }`}
-              >
-                <Icon className="w-5.5 h-5.5" />
+              <div className="relative p-1.5 rounded-xl flex items-center justify-center">
+                {isActive && (
+                  <motion.div
+                    layoutId="bottom-nav-pill"
+                    className="absolute inset-0 bg-accent rounded-xl border-2 border-black shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)]"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <Icon className={`w-5 h-5 relative z-10 ${isActive ? 'text-accent-foreground' : 'text-foreground/65'}`} />
+                {isMatches && !isActive && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-background z-20" />
+                )}
               </div>
-              <span className="text-[9px] font-black uppercase mt-1 tracking-wider">
+              <span className={`text-[9px] font-black uppercase mt-0.5 tracking-wider ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                 {item.label}
               </span>
-            </a>
+            </motion.a>
           );
         })}
       </div>

@@ -5,10 +5,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { Heart, X, MapPin, Loader2, Award, Users } from "lucide-react";
+import { Heart, X, MapPin, Award, Users, Star } from "lucide-react";
 import { useRealTimeGeolocation } from "@/hooks/useRealTimeGeolocation";
 import { GeolocationStatus } from "@/components/GeolocationStatus";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
+import { sounds } from "@/lib/sounds";
 import { calculateCompatibility, formatCompatibilityScore, getCompatibilityColor } from "@shared/compatibilityEngine";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
 
@@ -18,6 +19,17 @@ export default function DiscoveryPage() {
   const [radiusKm, setRadiusKm] = useState(5);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  const dragX = useMotionValue(0);
+  const cardRotate = useTransform(dragX, [-220, 220], [-18, 18]);
+  const likeOpacity = useTransform(dragX, [40, 130], [0, 1]);
+  const nopeOpacity = useTransform(dragX, [-130, -40], [1, 0]);
+  const bgTint = useTransform(
+    dragX,
+    [-180, 0, 180],
+    ['rgba(239,68,68,0.14)', 'rgba(0,0,0,0)', 'rgba(34,197,94,0.14)']
+  );
 
   const geolocation = useRealTimeGeolocation({
     enabled: true,
@@ -47,10 +59,28 @@ export default function DiscoveryPage() {
     }
   }, [autoRefreshEnabled, geolocation.isWatching, refetch]);
 
+  // Daily swipe counter
+  const { data: dailySwipeCount, refetch: refetchSwipeCount } = trpc.discovery.getDailySwipeCount.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // Favorite mutation
+  const favoriteMutation = trpc.favorite.addFavorite.useMutation({
+    onSuccess: () => {
+      toast.success("⭐ Ajouté aux favoris !");
+    },
+    onError: () => {
+      toast.error("Erreur lors de l'ajout aux favoris");
+    },
+  });
+
   // Swipe mutation
   const swipeMutation = trpc.discovery.swipe.useMutation({
     onSuccess: (result) => {
+      refetchSwipeCount();
+      setPhotoIndex(0);
       if (result.matched) {
+        sounds.playMatch();
         toast.success("🎉 Nouveau match ! Allez voir vos matchs pour commencer à discuter.");
         if (navigator.vibrate) {
           navigator.vibrate([40, 80, 40]);
@@ -66,11 +96,11 @@ export default function DiscoveryPage() {
   const handleSwipe = (liked: boolean) => {
     if (!duos || !duos[currentIndex] || swipeDirection) return;
 
-    if (navigator.vibrate) {
-      navigator.vibrate(15);
-    }
+    if (navigator.vibrate) navigator.vibrate(15);
+    liked ? sounds.playLike() : sounds.playPass();
 
     setSwipeDirection(liked ? 'right' : 'left');
+    dragX.set(0);
     const targetUserId = (duos[currentIndex] as any).user.id;
 
     setTimeout(() => {
@@ -85,6 +115,14 @@ export default function DiscoveryPage() {
 
   const handleLike = () => handleSwipe(true);
   const handlePass = () => handleSwipe(false);
+
+  const handleFavorite = () => {
+    if (!duos || !(duos as any[])[currentIndex] || swipeDirection) return;
+    const targetUserId = ((duos as any[])[currentIndex] as any).user.id;
+    sounds.playFavorite();
+    favoriteMutation.mutate({ targetUserId });
+    handleSwipe(true);
+  };
 
   const parseJsonField = (field: any) => {
     if (!field) return [];
@@ -251,129 +289,172 @@ export default function DiscoveryPage() {
                   </div>
                 )}
 
-                {/* 2. Top active card */}
+                {/* 2. Top active card — drag-to-swipe */}
                 <motion.div
                   key={targetUser.id}
+                  style={{ x: dragX, rotate: cardRotate, zIndex: 20 }}
                   initial={{ scale: 0.96, opacity: 0, y: 10 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{
-                    x: swipeDirection === 'right' ? 450 : swipeDirection === 'left' ? -450 : 0,
-                    rotate: swipeDirection === 'right' ? 12 : swipeDirection === 'left' ? -12 : 0,
+                    x: swipeDirection === 'right' ? 520 : swipeDirection === 'left' ? -520 : 0,
+                    rotate: swipeDirection === 'right' ? 20 : swipeDirection === 'left' ? -20 : 0,
                     opacity: 0,
-                    scale: 0.9,
-                    transition: { duration: 0.25 }
+                    transition: { duration: 0.28, ease: 'easeOut' }
                   }}
                   transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                  className="w-full h-full flex flex-col relative"
-                  style={{ zIndex: 20 }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.9}
+                  onDragStart={() => sounds.playTap()}
+                  onDragEnd={(_, info) => {
+                    const vx = info.velocity.x;
+                    const offset = info.offset.x;
+                    if (offset > 100 || vx > 500) {
+                      handleSwipe(true);
+                    } else if (offset < -100 || vx < -500) {
+                      handleSwipe(false);
+                    } else {
+                      dragX.set(0);
+                    }
+                  }}
+                  className="w-full h-full flex flex-col relative cursor-grab active:cursor-grabbing select-none"
                 >
-                  <Card className="overflow-hidden border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] bg-card h-full flex flex-col relative">
-                    
-                    {/* Stamp Indicator Overlays */}
+                  {/* Background tint driven by drag */}
+                  <motion.div
+                    style={{ backgroundColor: bgTint }}
+                    className="absolute inset-0 rounded-xl pointer-events-none z-0"
+                  />
+
+                  <Card className="overflow-hidden border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] h-full flex flex-col relative bg-black">
+
+                    {/* LIKE overlay */}
+                    <motion.div
+                      style={{ opacity: likeOpacity }}
+                      className="absolute top-8 left-6 z-30 border-4 border-emerald-400 text-emerald-400 font-black uppercase text-3xl px-3 py-1.5 rounded-lg tracking-wider bg-black/60 shadow-lg pointer-events-none"
+                      aria-hidden
+                    >
+                      J'AIME ❤️
+                    </motion.div>
+
+                    {/* NOPE overlay */}
+                    <motion.div
+                      style={{ opacity: nopeOpacity }}
+                      className="absolute top-8 right-6 z-30 border-4 border-red-400 text-red-400 font-black uppercase text-3xl px-3 py-1.5 rounded-lg tracking-wider bg-black/60 shadow-lg pointer-events-none"
+                      aria-hidden
+                    >
+                      NOPE 👋
+                    </motion.div>
+
+                    {/* Button swipe stamps */}
                     {swipeDirection === 'right' && (
-                      <div className="absolute top-6 left-6 z-30 border-4 border-emerald-500 text-emerald-500 font-black uppercase text-3xl px-3 py-1.5 rounded-lg rotate-[-12deg] tracking-wider bg-white/95 shadow-md">
-                        J'AIME
+                      <div className="absolute top-8 left-6 z-30 border-4 border-emerald-400 text-emerald-400 font-black uppercase text-3xl px-3 py-1.5 rounded-lg tracking-wider bg-black/60 animate-stamp-pop pointer-events-none">
+                        J'AIME ❤️
                       </div>
                     )}
                     {swipeDirection === 'left' && (
-                      <div className="absolute top-6 right-6 z-30 border-4 border-red-500 text-red-500 font-black uppercase text-3xl px-3 py-1.5 rounded-lg rotate-[12deg] tracking-wider bg-white/95 shadow-md">
-                        PASSER
+                      <div className="absolute top-8 right-6 z-30 border-4 border-red-400 text-red-400 font-black uppercase text-3xl px-3 py-1.5 rounded-lg rotate-[12deg] tracking-wider bg-black/60 animate-stamp-pop-right pointer-events-none">
+                        NOPE 👋
                       </div>
                     )}
 
-                    {/* Dog Photo / Fallback Visual */}
-                    <div className="w-full flex-1 bg-muted relative overflow-hidden">
-                      {currentDog.photoUrls && parseJsonField(currentDog.photoUrls).length > 0 ? (
-                        <img
-                          src={parseJsonField(currentDog.photoUrls)[0]}
-                          alt={currentDog.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <DogAvatarFallback name={currentDog.name} breed={currentDog.breed} className="w-full h-full" />
+                    {/* Full-bleed photo */}
+                    <div className="relative w-full flex-1 overflow-hidden">
+                      {(() => {
+                        const photos = parseJsonField(currentDog.photoUrls);
+                        const src = photos[photoIndex] || photos[0];
+                        return src ? (
+                          <img
+                            src={src}
+                            alt={currentDog.name}
+                            className="w-full h-full object-cover pointer-events-none"
+                            draggable={false}
+                          />
+                        ) : (
+                          <DogAvatarFallback name={currentDog.name} breed={currentDog.breed} className="w-full h-full" />
+                        );
+                      })()}
+
+                      {/* Photo gallery dots + tap zones */}
+                      {parseJsonField(currentDog.photoUrls).length > 1 && (
+                        <>
+                          {/* Tap left / right to change photo */}
+                          <button
+                            className="absolute left-0 top-0 h-full w-1/3 z-10 opacity-0"
+                            onClick={(e) => { e.stopPropagation(); setPhotoIndex(i => Math.max(0, i - 1)); }}
+                            aria-label="Photo précédente"
+                          />
+                          <button
+                            className="absolute right-0 top-0 h-full w-1/3 z-10 opacity-0"
+                            onClick={(e) => { e.stopPropagation(); setPhotoIndex(i => Math.min(parseJsonField(currentDog.photoUrls).length - 1, i + 1)); }}
+                            aria-label="Photo suivante"
+                          />
+                          {/* Dots indicator */}
+                          <div className="absolute top-3 left-0 right-0 flex justify-center gap-1.5 z-20 pointer-events-none">
+                            {parseJsonField(currentDog.photoUrls).map((_: string, i: number) => (
+                              <div
+                                key={i}
+                                className={`h-1 rounded-full transition-all duration-200 ${i === photoIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'}`}
+                              />
+                            ))}
+                          </div>
+                        </>
                       )}
 
-                      {/* Unified Compatibility Badge Floating on Photo */}
+                      {/* Compatibility badge */}
                       <div className="absolute top-4 right-4 z-20">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-black bg-white rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-                          <Award className="w-4 h-4 text-amber-500" />
-                          <div className="flex flex-col">
-                            <span className="text-[8px] font-black uppercase text-muted-foreground leading-none">Compatibilité</span>
-                            <span className="text-[11px] font-black text-black leading-none mt-0.5">
-                              {compatibility.overallScore}% • {formatCompatibilityScore(compatibility.overallScore)}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-2 border-black bg-white/95 backdrop-blur-sm rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                          <Award className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-[11px] font-black text-black leading-none">
+                            {compatibility.overallScore}%
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Unified Bottom Info Panel */}
-                    <div className="p-5 border-t-3 border-black bg-white">
-                      
-                      {/* Dog Details & Age */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h2 className="text-2xl font-black uppercase text-foreground leading-tight">{currentDog.name}</h2>
-                          <p className="text-xs text-muted-foreground font-black uppercase">
-                            {currentDog.breed || "Race inconnue"} • {currentDog.age ? `${currentDog.age} ans` : "Âge inconnu"}
-                          </p>
-                        </div>
-                        {/* Owner Miniature Row */}
-                        <div className="flex items-center gap-2 px-2.5 py-1 border-2 border-black bg-peach-50 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                      {/* Bottom gradient overlay with info */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5 z-10">
+                        {/* Owner chip */}
+                        <div className="flex items-center gap-2 mb-2">
                           {targetUser.profilePhotoUrl ? (
-                            <img
-                              src={targetUser.profilePhotoUrl}
-                              alt={targetUser.name}
-                              className="w-6 h-6 rounded-full border border-black object-cover"
-                            />
+                            <img src={targetUser.profilePhotoUrl} alt={targetUser.name} className="w-7 h-7 rounded-full border-2 border-white object-cover" />
                           ) : (
-                            <div className="w-6 h-6 rounded-full bg-accent border border-black flex items-center justify-center">
-                              <span className="text-[8px] font-black">{targetUser.name?.substring(0, 1)}</span>
+                            <div className="w-7 h-7 rounded-full bg-accent border-2 border-white flex items-center justify-center">
+                              <span className="text-[10px] font-black text-white">{targetUser.name?.substring(0, 1)}</span>
                             </div>
                           )}
-                          <div className="flex flex-col">
-                            <span className="text-[7px] font-black text-muted-foreground uppercase leading-none">Maître</span>
-                            <span className="text-[9px] font-black text-foreground leading-none mt-0.5">{targetUser.name?.split(" ")[0]}</span>
-                          </div>
+                          <span className="text-white/90 text-xs font-bold">{targetUser.name?.split(" ")[0]}</span>
                         </div>
-                      </div>
 
-                      {/* Dog Bio */}
-                      {currentDog.description && (
-                        <p className="text-xs text-foreground/80 font-medium line-clamp-2 mb-3 bg-muted/30 p-2 rounded border border-black/5">
-                          "{currentDog.description}"
+                        {/* Dog name + breed */}
+                        <h2 className="text-white text-3xl font-black uppercase leading-tight tracking-tight">
+                          {currentDog.name}
+                        </h2>
+                        <p className="text-white/75 text-sm font-semibold mt-0.5">
+                          {currentDog.breed || "Race inconnue"}
+                          {currentDog.age ? ` • ${currentDog.age} ans` : ""}
                         </p>
-                      )}
 
-                      {/* Affinities (Atomes crochus) */}
-                      {affinities && affinities.length > 0 && (
-                        <div className="mb-3">
-                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-wider mb-1 leading-none">
-                            Atomes crochus
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {affinities.map((aff: string, idx: number) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-0.5 border border-black bg-yellow-100 text-yellow-900 rounded text-[9px] font-black uppercase shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1"
-                              >
+                        {/* Affinities */}
+                        {affinities && affinities.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2.5">
+                            {affinities.slice(0, 3).map((aff: string, idx: number) => (
+                              <span key={idx} className="px-2 py-0.5 bg-yellow-400/90 text-black rounded text-[10px] font-black uppercase">
                                 {aff}
                               </span>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Dog Traits tags */}
-                      {currentDog.personality && parseJsonField(currentDog.personality).length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {parseJsonField(currentDog.personality).map((trait: string) => (
-                            <span key={trait} className="px-2.5 py-0.5 border border-black bg-accent/15 text-foreground rounded text-[10px] font-black uppercase shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                              {trait}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                        {/* Traits */}
+                        {currentDog.personality && parseJsonField(currentDog.personality).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {parseJsonField(currentDog.personality).slice(0, 4).map((trait: string) => (
+                              <span key={trait} className="px-2 py-0.5 bg-white/20 backdrop-blur-sm text-white rounded text-[10px] font-semibold border border-white/30">
+                                {trait}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 </motion.div>
@@ -405,23 +486,44 @@ export default function DiscoveryPage() {
 
         {/* 3. Action Buttons below card */}
         {!isFinished && currentDuo && (
-          <div className="flex gap-8 justify-center py-4">
-            <Button
-              onClick={handlePass}
-              disabled={swipeMutation.isPending || !!swipeDirection}
-              className="w-14 h-14 rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 text-foreground bg-white active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center"
-              aria-label="Passer"
-            >
-              <X size={26} className="text-red-500 stroke-[3px]" />
-            </Button>
-            <Button
-              onClick={handleLike}
-              disabled={swipeMutation.isPending || !!swipeDirection}
-              className="w-14 h-14 rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-accent hover:bg-accent/90 text-accent-foreground active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center"
-              aria-label="J'aime"
-            >
-              <Heart size={26} fill="currentColor" className="stroke-[3px]" />
-            </Button>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="flex gap-5 justify-center items-center">
+              <motion.button
+                whileTap={{ scale: 0.82 }}
+                whileHover={{ scale: 1.08 }}
+                onClick={handlePass}
+                disabled={swipeMutation.isPending || !!swipeDirection}
+                className="w-16 h-16 rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white flex items-center justify-center disabled:opacity-50"
+                aria-label="Passer"
+              >
+                <X size={28} className="text-red-500 stroke-[3px]" />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.82 }}
+                whileHover={{ scale: 1.08 }}
+                onClick={handleFavorite}
+                disabled={swipeMutation.isPending || favoriteMutation.isPending || !!swipeDirection}
+                className="w-12 h-12 rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-yellow-400 flex items-center justify-center disabled:opacity-50"
+                aria-label="Ajouter aux favoris"
+              >
+                <Star size={22} fill="currentColor" className="text-black stroke-[2px]" />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.82 }}
+                whileHover={{ scale: 1.08 }}
+                onClick={handleLike}
+                disabled={swipeMutation.isPending || !!swipeDirection}
+                className="w-16 h-16 rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-accent flex items-center justify-center disabled:opacity-50"
+                aria-label="J'aime"
+              >
+                <Heart size={28} fill="currentColor" className="text-accent-foreground stroke-[2px]" />
+              </motion.button>
+            </div>
+            {dailySwipeCount !== undefined && (
+              <p className="text-xs text-muted-foreground font-semibold tracking-wide">
+                {dailySwipeCount} swipe{dailySwipeCount !== 1 ? "s" : ""} aujourd'hui
+              </p>
+            )}
           </div>
         )}
 

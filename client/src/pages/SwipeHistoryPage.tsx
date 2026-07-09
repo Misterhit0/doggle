@@ -11,7 +11,7 @@ export default function SwipeHistoryPage() {
   const [, navigate] = useLocation();
   const [limit, setLimit] = useState(50);
 
-  const { data: history, isLoading } = trpc.history.getSwipeHistory.useQuery({ limit });
+  const { data: history, isLoading } = trpc.history.getSwipeHistory.useQuery({ limit }, { refetchOnMount: 'always' });
   const addFavoriteMutation = trpc.favorite.addFavorite.useMutation();
 
   const handleAddFavorite = async (targetUserId: number) => {

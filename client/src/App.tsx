@@ -16,6 +16,7 @@ import EventsPage from "./pages/EventsPage";
 import LostDogsPage from "./pages/LostDogsPage";
 import WalkingMapPage from "./pages/WalkingMapPage";
 import ReviewPage from "./pages/ReviewPage";
+import PublicProfilePage from "./pages/PublicProfilePage";
 import VerificationPage from "./pages/VerificationPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -40,6 +41,7 @@ function Router() {
           <Route path="/lost-dogs" component={LostDogsPage} />
           <Route path="/walking-map" component={WalkingMapPage} />
           <Route path="/review/:userId" component={ReviewPage} />
+          <Route path="/profile/:userId" component={PublicProfilePage} />
           <Route path="/verification" component={VerificationPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/signup" component={SignupPage} />
