@@ -52,17 +52,18 @@ const PERSONALITY_COMPATIBILITY: Record<string, Record<string, number>> = {
  * Certaines races s'entendent mieux ensemble
  */
 const BREED_COMPATIBILITY: Record<string, Record<string, number>> = {
-  "Golden Retriever": { "Golden Retriever": 100, "Labrador": 95, "Beagle": 85, "Poodle": 80 },
-  "Labrador": { "Labrador": 100, "Golden Retriever": 95, "Beagle": 85, "Poodle": 80 },
+  "Golden Retriever": { "Golden Retriever": 100, "Labrador": 95, "Beagle": 85, "Poodle": 80, "Border Collie": 90 },
+  "Labrador": { "Labrador": 100, "Golden Retriever": 95, "Beagle": 85, "Poodle": 80, "Border Collie": 85 },
   "Beagle": { "Beagle": 100, "Labrador": 85, "Golden Retriever": 85, "Poodle": 75 },
-  "Poodle": { "Poodle": 100, "Golden Retriever": 80, "Labrador": 80, "Beagle": 75 },
+  "Poodle": { "Poodle": 100, "Golden Retriever": 80, "Labrador": 80, "Beagle": 75, "Border Collie": 80 },
   "Chihuahua": { "Chihuahua": 100, "Poodle": 70, "Pomeranian": 85, "Dachshund": 80 },
   "Pomeranian": { "Pomeranian": 100, "Chihuahua": 85, "Poodle": 75, "Dachshund": 80 },
   "Dachshund": { "Dachshund": 100, "Chihuahua": 80, "Pomeranian": 80, "Beagle": 85 },
-  "German Shepherd": { "German Shepherd": 100, "Labrador": 80, "Golden Retriever": 75, "Boxer": 85 },
-  "Boxer": { "Boxer": 100, "German Shepherd": 85, "Labrador": 80, "Bulldog": 75 },
+  "German Shepherd": { "German Shepherd": 100, "Labrador": 80, "Golden Retriever": 75, "Boxer": 85, "Border Collie": 85 },
+  "Boxer": { "Boxer": 100, "German Shepherd": 85, "Labrador": 80, "Bulldog": 75, "Border Collie": 80 },
   "Bulldog": { "Bulldog": 100, "Boxer": 75, "Pug": 85, "Beagle": 70 },
   "Pug": { "Pug": 100, "Bulldog": 85, "Chihuahua": 80, "Pomeranian": 75 },
+  "Border Collie": { "Border Collie": 100, "Golden Retriever": 90, "Labrador": 85, "German Shepherd": 85, "Poodle": 80, "Boxer": 80 },
 };
 
 /**
@@ -303,4 +304,101 @@ export function getCompatibilityColor(score: number): string {
   if (score >= 50) return "from-blue-500 to-cyan-500"; // 💙
   if (score >= 30) return "from-yellow-500 to-amber-500"; // 🤔
   return "from-gray-500 to-slate-500"; // 😕
+}
+
+const FRENCH_TRAITS: Record<string, string> = {
+  playful: "joueur",
+  energetic: "énergique",
+  calm: "calme",
+  lazy: "pantouflard",
+  social: "sociable",
+  friendly: "amical",
+  gentle: "doux",
+  shy: "timide",
+  aggressive: "dominant",
+  protective: "protecteur",
+  loyal: "loyal",
+};
+
+const FRENCH_INTERESTS: Record<string, string> = {
+  hiking: "Randonnée",
+  nature: "Nature",
+  outdoor: "Plein air",
+  parks: "Parcs",
+  social: "Rencontres",
+  cafes: "Cafés",
+  relaxation: "Détente",
+  reading: "Lecture",
+  sports: "Sports",
+  fitness: "Fitness",
+  community: "Communauté",
+  events: "Événements",
+};
+
+export function getAffinities(
+  dog1: DogProfile,
+  master1: MasterProfile,
+  dog2: DogProfile,
+  master2: MasterProfile
+): string[] {
+  const affinities: string[] = [];
+
+  // 1. Breed
+  if (dog1.breed && dog2.breed) {
+    if (dog1.breed.trim().toLowerCase() === dog2.breed.trim().toLowerCase()) {
+      affinities.push(`⭐ Même race (${dog1.breed})`);
+    } else {
+      const score = calculateBreedCompatibility(dog1.breed, dog2.breed);
+      if (score >= 80) {
+        affinities.push(`⭐ Races complices (${dog1.breed} & ${dog2.breed})`);
+      }
+    }
+  }
+
+  // 2. Personality
+  if (dog1.personality && dog2.personality) {
+    const commonTraits = dog1.personality.filter(trait => dog2.personality?.includes(trait));
+    commonTraits.forEach(trait => {
+      const label = FRENCH_TRAITS[trait] || trait;
+      if (trait === "playful" || trait === "social" || trait === "friendly") {
+        affinities.push(`⚽ Très ${label}`);
+      } else if (trait === "calm" || trait === "gentle" || trait === "lazy") {
+        affinities.push(`💤 Calme & ${label}`);
+      } else {
+        affinities.push(`🐾 ${label}`);
+      }
+    });
+  }
+
+  // 3. Age Closeness
+  if (dog1.age !== undefined && dog2.age !== undefined) {
+    if (dog1.age === dog2.age) {
+      affinities.push(`🎂 Même âge (${dog1.age} ans)`);
+    } else if (Math.abs(dog1.age - dog2.age) === 1) {
+      affinities.push(`🎂 Âges proches (${dog1.age} & ${dog2.age} ans)`);
+    }
+  }
+
+  // 4. Master Interests
+  if (master1.interests && master2.interests) {
+    const commonInterests = master1.interests.filter(interest => master2.interests?.includes(interest));
+    commonInterests.slice(0, 2).forEach(interest => {
+      const label = FRENCH_INTERESTS[interest] || interest;
+      affinities.push(`🌳 Adore : ${label}`);
+    });
+  }
+
+  // 5. Walking Habits
+  if (master1.walkingHabits && master2.walkingHabits) {
+    const commonHabits = master1.walkingHabits.filter(habit => master2.walkingHabits?.includes(habit));
+    if (commonHabits.length > 0) {
+      const habit = commonHabits[0];
+      if (habit === "morning") affinities.push("🌅 Balade le matin");
+      else if (habit === "evening") affinities.push("🌃 Balade le soir");
+      else if (habit === "weekend") affinities.push("🗓️ Balade week-end");
+      else if (habit === "frequent" || habit === "daily") affinities.push("🔄 Balades régulières");
+    }
+  }
+
+  return affinities.slice(0, 3); // Return up to 3 strong highlights
 }

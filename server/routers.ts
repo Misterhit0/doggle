@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
-import { calculateCompatibility } from "@shared/compatibilityEngine";
+import { calculateCompatibility, getAffinities } from "@shared/compatibilityEngine";
 import bcrypt from "bcryptjs";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import axios from "axios";
@@ -410,9 +410,75 @@ export const appRouter = router({
         const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
         const filteredDuos = duos.filter(d => !swipedUserIds.includes(Number(d.user.id)));
 
-        logger.swipe(ctx.user.id, 0, false, false, `Fetched ${filteredDuos.length} discovery duos after filtering out ${swipedUserIds.length} swiped users (Swiped IDs: [${swipedUserIds.join(", ")}])`);
+        // Helper parsers for JSON arrays in mysql
+        const parseJsonField = (field: any): string[] => {
+          if (!field) return [];
+          if (Array.isArray(field)) return field;
+          if (typeof field === "string") {
+            try {
+              return JSON.parse(field);
+            } catch {
+              return [field];
+            }
+          }
+          return [];
+        };
+
+        const buildDogProfile = (dog: any) => {
+          if (!dog) return {};
+          return {
+            breed: dog.breed,
+            age: dog.age,
+            personality: parseJsonField(dog.personality),
+          };
+        };
+
+        const buildMasterProfile = (usr: any) => {
+          if (!usr) return {};
+          return {
+            age: usr.age,
+            interests: parseJsonField(usr.interests),
+            walkingHabits: usr.walkingHabits ? [usr.walkingHabits] : [],
+            whatISeek: parseJsonField(usr.whatISeek),
+          };
+        };
+
+        // Fetch logged-in user profile and first dog to compare
+        const myUser = await db.getUserById(ctx.user.id);
+        const myDogs = await db.getDogsByUserId(ctx.user.id);
+        const myDog = myDogs && myDogs.length > 0 ? myDogs[0] : null;
+
+        const myDogProfile = buildDogProfile(myDog);
+        const myMasterProfile = buildMasterProfile(myUser);
+
+        // Dynamically compute compatibility and affinities for each duo
+        const withCompatibility = filteredDuos.map(d => {
+          const targetDog = d.dogs && d.dogs.length > 0 ? d.dogs[0] : null;
+          const targetDogProfile = buildDogProfile(targetDog);
+          const targetMasterProfile = buildMasterProfile(d.user);
+
+          const comp = calculateCompatibility(myDogProfile, myMasterProfile, targetDogProfile, targetMasterProfile);
+          const affs = getAffinities(myDogProfile, myMasterProfile, targetDogProfile, targetMasterProfile);
+
+          return {
+            ...d,
+            compatibility: comp,
+            affinities: affs,
+          };
+        });
+
+        // Sort: highest compatibility first
+        withCompatibility.sort((a, b) => (b.compatibility?.overallScore || 0) - (a.compatibility?.overallScore || 0));
+
+        logger.swipe(
+          ctx.user.id, 
+          0, 
+          false, 
+          false, 
+          `Fetched, calculated, and sorted ${withCompatibility.length} discovery duos by compatibility`
+        );
         
-        return filteredDuos;
+        return withCompatibility;
       }),
 
     // Get active walkers on map

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { getAffinities } from "../shared/compatibilityEngine";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -121,7 +122,7 @@ describe("Compagnon tRPC Procedures", () => {
   });
 
   describe("discovery procedures", () => {
-    it("should get nearby duos", async () => {
+    it("should get nearby duos sorted by compatibility and including affinities", async () => {
       const { ctx } = createAuthContext();
       const caller = appRouter.createCaller(ctx);
 
@@ -130,10 +131,32 @@ describe("Compagnon tRPC Procedures", () => {
           radiusKm: 5,
         });
         expect(Array.isArray(duos)).toBe(true);
+        if (duos.length > 0) {
+          expect(duos[0].compatibility).toBeDefined();
+          expect(duos[0].affinities).toBeDefined();
+          // Verify sorting order
+          for (let i = 0; i < duos.length - 1; i++) {
+            expect(duos[i].compatibility.overallScore).toBeGreaterThanOrEqual(
+              duos[i + 1].compatibility.overallScore
+            );
+          }
+        }
       } catch (error: any) {
         // Expected if DB is not available
         expect(error.message).toBeDefined();
       }
+    });
+
+    it("should correctly compute french affinities (atomes crochus)", () => {
+      const dog1 = { breed: "Golden Retriever", age: 3, personality: ["playful", "social"] };
+      const master1 = { interests: ["hiking", "parks"], walkingHabits: ["morning"], whatISeek: ["friend"] };
+      const dog2 = { breed: "Golden Retriever", age: 3, personality: ["playful", "calm"] };
+      const master2 = { interests: ["hiking", "social"], walkingHabits: ["morning"], whatISeek: ["friend"] };
+
+      const affinities = getAffinities(dog1, master1, dog2, master2);
+      expect(affinities).toContain("⭐ Même race (Golden Retriever)");
+      expect(affinities).toContain("⚽ Très joueur");
+      expect(affinities).toContain("🎂 Même âge (3 ans)");
     });
 
     it("should reject swipe if already swiped", async () => {
