@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { logger } from "./_core/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: mysql.Pool | null = null;
@@ -255,11 +256,16 @@ export async function getMatchesForUser(userId: number) {
     if (!connection) return [];
 
     const query = `
-      SELECT m.id, m.createdAt, m.compatibilityScore,
-             m.userId1 as user1Id, m.userId2 as user2Id,
-             m.userId1, m.userId2,
-             u1.name as user1Name, u1.profilePhotoUrl as user1Photo,
-             u2.name as user2Name, u2.profilePhotoUrl as user2Photo
+      SELECT
+        CAST(m.id AS UNSIGNED) as id,
+        m.createdAt,
+        m.compatibilityScore,
+        CAST(m.userId1 AS UNSIGNED) as user1Id,
+        CAST(m.userId2 AS UNSIGNED) as user2Id,
+        u1.name as user1Name,
+        u1.profilePhotoUrl as user1Photo,
+        u2.name as user2Name,
+        u2.profilePhotoUrl as user2Photo
       FROM matches m
       JOIN users u1 ON m.userId1 = u1.id
       JOIN users u2 ON m.userId2 = u2.id
@@ -267,7 +273,22 @@ export async function getMatchesForUser(userId: number) {
       ORDER BY m.createdAt DESC
     `;
     const [rows] = await connection.execute(query, [userId, userId]);
-    return (rows as any[]) || [];
+    const matchesList = (rows as any[]) || [];
+
+    const withDogs = await Promise.all(
+      matchesList.map(async (match) => {
+        const isUser1 = Number(match.user1Id) === userId;
+        const otherUserId = isUser1 ? Number(match.user2Id) : Number(match.user1Id);
+        
+        const otherDogs = await getDogsByUserId(otherUserId);
+        
+        return {
+          ...match,
+          otherDog: otherDogs.length > 0 ? otherDogs[0] : null,
+        };
+      })
+    );
+    return withDogs;
   } catch (error) {
     console.error("[Database] Failed to get matches for user:", error);
     return [];
@@ -1110,5 +1131,20 @@ export async function healStuckMatches() {
     }
   } catch (error) {
     console.error("[Database] Error during self-healing matches check:", error);
+  }
+}
+
+export async function getSwipedUserIds(userId: number): Promise<number[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const query = "SELECT targetUserId FROM swipes WHERE userId = ?";
+    const [rows] = await pool.execute(query, [userId]);
+    logger.database(query);
+    return (rows as any[]).map(r => Number(r.targetUserId));
+  } catch (error: any) {
+    logger.database("SELECT targetUserId FROM swipes WHERE userId = ?", error?.message || String(error));
+    console.error("[Database] Failed to get swiped user ids:", error);
+    return [];
   }
 }

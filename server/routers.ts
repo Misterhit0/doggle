@@ -10,12 +10,15 @@ import { calculateCompatibility } from "@shared/compatibilityEngine";
 import bcrypt from "bcryptjs";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import axios from "axios";
+import { logger } from "./_core/logger";
 
 export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
+      const email = ctx.user?.email || "unknown";
+      logger.auth("logout", email, true, `UserId: ${ctx.user?.id}`);
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
@@ -33,9 +36,11 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        logger.auth("signup_attempt", input.email, false);
         // Check if user already exists
         const existingUser = await db.getUserByEmail(input.email);
         if (existingUser) {
+          logger.auth("signup_failed", input.email, false, "Email already registered");
           throw new TRPCError({ code: "CONFLICT", message: "Email already registered" });
         }
 
@@ -50,6 +55,7 @@ export const appRouter = router({
         });
 
         if (!user) {
+          logger.auth("signup_failed", input.email, false, "Failed to create user in database");
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create user" });
         }
 
@@ -58,6 +64,7 @@ export const appRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
+        logger.auth("signup_success", input.email, true, `UserId: ${user.id}`);
         return { success: true, user };
       }),
 
@@ -69,15 +76,18 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        logger.auth("login_attempt", input.email, false);
         // Find user by email
         const user = await db.getUserByEmail(input.email);
         if (!user || !user.hashedPassword) {
+          logger.auth("login_failed", input.email, false, "Invalid email or password");
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
         }
 
         // Verify password
         const isValidPassword = await bcrypt.compare(input.password, user.hashedPassword);
         if (!isValidPassword) {
+          logger.auth("login_failed", input.email, false, "Invalid password");
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
         }
 
@@ -86,6 +96,7 @@ export const appRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
+        logger.auth("login_success", input.email, true, `UserId: ${user.id}`);
         return { success: true, user };
       }),
   }),
@@ -200,7 +211,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).optional(),
+          photoUrls: z.array(z.string().url()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -226,7 +237,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).optional(),
+          photoUrls: z.array(z.string().url()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -394,8 +405,14 @@ export const appRouter = router({
             }
           ];
         }
+
+        // Get swiped user IDs to filter them out of discovery list
+        const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
+        const filteredDuos = duos.filter(d => !swipedUserIds.includes(Number(d.user.id)));
+
+        logger.swipe(ctx.user.id, 0, false, false, `Fetched ${filteredDuos.length} discovery duos after filtering out ${swipedUserIds.length} swiped users (Swiped IDs: [${swipedUserIds.join(", ")}])`);
         
-        return duos;
+        return filteredDuos;
       }),
 
     // Get active walkers on map
@@ -428,19 +445,47 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, "Swipe mutation initiated");
+
         // Check if user already swiped
         const existingSwipe = await db.getSwipe(ctx.user.id, input.targetUserId);
         if (existingSwipe) {
+          logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, "Already swiped on this user");
           throw new TRPCError({ code: "BAD_REQUEST", message: "Already swiped on this user" });
         }
 
         // Create swipe
         await db.createSwipe(ctx.user.id, input.targetUserId, input.liked);
 
+        // Auto-like back for preprod, dev, or seeded profiles (email ending with @example.com or ID >= 100)
+        if (input.liked) {
+          const targetUserObj = await db.getUserById(input.targetUserId);
+          const isSeedUser = targetUserObj?.email?.endsWith("@example.com") || input.targetUserId >= 100;
+          const isDevOrPreprod = process.env.NODE_ENV !== "production" || ctx.user.role === "admin";
+          
+          if (isSeedUser || isDevOrPreprod) {
+            const hasReverse = await db.getSwipe(input.targetUserId, ctx.user.id);
+            if (!hasReverse) {
+              logger.swipe(input.targetUserId, ctx.user.id, true, true, `Auto-simulated swipe back from User ${input.targetUserId} to User ${ctx.user.id}`);
+              await db.createSwipe(input.targetUserId, ctx.user.id, true);
+            }
+          }
+        }
+
         // Check for mutual like (match)
         if (input.liked) {
           const reverseSwipe = await db.getSwipe(input.targetUserId, ctx.user.id);
           if (reverseSwipe && reverseSwipe.liked) {
+            // Check if match already exists
+            const match1 = await db.getMatch(ctx.user.id, input.targetUserId);
+            const match2 = await db.getMatch(input.targetUserId, ctx.user.id);
+            const existingMatch = match1 || match2;
+
+            if (existingMatch) {
+              logger.swipe(ctx.user.id, input.targetUserId, true, true, `Match already exists with ID ${existingMatch.id}`);
+              return { success: true, matched: true };
+            }
+
             // Get user profiles and dogs for compatibility calculation
             const currentUser = await db.getUserById(ctx.user.id);
             const targetUser = await db.getUserById(input.targetUserId);
@@ -489,6 +534,11 @@ export const appRouter = router({
 
             await db.createMatch(ctx.user.id, input.targetUserId, overallScore);
 
+            const match = await db.getMatch(ctx.user.id, input.targetUserId) || await db.getMatch(input.targetUserId, ctx.user.id);
+            const matchId = match?.id || "unknown";
+
+            logger.match(matchId, ctx.user.id, input.targetUserId, overallScore, "Match created successfully");
+
             // Create notifications for both users
             await db.createNotification(
               ctx.user.id,
@@ -521,13 +571,15 @@ export const appRouter = router({
                 email: user2?.email,
                 phoneNumber: user2?.phoneNumber,
               },
-              compatibilityScore: compatibilityResult.overallScore,
+              compatibilityScore: overallScore,
             });
 
+            logger.swipe(ctx.user.id, input.targetUserId, true, true, `Successfully matched with User ${input.targetUserId}`);
             return { success: true, matched: true };
           }
         }
 
+        logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, `Swipe recorded, not mutual`);
         return { success: true, matched: false };
       }),
   }),
@@ -536,7 +588,9 @@ export const appRouter = router({
   match: router({
     // Get all matches for current user
     getMatches: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getMatchesForUser(ctx.user.id);
+      const results = await db.getMatchesForUser(ctx.user.id);
+      logger.match("fetch", ctx.user.id, 0, 0, `Fetched ${results.length} matches`);
+      return results;
     }),
   }),
 
@@ -546,7 +600,9 @@ export const appRouter = router({
     getMessages: protectedProcedure
       .input(z.object({ matchId: z.number() }))
       .query(async ({ ctx, input }) => {
-        return await db.getMessagesForMatch(input.matchId);
+        const messages = await db.getMessagesForMatch(input.matchId);
+        logger.message(input.matchId, ctx.user.id, "", `Fetched ${messages.length} messages`);
+        return messages;
       }),
 
     // Send a message
@@ -560,6 +616,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         // TODO: Verify user is part of this match
         await db.sendMessage(input.matchId, ctx.user.id, input.content);
+        logger.message(input.matchId, ctx.user.id, input.content, "Message sent successfully");
 
         // Fetch the match details to find the recipient!
         const match = await db.getMatchById(input.matchId);
