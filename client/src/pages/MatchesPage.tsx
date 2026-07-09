@@ -34,8 +34,9 @@ export default function MatchesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {matches.map((match: any) => {
               // Determine if current user is user1 or user2
-              const isUser1 = match.user1Id === user?.id;
-              const otherUserId = isUser1 ? match.user2Id : match.user1Id;
+              const currentUserId = Number(user?.id);
+              const isUser1 = Number(match.user1Id) === currentUserId;
+              const otherUserId = isUser1 ? Number(match.user2Id) : Number(match.user1Id);
               const otherUserName = isUser1 ? match.user2Name : match.user1Name;
 
               return (

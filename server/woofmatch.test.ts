@@ -170,7 +170,43 @@ describe("Compagnon tRPC Procedures", () => {
         expect(error.message).toBeDefined();
       }
     });
+
+    it("should correctly identify the other user in a match regardless of ID type", () => {
+      // Simulate match rows as they come from MySQL (can be number, string, or bigint)
+      const currentUserId = 42;
+
+      type MockMatch = {
+        id: number | string;
+        user1Id: number | string;
+        user2Id: number | string;
+        user1Name: string;
+        user2Name: string;
+        compatibilityScore: string;
+        createdAt: Date;
+      };
+
+      const testCases: MockMatch[] = [
+        // IDs as numbers (ideal case)
+        { id: 1, user1Id: 42, user2Id: 99, user1Name: "Me", user2Name: "Other", compatibilityScore: "80", createdAt: new Date() },
+        // IDs as strings (mysql2 can return these)
+        { id: "2", user1Id: "99", user2Id: "42", user1Name: "Other", user2Name: "Me", compatibilityScore: "75", createdAt: new Date() },
+        // Current user is user1
+        { id: 3, user1Id: 42, user2Id: 100, user1Name: "Me", user2Name: "Alice", compatibilityScore: "90", createdAt: new Date() },
+      ];
+
+      for (const match of testCases) {
+        const isUser1 = Number(match.user1Id) === currentUserId;
+        const otherUserId = isUser1 ? Number(match.user2Id) : Number(match.user1Id);
+        const otherUserName = isUser1 ? match.user2Name : match.user1Name;
+
+        // Verify the other user is never the current user
+        expect(otherUserId).not.toBe(currentUserId);
+        // Verify the other user name is not "Me"
+        expect(otherUserName).not.toBe("Me");
+      }
+    });
   });
+
 
   describe("message procedures", () => {
     it("should send a message", async () => {

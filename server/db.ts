@@ -255,11 +255,16 @@ export async function getMatchesForUser(userId: number) {
     if (!connection) return [];
 
     const query = `
-      SELECT m.id, m.createdAt, m.compatibilityScore,
-             m.userId1 as user1Id, m.userId2 as user2Id,
-             m.userId1, m.userId2,
-             u1.name as user1Name, u1.profilePhotoUrl as user1Photo,
-             u2.name as user2Name, u2.profilePhotoUrl as user2Photo
+      SELECT
+        CAST(m.id AS UNSIGNED) as id,
+        m.createdAt,
+        m.compatibilityScore,
+        CAST(m.userId1 AS UNSIGNED) as user1Id,
+        CAST(m.userId2 AS UNSIGNED) as user2Id,
+        u1.name as user1Name,
+        u1.profilePhotoUrl as user1Photo,
+        u2.name as user2Name,
+        u2.profilePhotoUrl as user2Photo
       FROM matches m
       JOIN users u1 ON m.userId1 = u1.id
       JOIN users u2 ON m.userId2 = u2.id
