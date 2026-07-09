@@ -1148,3 +1148,68 @@ export async function getSwipedUserIds(userId: number): Promise<number[]> {
     return [];
   }
 }
+
+export async function getDailySwipeCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as count FROM swipes WHERE userId = ? AND createdAt >= CURDATE()`,
+      [userId]
+    );
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get daily swipe count:", error);
+    return 0;
+  }
+}
+
+export async function usersAreMatched(userId1: number, userId2: number): Promise<boolean> {
+  const match1 = await getMatch(userId1, userId2);
+  const match2 = await getMatch(userId2, userId1);
+  return !!(match1 || match2);
+}
+
+export async function getPublicUserProfile(viewerId: number, targetUserId: number) {
+  if (viewerId === targetUserId) {
+    const self = await getUserById(viewerId);
+    if (!self) return undefined;
+    const selfDogs = await getDogsByUserId(viewerId);
+    return {
+      id: self.id,
+      name: self.name,
+      age: self.age,
+      bio: self.bio,
+      profilePhotoUrl: self.profilePhotoUrl,
+      interests: self.interests,
+      walkingHabits: self.walkingHabits,
+      whatISeek: self.whatISeek,
+      dogs: selfDogs,
+    };
+  }
+
+  const isMatched = await usersAreMatched(viewerId, targetUserId);
+  const hasSwiped = await getSwipe(viewerId, targetUserId);
+  const isFav = await isFavorite(viewerId, targetUserId);
+
+  if (!isMatched && !hasSwiped && !isFav) {
+    return undefined;
+  }
+
+  const target = await getUserById(targetUserId);
+  if (!target) return undefined;
+
+  const targetDogs = await getDogsByUserId(targetUserId);
+  return {
+    id: target.id,
+    name: target.name,
+    age: target.age,
+    bio: target.bio,
+    profilePhotoUrl: target.profilePhotoUrl,
+    interests: target.interests,
+    walkingHabits: target.walkingHabits,
+    whatISeek: target.whatISeek,
+    dogs: targetDogs,
+    isMatched,
+  };
+}
