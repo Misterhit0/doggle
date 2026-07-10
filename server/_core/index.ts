@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -114,6 +115,7 @@ async function startServer() {
   app.use("/api/oauth", createRateLimiter(200, 15 * 60 * 1000));
 
   registerStorageProxy(app);
+  app.use("/uploads", express.static(path.resolve(import.meta.dirname, "../..", "uploads")));
   registerOAuthRoutes(app);
   // tRPC API
   app.use(

@@ -11,9 +11,63 @@ import bcrypt from "bcryptjs";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import axios from "axios";
 import { logger } from "./_core/logger";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { storagePut } from "./storage";
+import { ENV } from "./_core/env";
 
 export const appRouter = router({
   system: systemRouter,
+  storage: router({
+    uploadPhoto: protectedProcedure
+      .input(
+        z.object({
+          base64Data: z.string(),
+          filename: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const match = input.base64Data.match(/^data:([^;]+);base64,(.+)$/);
+        let mimeType = "application/octet-stream";
+        let base64Payload = input.base64Data;
+        
+        if (match) {
+          mimeType = match[1];
+          base64Payload = match[2];
+        }
+
+        const buffer = Buffer.from(base64Payload, "base64");
+        
+        let extension = "jpg";
+        if (mimeType === "image/png") extension = "png";
+        else if (mimeType === "image/webp") extension = "webp";
+        else if (mimeType === "image/gif") extension = "gif";
+        
+        const fileId = crypto.randomUUID();
+        const baseFilename = input.filename ? path.basename(input.filename, path.extname(input.filename)) : `photo_${fileId}`;
+        const finalFilename = `${baseFilename}_${fileId.slice(0, 8)}.${extension}`;
+        
+        if (ENV.forgeApiUrl && ENV.forgeApiKey) {
+          try {
+            const { key } = await storagePut(`uploads/${finalFilename}`, buffer, mimeType);
+            return { url: `/manus-storage/${key}` };
+          } catch (error) {
+            console.error("[Storage] Forge upload failed, falling back to local storage:", error);
+          }
+        }
+        
+        const uploadsDir = path.resolve(import.meta.dirname, "..", "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const filePath = path.join(uploadsDir, finalFilename);
+        fs.writeFileSync(filePath, buffer);
+        
+        return { url: `/uploads/${finalFilename}` };
+      }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -65,6 +119,11 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
         logger.auth("signup_success", input.email, true, `UserId: ${user.id}`);
+        triggerN8nWebhook("user.registered", {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        });
         return { success: true, user };
       }),
 
@@ -121,7 +180,7 @@ export const appRouter = router({
           walkingHabits: z.string().optional(),
           whatISeek: z.array(z.enum(["friend", "mentor", "intergenerational"])).optional(),
           bio: z.string().max(500).optional(),
-          profilePhotoUrl: z.string().url().optional(),
+          profilePhotoUrl: z.string().optional(),
           phoneNumber: z.string().optional(),
         })
       )
@@ -217,7 +276,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).max(3).optional(),
+          photoUrls: z.array(z.string()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -229,6 +288,13 @@ export const appRouter = router({
           description: input.description,
           personality: input.personality ? (JSON.stringify(input.personality) as any) : undefined,
           photoUrls: input.photoUrls ? (JSON.stringify(input.photoUrls) as any) : undefined,
+        });
+        const user = await db.getUserById(ctx.user.id);
+        triggerN8nWebhook("dog.created", {
+          userId: ctx.user.id,
+          userName: user?.name,
+          dogName: input.name,
+          breed: input.breed,
         });
         return { success: true };
       }),
@@ -243,7 +309,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).max(3).optional(),
+          photoUrls: z.array(z.string()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -957,6 +1023,19 @@ export const appRouter = router({
         const reportId = await reportLostDog({
           ...input,
           userId: ctx.user.id,
+        });
+        const user = await db.getUserById(ctx.user.id);
+        const dog = await db.getDogById(input.dogId);
+        triggerN8nWebhook("dog.lost", {
+          userId: ctx.user.id,
+          userName: user?.name,
+          userPhone: user?.phoneNumber,
+          dogId: input.dogId,
+          dogName: dog?.name,
+          description: input.description,
+          lostLocation: input.lostLocation,
+          reward: input.reward,
+          contactPhone: input.contactPhone || user?.phoneNumber,
         });
         return { success: !!reportId, reportId };
       }),
