@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { useLocation } from "wouter";
 import { Heart, MessageCircle, Users, Star, Trash2 } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const parsePhotos = (photoUrls: any): string[] => {
   if (!photoUrls) return [];
@@ -30,6 +31,9 @@ export default function MatchesPage() {
   // Fetch matches
   const { data: matches, isLoading } = trpc.match.getMatches.useQuery();
 
+  // Block state
+  const [selectedUserForBlock, setSelectedUserForBlock] = useState<{ id: number; name: string } | null>(null);
+
   // Block mutation
   const blockMutation = trpc.match.blockUser.useMutation({
     onSuccess: () => {
@@ -37,9 +41,9 @@ export default function MatchesPage() {
     }
   });
 
-  const handleBlock = async (targetUserId: number) => {
+  const handleBlock = async (targetUserId: number, isPermanent: boolean) => {
     try {
-      await blockMutation.mutateAsync({ targetUserId });
+      await blockMutation.mutateAsync({ targetUserId, isPermanent });
     } catch (error) {
       console.error("Failed to block user:", error);
     }
@@ -56,9 +60,18 @@ export default function MatchesPage() {
   return (
     <div className="min-h-screen bg-background py-12">
       <div className="container max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold uppercase text-foreground mb-2">Mes Matchs</h1>
-          <p className="text-muted-foreground">Vous avez {matches?.length || 0} match{matches && matches.length !== 1 ? 'es' : ''}</p>
+        <div className="flex justify-between items-start mb-8 flex-col sm:flex-row gap-4">
+          <div>
+            <h1 className="text-4xl font-bold uppercase text-foreground mb-2">Mes Matchs</h1>
+            <p className="text-muted-foreground">Vous avez {matches?.length || 0} match{matches && matches.length !== 1 ? 'es' : ''}</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setLocation("/blocked")}
+            className="border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all font-black uppercase flex items-center gap-2 cursor-pointer bg-white text-black text-xs px-4 py-2"
+          >
+            Gérer les profils bloqués
+          </Button>
         </div>
 
         {matches && matches.length > 0 ? (
@@ -126,9 +139,7 @@ export default function MatchesPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm("Voulez-vous vraiment retirer et bloquer ce match définitivement ?")) {
-                          handleBlock(otherUserId);
-                        }
+                        setSelectedUserForBlock({ id: otherUserId, name: otherUserName });
                       }}
                       className="bg-red-500 hover:bg-red-600 hover:scale-105 active:scale-95 text-white border-2 border-black p-1.5 rounded-full flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
                       title="Bloquer / Retirer ce match"
@@ -205,6 +216,58 @@ export default function MatchesPage() {
           </Card>
         )}
       </div>
+
+      <AnimatePresence>
+        {selectedUserForBlock && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-background border-4 border-black p-6 rounded-none max-w-md w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black relative"
+            >
+              <h3 className="text-2xl font-black uppercase mb-2 tracking-wide">Retirer / Bloquer</h3>
+              <p className="text-sm text-gray-700 mb-6 font-medium">
+                Voulez-vous retirer {selectedUserForBlock.name} de vos matchs ?
+                <br /><br />
+                - **Suppression temporaire** : Cache le profil de vos matchs et de votre découverte pendant 7 jours.
+                <br />
+                - **Blocage définitif** : Cache le profil indéfiniment.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={async () => {
+                    await handleBlock(selectedUserForBlock.id, false);
+                    setSelectedUserForBlock(null);
+                  }}
+                  className="w-full bg-blue-400 hover:bg-blue-500 text-black border-2 border-black font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  Supprimer (1 semaine)
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    await handleBlock(selectedUserForBlock.id, true);
+                    setSelectedUserForBlock(null);
+                  }}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white border-2 border-black font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  Bloquer définitivement
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedUserForBlock(null)}
+                  className="w-full bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer animate-none"
+                >
+                  Annuler
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
