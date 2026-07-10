@@ -1,4 +1,4 @@
-import { Dog, Heart, Users, MapPin, MessageSquare, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Dog, Heart, Users, MapPin, MessageSquare, AlertTriangle, ShieldCheck, Sparkles } from "lucide-react";
 import MemphisBackground from "@/components/MemphisBackground";
 import { Card } from "@/components/ui/card";
 import { motion } from "framer-motion";
@@ -42,6 +42,12 @@ export default function FeaturesPage() {
       title: "Vérification d'Identité",
       desc: "Parce que la sécurité physique et la confiance sont prioritaires, les profils peuvent soumettre un selfie de vérification d'identité validé manuellement par nos équipes.",
       color: "bg-emerald-50 border-emerald-200 text-emerald-600",
+    },
+    {
+      icon: Sparkles,
+      title: "WoofParty (Spontané)",
+      desc: "Des flash-mobs canines automatisées ! Notre algorithme détecte les groupes compatibles à proximité et propose une rencontre de meute spontanée dans un parc local.",
+      color: "bg-yellow-50 border-yellow-200 text-yellow-600",
     },
   ];
 

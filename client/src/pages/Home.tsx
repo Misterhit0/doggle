@@ -85,18 +85,18 @@ export default function Home() {
           style={{ opacity: scrolled ? 1 : 0 }}
         />
         <div className="container relative flex items-center justify-between py-4">
-          <div className="flex items-center gap-2">
+          <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
             <Dog className="w-8 h-8 text-accent" />
             <span className="text-2xl font-bold uppercase text-foreground">Doggle</span>
-          </div>
+          </a>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
-              <>
-                <span className="text-sm text-muted-foreground hidden sm:inline">Bienvenue, {user?.name}</span>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="/dashboard">Tableau de bord</a>
-                </Button>
-              </>
+               <>
+                 <span className="text-sm text-muted-foreground hidden sm:inline">Bienvenue, {user?.name}</span>
+                 <Button variant="outline" size="sm" asChild>
+                   <a href="/discovery">Espace Découverte</a>
+                 </Button>
+               </>
             ) : (
               <Button size="sm" className="active:scale-95 transition-transform" asChild>
                 <a href={getLoginUrl()}>Se connecter</a>
@@ -115,14 +115,14 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: reduceMotion ? 0.3 : 0.7, ease: EASE_OUT }}
             >
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold uppercase text-foreground mb-6 leading-[1.05] memphis-line-accent">
-                Rencontres canines
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black uppercase text-foreground mb-6 leading-[1.0] memphis-line-accent tracking-tighter">
+                Match. Joue.
                 <br />
-                <span className="text-accent">authentiques</span>
+                <span className="text-accent">Promène.</span>
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground mb-8 font-medium max-w-lg">
-                Connectez-vous avec d'autres maîtres près de chez vous pour des amitiés durables et du mentorat entre passionnés.
+                Plus que du love, du woof ! Trouvez la meute idéale et connectez-vous avec des maîtres et chiens compatibles près de chez vous.
               </p>
 
               <div className="flex flex-wrap items-center gap-4 mb-12">
@@ -339,7 +339,7 @@ export default function Home() {
               className="bg-white text-red-600 hover:bg-gray-100 font-bold uppercase border-2 border-black shadow-lg active:scale-95 transition-transform"
               asChild
             >
-              <a href="/chiens-perdus">Voir les chiens perdus</a>
+              <a href="/lost-dogs">Voir les chiens perdus</a>
             </Button>
           </Reveal>
         </div>
