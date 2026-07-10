@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ export default function EventsPage() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [selectedEventType, setSelectedEventType] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
+  const mapRef = useRef<maplibregl.Map | null>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
 
@@ -89,77 +90,69 @@ export default function EventsPage() {
   }, []);
 
   const createEventMutation = trpc.events.createEvent.useMutation();
+  // Always load events — France-wide fallback (500km) if no geoloc yet
   const { data: nearbyEvents, isLoading: eventsLoading, refetch: refetchEvents } = trpc.events.getNearbyEvents.useQuery(
     latitude && longitude
-      ? { latitude, longitude, radiusKm: 10, eventType: selectedEventType && selectedEventType !== "all" ? selectedEventType : undefined }
-      : { latitude: 0, longitude: 0 },
-    { enabled: !!latitude && !!longitude }
+      ? { latitude, longitude, radiusKm: 50, eventType: selectedEventType && selectedEventType !== "all" ? selectedEventType : undefined }
+      : { latitude: 46.603354, longitude: 1.888334, radiusKm: 500, eventType: selectedEventType && selectedEventType !== "all" ? selectedEventType : undefined },
+    { refetchOnWindowFocus: false }
   );
   const joinEventMutation = trpc.events.joinEvent.useMutation();
 
-  // Place event markers on map when events or map changes
-  useEffect(() => {
-    if (!map || !nearbyEvents || !Array.isArray(nearbyEvents)) return;
-
-    // Clear existing markers
+  // Helper: place all event markers on a given map instance
+  const placeEventMarkersOnMap = useCallback((mapInstance: maplibregl.Map, events: any[]) => {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
+    if (!Array.isArray(events) || events.length === 0) return;
+
     const bounds = new maplibregl.LngLatBounds();
 
-    (nearbyEvents as any[]).forEach((event) => {
+    events.forEach((event) => {
       if (!event.latitude || !event.longitude) return;
 
       const icon = EVENT_TYPE_ICONS[event.eventType] || "📍";
       const eventDate = new Date(event.eventDate).toLocaleDateString("fr-FR", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
+        weekday: "short", day: "numeric", month: "short",
+        hour: "2-digit", minute: "2-digit",
       });
 
-      // Create beautiful custom DOM Element for the marker (retro Memphis styled)
       const el = document.createElement("div");
-      el.className = "flex items-center justify-center bg-amber-500 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform cursor-pointer";
-      el.style.width = "38px";
-      el.style.height = "38px";
-      el.style.fontSize = "20px";
+      el.style.cssText = "display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#f59e0b;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;font-size:20px;cursor:pointer;transition:transform .15s";
       el.innerText = icon;
+      el.onmouseenter = () => { el.style.transform = "scale(1.15)"; };
+      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
 
-      // Define Popup
-      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
-        <div style="font-family: sans-serif; max-width: 220px; padding: 4px;">
-          <div style="font-size: 18px; margin-bottom: 4px;">${icon}</div>
-          <h3 style="font-weight: 900; font-size: 14px; margin: 0 0 4px 0; text-transform: uppercase; color: #000;">${event.title}</h3>
-          <p style="font-size: 11px; color: #666; margin: 0 0 6px 0;">${event.eventType}</p>
-          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 11px;">
-            <span>📅 ${eventDate}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px; font-size: 11px;">
-            <span>📍 ${event.location}</span>
-          </div>
+      const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
+        <div style="font-family:sans-serif;max-width:220px;padding:6px">
+          <div style="font-size:18px;margin-bottom:4px">${icon}</div>
+          <h3 style="font-weight:900;font-size:14px;margin:0 0 4px;text-transform:uppercase;color:#000">${event.title}</h3>
+          <p style="font-size:11px;color:#666;margin:0 0 6px">${event.eventType}</p>
+          <div style="font-size:11px;margin-bottom:3px">📅 ${eventDate}</div>
+          <div style="font-size:11px">📍 ${event.location}</div>
         </div>
       `);
 
-      // Add to map
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([Number(event.longitude), Number(event.latitude)])
         .setPopup(popup)
-        .addTo(map);
+        .addTo(mapInstance);
 
       markersRef.current.push(marker);
       bounds.extend([Number(event.longitude), Number(event.latitude)]);
     });
 
-    // Fit map to markers
     if (markersRef.current.length > 0) {
-      if (longitude && latitude) {
-        bounds.extend([longitude, latitude]);
-      }
-      map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
+      mapInstance.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 600 });
     }
-  }, [map, nearbyEvents, latitude, longitude]);
+  }, []);
+
+  // Re-place markers whenever data or map changes
+  useEffect(() => {
+    const mapInstance = mapRef.current;
+    if (!mapInstance || !nearbyEvents) return;
+    placeEventMarkersOnMap(mapInstance, nearbyEvents as any[]);
+  }, [map, nearbyEvents, placeEventMarkersOnMap]);
 
   // Handle user position marker
   useEffect(() => {
@@ -184,28 +177,29 @@ export default function EventsPage() {
   }, [map, latitude, longitude]);
 
   const handleCreateEvent = async () => {
-    if (!latitude || !longitude) {
-      toast.error("Géolocalisation requise");
-      return;
-    }
-    if (!formData.title || !formData.description || !formData.eventType || !formData.location || !formData.eventDate) {
-      toast.error("Remplissez tous les champs");
-      return;
-    }
+    if (!formData.title.trim()) { toast.error("Ajoutez un titre"); return; }
+    if (!formData.description.trim()) { toast.error("Ajoutez une description"); return; }
+    if (!formData.eventType) { toast.error("Choisissez un type d'événement"); return; }
+    if (!formData.location.trim()) { toast.error("Indiquez le lieu"); return; }
+    if (!formData.eventDate) { toast.error("Choisissez une date et heure"); return; }
+    // Use user position if available, otherwise France center
+    const lat = latitude ?? 46.603354;
+    const lng = longitude ?? 1.888334;
     try {
       await createEventMutation.mutateAsync({
         ...formData,
-        latitude,
-        longitude,
+        latitude: lat,
+        longitude: lng,
         eventDate: new Date(formData.eventDate),
         duration: parseInt(formData.duration.toString()),
       });
-      toast.success("Événement créé !");
+      toast.success("🎉 Événement créé !");
       setFormData({ title: "", description: "", eventType: "", location: "", eventDate: "", duration: 60 });
       setIsCreating(false);
       refetchEvents();
-    } catch (error) {
-      toast.error("Erreur lors de la création");
+    } catch (error: any) {
+      console.error("[EventsPage] createEvent error:", error);
+      toast.error(error?.message || "Erreur lors de la création — réessayez");
     }
   };
 
@@ -271,10 +265,18 @@ export default function EventsPage() {
           </div>
           <MapView
             onMapReady={(mapInstance) => {
+              mapRef.current = mapInstance;
               setMap(mapInstance);
               if (latitude && longitude) {
                 mapInstance.setCenter([longitude, latitude]);
                 mapInstance.setZoom(13);
+              } else {
+                mapInstance.setCenter([2.3522, 46.6]);
+                mapInstance.setZoom(5);
+              }
+              // Place markers immediately if data already loaded
+              if (nearbyEvents && Array.isArray(nearbyEvents)) {
+                placeEventMarkersOnMap(mapInstance, nearbyEvents as any[]);
               }
             }}
             initialCenter={latitude && longitude ? { lat: latitude, lng: longitude } : { lat: 48.8566, lng: 2.3522 }}
