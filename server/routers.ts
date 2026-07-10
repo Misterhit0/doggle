@@ -478,9 +478,11 @@ export const appRouter = router({
           ];
         }
 
-        // Get swiped user IDs to filter them out of discovery list
+        // Get swiped and blocked user IDs to filter them out of discovery list
         const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
-        const filteredDuos = duos.filter(d => !swipedUserIds.includes(Number(d.user.id)));
+        const blockedUserIds = await db.getBlockedUserIds(ctx.user.id);
+        const excludeUserIds = [...swipedUserIds, ...blockedUserIds];
+        const filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
 
         // Helper parsers for JSON arrays in mysql
         const parseJsonField = (field: any): string[] => {
@@ -598,9 +600,13 @@ export const appRouter = router({
 
         if (!bypass) {
           if (!input.isFavorite) {
-            const dailySwipes = await db.getDailySwipeCount(ctx.user.id);
-            if (dailySwipes >= 20) {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "SWIPE_LIMIT_EXCEEDED" });
+            const userPlan = freshUser?.plan || "free";
+            const config = await db.getPlanConfig(userPlan);
+            if (config.maxSwipesPerDay !== -1) {
+              const dailySwipes = await db.getDailySwipeCount(ctx.user.id);
+              if (dailySwipes >= config.maxSwipesPerDay) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "SWIPE_LIMIT_EXCEEDED" });
+              }
             }
           }
         }
@@ -747,6 +753,42 @@ export const appRouter = router({
       logger.match("fetch", ctx.user.id, 0, 0, `Fetched ${results.length} matches`);
       return results;
     }),
+
+    // Block / Unmatch a user
+    blockUser: protectedProcedure
+      .input(
+        z.object({
+          targetUserId: z.number(),
+          isPermanent: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.id === input.targetUserId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot block yourself" });
+        }
+        await db.blockUser(ctx.user.id, input.targetUserId, input.isPermanent);
+        logger.match(
+          input.isPermanent ? "block" : "unmatch",
+          ctx.user.id,
+          input.targetUserId,
+          0,
+          `User ${input.isPermanent ? "blocked" : "unmatched"} successfully`
+        );
+        return { success: true };
+      }),
+
+    // Get list of blocked users
+    getBlockedUsers: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBlockedUsers(ctx.user.id);
+    }),
+
+    // Unblock a user
+    unblockUser: protectedProcedure
+      .input(z.object({ targetUserId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const success = await db.unblockUser(ctx.user.id, input.targetUserId);
+        return { success };
+      }),
   }),
 
   // Messages
@@ -831,14 +873,18 @@ export const appRouter = router({
         const bypass = freshUser?.role === "admin" || freshUser?.bypassPaymentLimits || (freshUser?.swipeLimitUntil && freshUser.swipeLimitUntil > new Date());
 
         if (!bypass) {
-          const dailyFavorites = await db.getDailyFavoriteCount(ctx.user.id);
-          if (dailyFavorites >= 2) {
-            if (freshUser && freshUser.superLikeCredits > 0) {
-              await db.updateUserProfile(ctx.user.id, {
-                superLikeCredits: freshUser.superLikeCredits - 1,
-              });
-            } else {
-              throw new TRPCError({ code: "BAD_REQUEST", message: "FAVORITE_LIMIT_EXCEEDED" });
+          const userPlan = freshUser?.plan || "free";
+          const config = await db.getPlanConfig(userPlan);
+          if (config.maxFavoritesPerDay !== -1) {
+            const dailyFavorites = await db.getDailyFavoriteCount(ctx.user.id);
+            if (dailyFavorites >= config.maxFavoritesPerDay) {
+              if (freshUser && freshUser.superLikeCredits > 0) {
+                await db.updateUserProfile(ctx.user.id, {
+                  superLikeCredits: freshUser.superLikeCredits - 1,
+                });
+              } else {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "FAVORITE_LIMIT_EXCEEDED" });
+              }
             }
           }
         }
@@ -1237,6 +1283,7 @@ export const appRouter = router({
           name: z.string().optional(),
           email: z.string().email().optional(),
           role: z.enum(["user", "admin"]).optional(),
+          plan: z.enum(["free", "premium", "vip"]).optional(),
           phoneNumber: z.string().optional(),
           age: z.number().int().optional(),
         })
@@ -1250,6 +1297,7 @@ export const appRouter = router({
         if (input.name !== undefined) updateData.name = input.name;
         if (input.email !== undefined) updateData.email = input.email;
         if (input.role !== undefined) updateData.role = input.role;
+        if (input.plan !== undefined) updateData.plan = input.plan;
         if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
         if (input.age !== undefined) updateData.age = input.age;
 
@@ -1264,6 +1312,35 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         const success = await db.deleteUserAdmin(input.userId);
+        return { success };
+      }),
+
+    getPlanSettings: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getPlanSettings();
+    }),
+
+    updatePlanSettings: protectedProcedure
+      .input(
+        z.object({
+          plan: z.string(),
+          maxSwipesPerDay: z.number().int(),
+          maxFavoritesPerDay: z.number().int(),
+          price: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const success = await db.updatePlanSettings(
+          input.plan,
+          input.maxSwipesPerDay,
+          input.maxFavoritesPerDay,
+          input.price
+        );
         return { success };
       }),
 

@@ -35,7 +35,7 @@ import {
 
 export default function AdminDashboardPage() {
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "payments" | "logs" | "perf" | "db-manager">("kpis");
+  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "payments" | "logs" | "perf" | "db-manager" | "settings">("kpis");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -44,6 +44,7 @@ export default function AdminDashboardPage() {
     email: "",
     phoneNumber: "",
     role: "user" as "user" | "admin",
+    plan: "free" as "free" | "premium" | "vip",
     age: 18,
   });
 
@@ -83,6 +84,21 @@ export default function AdminDashboardPage() {
   const { data: serverStats, isLoading: serverLoading, refetch: refetchServer } = trpc.admin.getServerStats.useQuery(undefined, {
     enabled: currentUser?.role === "admin",
     refetchInterval: 10000 // refresh metrics every 10s
+  });
+
+  // Plan settings queries & mutations
+  const { data: planSettings, isLoading: planSettingsLoading, refetch: refetchPlanSettings } = trpc.admin.getPlanSettings.useQuery(undefined, {
+    enabled: currentUser?.role === "admin" && activeTab === "settings"
+  });
+
+  const updatePlanSettingsMutation = trpc.admin.updatePlanSettings.useMutation({
+    onSuccess: () => {
+      toast.success("Limites du plan mises à jour avec succès !");
+      refetchPlanSettings();
+    },
+    onError: (err: any) => {
+      toast.error("Erreur lors de la mise à jour des limites : " + err.message);
+    }
   });
 
   // DB Manager Queries & Mutations
@@ -230,6 +246,7 @@ export default function AdminDashboardPage() {
       email: user.email || "",
       phoneNumber: user.phoneNumber || "",
       role: user.role || "user",
+      plan: user.plan || "free",
       age: user.age || 18,
     });
     setIsEditModalOpen(true);
@@ -305,6 +322,7 @@ export default function AdminDashboardPage() {
             { id: "kpis", label: "Vue d'ensemble", icon: Activity, color: "bg-cyan-300" },
             { id: "crm", label: "CRM Utilisateurs", icon: Users, color: "bg-emerald-300" },
             { id: "payments", label: "Paiements & Ventes", icon: CreditCard, color: "bg-yellow-300" },
+            { id: "settings", label: "Paramètres App", icon: Zap, color: "bg-red-300" },
             { id: "db-manager", label: "Bases de Données", icon: Database, color: "bg-amber-300" },
             { id: "logs", label: "Journaux (Logs)", icon: Terminal, color: "bg-purple-300" },
             { id: "perf", label: "Performance & n8n", icon: Server, color: "bg-pink-300" },
@@ -512,11 +530,22 @@ export default function AdminDashboardPage() {
                           </td>
                           <td className="p-4 border-r-2 border-neutral-200">
                             <p className="font-bold text-sm text-black">{userObj.name}</p>
-                            <span className={`inline-block px-1.5 py-0.5 text-[9px] uppercase font-black tracking-wider border border-black rounded mt-1 ${
-                              userObj.role === "admin" ? "bg-red-200 text-red-900" : "bg-neutral-200 text-neutral-900"
-                            }`}>
-                              {userObj.role}
-                            </span>
+                            <div className="flex gap-1 flex-wrap mt-1">
+                              <span className={`inline-block px-1.5 py-0.5 text-[9px] uppercase font-black tracking-wider border border-black rounded ${
+                                userObj.role === "admin" ? "bg-red-200 text-red-900" : "bg-neutral-200 text-neutral-900"
+                              }`}>
+                                {userObj.role === "admin" ? "Admin" : "Standard"}
+                              </span>
+                              <span className={`inline-block px-1.5 py-0.5 text-[9px] uppercase font-black tracking-wider border border-black rounded ${
+                                userObj.plan === "vip" 
+                                  ? "bg-purple-200 text-purple-900" 
+                                  : userObj.plan === "premium" 
+                                  ? "bg-cyan-200 text-cyan-900" 
+                                  : "bg-neutral-100 text-neutral-800"
+                              }`}>
+                                {userObj.plan || "free"}
+                              </span>
+                            </div>
                           </td>
                           <td className="p-4 border-r-2 border-neutral-200">
                             <p className="font-semibold">{userObj.email}</p>
@@ -714,6 +743,136 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </Card>
+          </div>
+        )}
+
+        {/* TAB: APP/MONETIZATION SETTINGS */}
+        {activeTab === "settings" && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="flex justify-between items-center bg-white p-6 border-4 border-black rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+              <div>
+                <h2 className="text-2xl font-black uppercase">Configuration des Limites & Formules</h2>
+                <p className="text-muted-foreground text-xs font-bold uppercase mt-1">
+                  Définissez le nombre de swipes et favoris journaliers autorisés pour chaque niveau de compte.
+                </p>
+              </div>
+            </div>
+
+            {planSettingsLoading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Spinner className="w-10 h-10 mb-4" />
+                <p className="font-bold text-xs uppercase text-muted-foreground">Chargement des limites...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {["free", "premium", "vip"].map((planKey) => {
+                  const planData = planSettings?.find((p: any) => p.plan === planKey) || {
+                    plan: planKey,
+                    maxSwipesPerDay: planKey === "vip" ? -1 : planKey === "premium" ? 20 : 10,
+                    maxFavoritesPerDay: planKey === "vip" ? 5 : planKey === "premium" ? 2 : 1,
+                    price: planKey === "vip" ? 9.99 : planKey === "premium" ? 4.99 : 0.00,
+                  };
+
+                  return (
+                    <Card
+                      key={planKey}
+                      className="p-6 border-4 border-black rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)] relative bg-white"
+                    >
+                      <span className={`absolute -top-3.5 left-4 border-2 border-black font-black uppercase text-[10px] px-3 py-0.5 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)] ${
+                        planKey === "vip" 
+                          ? "bg-purple-300" 
+                          : planKey === "premium" 
+                          ? "bg-cyan-300" 
+                          : "bg-yellow-300"
+                      }`}>
+                        Plan {planKey === "free" ? "Gratuit" : planKey === "premium" ? "Premium" : "VIP"}
+                      </span>
+
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const formData = new FormData(e.currentTarget);
+                          const maxSwipes = formData.get("isUnlimitedSwipes") === "true" 
+                            ? -1 
+                            : parseInt(formData.get("maxSwipesPerDay") as string) || 0;
+                          const maxFavorites = parseInt(formData.get("maxFavoritesPerDay") as string) || 0;
+                          const price = parseFloat(formData.get("price") as string) || 0;
+
+                          await updatePlanSettingsMutation.mutateAsync({
+                            plan: planKey,
+                            maxSwipesPerDay: maxSwipes,
+                            maxFavoritesPerDay: maxFavorites,
+                            price,
+                          });
+                        }}
+                        className="space-y-4 mt-4"
+                      >
+                        <div>
+                          <Label className="font-bold text-xs uppercase">Prix mensuel (€)</Label>
+                          <Input
+                            name="price"
+                            type="number"
+                            step="0.01"
+                            defaultValue={parseFloat(planData.price).toFixed(2)}
+                            disabled={planKey === "free"}
+                            className="border-2 border-black font-bold text-xs shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="font-bold text-xs uppercase">Limite de Swipes / Jour</Label>
+                          <div className="flex items-center gap-4 mt-1">
+                            <input
+                              type="number"
+                              name="maxSwipesPerDay"
+                              defaultValue={planData.maxSwipesPerDay === -1 ? 20 : planData.maxSwipesPerDay}
+                              disabled={planData.maxSwipesPerDay === -1}
+                              id={`swipes-input-${planKey}`}
+                              className="w-24 bg-white border-2 border-black font-bold text-xs p-2 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)] disabled:opacity-50"
+                            />
+                            
+                            <label className="flex items-center gap-1.5 text-xs font-bold uppercase cursor-pointer">
+                              <input
+                                type="checkbox"
+                                name="isUnlimitedSwipes"
+                                value="true"
+                                defaultChecked={planData.maxSwipesPerDay === -1}
+                                onChange={(e) => {
+                                  const inputEl = document.getElementById(`swipes-input-${planKey}`) as HTMLInputElement;
+                                  if (inputEl) {
+                                    inputEl.disabled = e.target.checked;
+                                  }
+                                }}
+                                className="w-4 h-4 border-2 border-black rounded-none cursor-pointer"
+                              />
+                              Illimité
+                            </label>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="font-bold text-xs uppercase">Limite de Favoris / Jour</Label>
+                          <Input
+                            name="maxFavoritesPerDay"
+                            type="number"
+                            defaultValue={planData.maxFavoritesPerDay}
+                            className="border-2 border-black font-bold text-xs shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                          />
+                        </div>
+
+                        <Button
+                          type="submit"
+                          disabled={updatePlanSettingsMutation.isPending}
+                          className="w-full bg-black text-white hover:bg-black/90 font-black uppercase text-xs border-2 border-black shadow-[4px_4px_0_0_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all mt-4 cursor-pointer"
+                        >
+                          Sauvegarder
+                        </Button>
+                      </form>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1148,7 +1307,7 @@ export default function AdminDashboardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="editAge" className="font-bold text-xs uppercase mb-1">Âge</Label>
                   <Input
@@ -1168,8 +1327,22 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value as any }))}
                     className="w-full bg-white border-2 border-black font-semibold text-xs p-2 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
                   >
-                    <option value="user">Utilisateur standard</option>
-                    <option value="admin">Administrateur</option>
+                    <option value="user">Standard</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="editPlan" className="font-bold text-xs uppercase mb-1">Plan</Label>
+                  <select
+                    id="editPlan"
+                    value={editFormData.plan}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, plan: e.target.value as any }))}
+                    className="w-full bg-white border-2 border-black font-semibold text-xs p-2 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                  >
+                    <option value="free">Gratuit</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
                   </select>
                 </div>
               </div>

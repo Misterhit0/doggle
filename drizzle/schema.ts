@@ -35,6 +35,7 @@ export const users = mysqlTable("users", {
   phoneNumber: varchar("phoneNumber", { length: 20 }),
   
   // Payment / Monetization Limits
+  plan: varchar("plan", { length: 32 }).default("free").notNull(),
   bypassPaymentLimits: boolean("bypassPaymentLimits").default(false).notNull(),
   superLikeCredits: int("superLikeCredits").default(0).notNull(),
   swipeLimitUntil: timestamp("swipeLimitUntil"),
@@ -301,3 +302,15 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const planSettings = mysqlTable("plan_settings", {
+  plan: varchar("plan", { length: 32 }).primaryKey(),
+  maxSwipesPerDay: int("maxSwipesPerDay").notNull().default(10),
+  maxFavoritesPerDay: int("maxFavoritesPerDay").notNull().default(1),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PlanSetting = typeof planSettings.$inferSelect;
+export type InsertPlanSetting = typeof planSettings.$inferInsert;

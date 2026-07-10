@@ -1307,6 +1307,38 @@ export async function migrateDatabase() {
         console.warn("[Database] Warning adding expiresAt to blocks:", e.message || e);
       }
     }
+
+    // 5. Add plan column to users if not exists
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN plan VARCHAR(32) NOT NULL DEFAULT 'free'");
+      console.log("[Database] Added column plan to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding plan to users:", e.message || e);
+      }
+    }
+
+    // 6. Create plan_settings table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS plan_settings (
+        plan VARCHAR(32) PRIMARY KEY,
+        maxSwipesPerDay INT NOT NULL DEFAULT 10,
+        maxFavoritesPerDay INT NOT NULL DEFAULT 1,
+        price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Plan settings table checked/created.");
+
+    // Seed default plans
+    await pool.execute(`
+      INSERT IGNORE INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
+      ('free', 10, 1, 0.00),
+      ('premium', 20, 2, 4.99),
+      ('vip', -1, 5, 9.99)
+    `);
+    console.log("[Database] Default plan settings seeded.");
   } catch (error) {
     console.error("[Database] Migration failed:", error);
   }
@@ -1785,4 +1817,66 @@ export async function adminDeleteTableRowCascade(
     [primaryValue]
   );
   return result;
+}
+
+// Plan Settings Helpers
+export async function getPlanSettings(): Promise<any[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM plan_settings`);
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get plan settings:", error);
+    return [];
+  }
+}
+
+export async function updatePlanSettings(
+  plan: string,
+  maxSwipesPerDay: number,
+  maxFavoritesPerDay: number,
+  price: number
+) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `INSERT INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+         maxSwipesPerDay = VALUES(maxSwipesPerDay),
+         maxFavoritesPerDay = VALUES(maxFavoritesPerDay),
+         price = VALUES(price)`,
+      [plan, maxSwipesPerDay, maxFavoritesPerDay, price]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update plan setting:", error);
+    return false;
+  }
+}
+
+export async function getPlanConfig(plan: string): Promise<any> {
+  const pool = getPool();
+  if (!pool) return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
+  try {
+    const [rows] = await pool.execute(
+      `SELECT maxSwipesPerDay, maxFavoritesPerDay FROM plan_settings WHERE plan = ?`,
+      [plan]
+    );
+    const results = rows as any[];
+    if (results.length > 0) {
+      return results[0];
+    }
+  } catch (error) {
+    console.error("[Database] Failed to get plan config:", error);
+  }
+  // Fallbacks based on plan name
+  if (plan === "premium") {
+    return { maxSwipesPerDay: 20, maxFavoritesPerDay: 2 };
+  } else if (plan === "vip") {
+    return { maxSwipesPerDay: -1, maxFavoritesPerDay: 5 };
+  }
+  return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
 }
