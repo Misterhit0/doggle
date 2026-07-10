@@ -383,17 +383,17 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   }
 
   const currentUser = await getUserById(userId);
-  if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
-    return [];
-  }
-
-  // Get all users with location
+  
+  // Get all users
   const allUsers = await db.select().from(users);
+
+  if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
+    return allUsers.filter(user => user.id !== userId);
+  }
 
   // Filter by distance
   const nearby = allUsers.filter(user => {
     if (user.id === userId || user.latitude === null || user.longitude === null) return false;
-    if (currentUser.latitude === null || currentUser.longitude === null) return false;
     const distance = calculateDistance(
       currentUser.latitude,
       currentUser.longitude,
@@ -402,6 +402,10 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
     );
     return distance <= radiusKm;
   });
+
+  if (nearby.length === 0) {
+    return allUsers.filter(user => user.id !== userId);
+  }
 
   return nearby;
 }
