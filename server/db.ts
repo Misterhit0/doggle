@@ -1339,6 +1339,78 @@ export async function migrateDatabase() {
       ('vip', -1, 5, 9.99)
     `);
     console.log("[Database] Default plan settings seeded.");
+
+    // 7. Create events table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS events (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        organizerId INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        eventType VARCHAR(128) NOT NULL,
+        location VARCHAR(500) NOT NULL,
+        latitude DOUBLE NOT NULL,
+        longitude DOUBLE NOT NULL,
+        eventDate DATETIME NOT NULL,
+        duration INT NOT NULL DEFAULT 60,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        INDEX idx_events_date (eventDate),
+        INDEX idx_events_org (organizerId)
+      )
+    `);
+    console.log("[Database] Events table checked/created.");
+
+    // 8. Create event_participants table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS event_participants (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        eventId INT NOT NULL,
+        userId INT NOT NULL,
+        joinedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE KEY unique_event_user (eventId, userId)
+      )
+    `);
+    console.log("[Database] Event participants table checked/created.");
+
+    // 9. Create lost_dogs table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS lost_dogs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        dogId INT,
+        name VARCHAR(255) NOT NULL,
+        breed VARCHAR(255),
+        age INT,
+        description TEXT NOT NULL,
+        lostDate DATETIME NOT NULL,
+        lostLocation VARCHAR(500) NOT NULL,
+        latitude DOUBLE NOT NULL,
+        longitude DOUBLE NOT NULL,
+        reward VARCHAR(255),
+        contactPhone VARCHAR(50),
+        status VARCHAR(32) NOT NULL DEFAULT 'lost',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Lost dogs table checked/created.");
+
+    // 10. Create sightings table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS sightings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lostDogId INT NOT NULL,
+        userId INT NOT NULL,
+        location VARCHAR(500) NOT NULL,
+        latitude DOUBLE NOT NULL,
+        longitude DOUBLE NOT NULL,
+        sightingDate DATETIME NOT NULL,
+        description TEXT NOT NULL,
+        confidence VARCHAR(32) NOT NULL DEFAULT 'likely',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Sightings table checked/created.");
+
   } catch (error) {
     console.error("[Database] Migration failed:", error);
   }
