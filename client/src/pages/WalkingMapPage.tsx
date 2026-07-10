@@ -14,6 +14,7 @@ import maplibregl from 'maplibre-gl';
 
 export default function WalkingMapPage() {
   const { user } = useAuth();
+  const isShareEnabled = user?.isShareLocationActive;
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [markers, setMarkers] = useState<maplibregl.Marker[]>([]);
   const [userMarker, setUserMarker] = useState<maplibregl.Marker | null>(null);
