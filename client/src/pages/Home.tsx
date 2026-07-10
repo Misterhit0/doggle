@@ -115,14 +115,14 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: reduceMotion ? 0.3 : 0.7, ease: EASE_OUT }}
             >
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold uppercase text-foreground mb-6 leading-[1.05] memphis-line-accent">
-                Rencontres canines
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black uppercase text-foreground mb-6 leading-[1.0] memphis-line-accent tracking-tighter">
+                Match. Joue.
                 <br />
-                <span className="text-accent">authentiques</span>
+                <span className="text-accent">Promène.</span>
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground mb-8 font-medium max-w-lg">
-                Connectez-vous avec d'autres maîtres près de chez vous pour des amitiés durables et du mentorat entre passionnés.
+                Plus que du love, du woof ! Trouvez la meute idéale et connectez-vous avec des maîtres et chiens compatibles près de chez vous.
               </p>
 
               <div className="flex flex-wrap items-center gap-4 mb-12">

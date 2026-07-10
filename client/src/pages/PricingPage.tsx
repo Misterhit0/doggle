@@ -12,38 +12,55 @@ export default function PricingPage() {
       name: "Doggle Gratuit",
       price: "0€",
       period: "à vie",
-      desc: "L'essentiel pour connecter vos chiens et rencontrer d'autres maîtres à proximité.",
+      desc: "Idéal pour débuter et rencontrer des chiens et maîtres près de chez vous.",
       features: [
-        "Matching et swipes illimités",
+        "10 swipes par jour maximum",
+        "1 favori par jour",
         "Messagerie en temps réel",
         "Accès à la carte des balades",
         "Zone de protection confidentielle",
         "Signalement des chiens perdus",
-        "Création de 1 profil chien",
       ],
-      cta: "Commencer gratuitement",
+      cta: "Commencer",
       href: "/signup",
       popular: false,
       color: "bg-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
     },
     {
-      name: "Doggle Club",
+      name: "Doggle Premium",
       price: "4.99€",
       period: "par mois",
-      desc: "Soutenez notre projet indépendant et débloquez des avantages exclusifs pour votre meute.",
+      desc: "Boostez l'efficacité de vos rencontres et gérez plusieurs chiens.",
       features: [
-        "Tout ce qui est inclus dans Gratuit",
-        "Nombre de chiens illimité",
-        "Badge Club exclusif sur votre profil",
-        "Historique de swipe complet (100+)",
-        "Filtres de recherche avancés (taille & race)",
-        "Aucune publicité, jamais",
-        "Soutien d'un projet 100% indépendant",
+        "20 swipes par jour",
+        "2 favoris par jour",
+        "Profils de chiens illimités",
+        "Badge Premium exclusif sur le profil",
+        "Filtres avancés par taille et race",
+        "Historique complet des swipes",
       ],
-      cta: "Rejoindre le Club",
+      cta: "Devenir Premium",
       href: "/signup",
       popular: true,
-      color: "bg-peach/10 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ring-2 ring-accent/30",
+      color: "bg-cyan-50 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ring-2 ring-cyan-300/30",
+    },
+    {
+      name: "Doggle VIP",
+      price: "9.99€",
+      period: "par mois",
+      desc: "Swipes illimités et visibilité maximale pour les passionnés.",
+      features: [
+        "Swipes illimités (Aucun blocage)",
+        "5 favoris par jour",
+        "Badge VIP doré exclusif",
+        "Priorité dans le feed Discovery",
+        "Accès anticipé exclusif aux WoofParties",
+        "Soutien direct de l'application",
+      ],
+      cta: "Devenir VIP",
+      href: "/signup",
+      popular: false,
+      color: "bg-purple-50 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ring-2 ring-purple-300/30",
     },
   ];
 
@@ -69,7 +86,7 @@ export default function PricingPage() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto items-stretch">
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto items-stretch">
             {plans.map((plan, i) => (
               <motion.div
                 key={plan.name}
