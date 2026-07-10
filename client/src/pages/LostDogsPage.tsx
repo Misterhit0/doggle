@@ -278,73 +278,80 @@ export default function LostDogsPage() {
     }
   }, []);
 
-  // Map for showing all lost dogs
+  // Map for showing all lost dogs — use ref to avoid React state race condition
+  const listMapRef = useRef<maplibregl.Map | null>(null);
   const [listMap, setListMap] = useState<maplibregl.Map | null>(null);
   const listMarkersRef = useRef<maplibregl.Marker[]>([]);
 
   const reportLostDogMutation = trpc.lostDogs.reportLostDog.useMutation();
   const reportSightingMutation = trpc.lostDogs.reportSighting.useMutation();
   const { data: userDogs } = trpc.dog.getMyDogs.useQuery(undefined);
+  // Always load lost dogs — use large radius (500km = France-wide) if no geoloc yet
   const { data: nearbyLostDogs, refetch: refetchLostDogs } = trpc.lostDogs.getNearbyLostDogs.useQuery(
-    latitude && longitude ? { latitude, longitude, radiusKm: 25 } : { latitude: 0, longitude: 0 },
-    { enabled: !!latitude && !!longitude }
+    latitude && longitude
+      ? { latitude, longitude, radiusKm: 100 }
+      : { latitude: 46.603354, longitude: 1.888334, radiusKm: 500 },
+    { refetchOnWindowFocus: false }
   );
   const { refetch: refetchSightings } = trpc.lostDogs.getSightings.useQuery(
     selectedDogId ? { lostDogId: selectedDogId } : { lostDogId: 0 },
     { enabled: !!selectedDogId }
   );
 
-  // Place markers for lost dogs on the overview map
-  useEffect(() => {
-    if (!listMap || !nearbyLostDogs || !Array.isArray(nearbyLostDogs)) return;
-
-    // Clear old markers
+  // Helper: place all lost-dog markers on a given map instance
+  const placeMarkersOnMap = useCallback((mapInstance: maplibregl.Map, dogs: any[]) => {
+    // Remove old markers
     listMarkersRef.current.forEach(m => m.remove());
     listMarkersRef.current = [];
 
+    if (!Array.isArray(dogs) || dogs.length === 0) return;
+
     const bounds = new maplibregl.LngLatBounds();
 
-    (nearbyLostDogs as any[]).forEach((dog) => {
+    dogs.forEach((dog) => {
       if (!dog.latitude || !dog.longitude) return;
 
       const lostDate = new Date(dog.lostDate).toLocaleDateString("fr-FR", {
         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
       });
 
-      // Custom marker DOM element
       const el = document.createElement("div");
-      el.className = "flex items-center justify-center bg-red-500 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform cursor-pointer";
-      el.style.width = "34px";
-      el.style.height = "34px";
-      el.style.fontSize = "16px";
+      el.style.cssText = "display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#ef4444;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;font-size:18px;cursor:pointer;transition:transform .15s";
       el.innerText = "🐕";
+      el.onmouseenter = () => { el.style.transform = "scale(1.2)"; };
+      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
 
-      // Popup
-      const popup = new maplibregl.Popup({ offset: 20 }).setHTML(`
-        <div style="font-family: sans-serif; max-width: 200px; padding: 4px;">
-          <h3 style="font-weight: 900; font-size: 14px; color: #dc2626; margin: 0 0 3px 0; text-transform: uppercase;">${dog.name}</h3>
-          <p style="font-size: 11px; color: #666; margin: 0 0 4px 0;">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
-          <p style="font-size: 11px; margin: 0 0 3px 0;">📅 Perdu le ${lostDate}</p>
-          <p style="font-size: 11px; margin: 0;">📍 ${dog.lostLocation}</p>
-          ${dog.reward ? `<p style="font-size: 11px; font-weight: 900; color: #dc2626; margin: 4px 0 0 0;">💰 Récompense</p>` : ""}
+      const popup = new maplibregl.Popup({ offset: 22, closeButton: false }).setHTML(`
+        <div style="font-family:sans-serif;max-width:200px;padding:6px">
+          <h3 style="font-weight:900;font-size:14px;color:#dc2626;margin:0 0 3px;text-transform:uppercase">${dog.name}</h3>
+          <p style="font-size:11px;color:#666;margin:0 0 4px">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
+          <p style="font-size:11px;margin:0 0 3px">📅 Perdu le ${lostDate}</p>
+          <p style="font-size:11px;margin:0">📍 ${dog.lostLocation || "Lieu inconnu"}</p>
+          ${dog.reward ? `<p style="font-size:11px;font-weight:900;color:#dc2626;margin:4px 0 0">💰 Récompense offerte</p>` : ""}
         </div>
       `);
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([Number(dog.longitude), Number(dog.latitude)])
         .setPopup(popup)
-        .addTo(listMap);
+        .addTo(mapInstance);
 
       listMarkersRef.current.push(marker);
       bounds.extend([Number(dog.longitude), Number(dog.latitude)]);
     });
 
-    // Fit bounds
     if (listMarkersRef.current.length > 0) {
-      if (longitude && latitude) bounds.extend([longitude, latitude]);
-      listMap.fitBounds(bounds, { padding: 40, maxZoom: 14 });
+      mapInstance.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 600 });
     }
-  }, [listMap, nearbyLostDogs, latitude, longitude]);
+  }, []);
+
+  // Re-place markers whenever data OR map changes
+  useEffect(() => {
+    const mapInstance = listMapRef.current;
+    if (!mapInstance || !nearbyLostDogs) return;
+    placeMarkersOnMap(mapInstance, nearbyLostDogs as any[]);
+  }, [listMap, nearbyLostDogs, placeMarkersOnMap]);
+
 
   const handleReportLostDog = async () => {
     // dogId=0 is falsy — check explicitly
@@ -606,28 +613,43 @@ export default function LostDogsPage() {
             </Dialog>
           </div>
 
-          {/* Overview Map — all lost dogs nearby */}
-          {latitude && longitude && (
-            <div className="mb-10 rounded-2xl overflow-hidden border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]" style={{ borderWidth: '3px' }}>
-              <div className="bg-red-600 px-4 py-2 flex items-center gap-2">
-                <AlertCircle size={14} className="text-white" />
-                <span className="text-white text-sm font-bold uppercase tracking-wider">Carte des chiens perdus à proximité</span>
-                <span className="ml-auto text-white/80 text-xs font-semibold">
-                  {Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0} signalement{(Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0) > 1 ? "s" : ""} • rayon 25 km
-                </span>
-              </div>
-              <MapView
-                onMapReady={(mapInstance) => {
-                  setListMap(mapInstance);
+          {/* Overview Map — always shown, centers on user position if available */}
+          <div className="mb-10 rounded-2xl overflow-hidden border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]" style={{ borderWidth: '3px' }}>
+            <div className="bg-red-600 px-4 py-2 flex items-center gap-2">
+              <AlertCircle size={14} className="text-white" />
+              <span className="text-white text-sm font-bold uppercase tracking-wider">Carte des chiens perdus en France</span>
+              <span className="ml-auto text-white/80 text-xs font-semibold">
+                {Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0} signalement{(Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0) > 1 ? "s" : ""} • rayon {latitude && longitude ? "100" : "500"} km
+              </span>
+            </div>
+            <MapView
+              onMapReady={(mapInstance) => {
+                // Sync both ref (for markers) and state (to trigger useEffect)
+                listMapRef.current = mapInstance;
+                setListMap(mapInstance);
+                // Center on user if available, otherwise France
+                if (latitude && longitude) {
                   mapInstance.setCenter([longitude, latitude]);
                   mapInstance.setZoom(12);
-                }}
-                initialCenter={{ lat: latitude, lng: longitude }}
-                initialZoom={12}
-                className="w-full h-[320px]"
-              />
-            </div>
-          )}
+                } else {
+                  mapInstance.setCenter([2.3522, 46.6]);
+                  mapInstance.setZoom(5);
+                }
+                // Place markers immediately if data already loaded
+                if (nearbyLostDogs && Array.isArray(nearbyLostDogs)) {
+                  placeMarkersOnMap(mapInstance, nearbyLostDogs as any[]);
+                }
+              }}
+              initialCenter={
+                latitude && longitude
+                  ? { lat: latitude, lng: longitude }
+                  : { lat: 46.6, lng: 2.3522 }
+              }
+              initialZoom={latitude && longitude ? 12 : 5}
+              className="w-full h-[360px]"
+            />
+          </div>
+
 
           {/* Urgent Dogs Section */}
           {urgentDogs.length > 0 && (
