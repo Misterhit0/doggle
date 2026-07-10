@@ -347,63 +347,82 @@ export default function LostDogsPage() {
   }, [listMap, nearbyLostDogs, latitude, longitude]);
 
   const handleReportLostDog = async () => {
-    if (!formData.dogId || !formData.description || !formData.lostDate || !formData.lostLocation) {
-      toast.error("Remplissez tous les champs obligatoires");
+    // dogId=0 is falsy — check explicitly
+    if (!(formData.dogId > 0)) {
+      toast.error("Sélectionnez votre chien dans la liste");
       return;
     }
-    const lat = formData.lostLat || latitude;
-    const lng = formData.lostLng || longitude;
+    if (!formData.description.trim()) {
+      toast.error("Ajoutez une description de votre chien");
+      return;
+    }
+    if (!formData.lostDate) {
+      toast.error("Indiquez la date de disparition");
+      return;
+    }
+    // Accept coords from map click OR from browser geolocation
+    const lat = formData.lostLat ?? latitude;
+    const lng = formData.lostLng ?? longitude;
     if (!lat || !lng) {
-      toast.error("Géolocalisation requise — placez un marqueur sur la carte");
+      toast.error("Placez un marqueur sur la carte ou autorisez la géolocalisation");
       return;
     }
+    // lostLocation: use picked address or fallback to coords string
+    const lostLocation = formData.lostLocation || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     try {
       await reportLostDogMutation.mutateAsync({
         dogId: formData.dogId,
         description: formData.description,
         lostDate: new Date(formData.lostDate),
-        lostLocation: formData.lostLocation,
+        lostLocation,
         latitude: lat,
         longitude: lng,
         reward: formData.reward || undefined,
         contactPhone: formData.contactPhone || undefined,
       });
-      toast.success("Chien signalé comme perdu !");
+      toast.success("🚨 Chien signalé comme perdu !");
       setFormData({ dogId: 0, description: "", lostDate: "", lostLocation: "", lostLat: null, lostLng: null, reward: "", contactPhone: "" });
       setIsReporting(false);
       refetchLostDogs();
     } catch (error) {
-      toast.error("Erreur lors du signalement");
+      toast.error("Erreur lors du signalement — réessayez");
     }
   };
 
   const handleReportSighting = async () => {
-    if (!sightingData.lostDogId || !sightingData.location || !sightingData.sightingDate || !sightingData.description) {
-      toast.error("Remplissez tous les champs");
+    if (!sightingData.sightingDate) {
+      toast.error("Indiquez la date et l'heure du repérage");
       return;
     }
-    const lat = sightingData.sightingLat || latitude;
-    const lng = sightingData.sightingLng || longitude;
+    if (!sightingData.description.trim()) {
+      toast.error("Ajoutez une description du repérage");
+      return;
+    }
+    // Accept coords from map click OR from browser geolocation
+    const lat = sightingData.sightingLat ?? latitude;
+    const lng = sightingData.sightingLng ?? longitude;
     if (!lat || !lng) {
       toast.error("Placez un marqueur sur la carte pour indiquer où vous avez vu le chien");
       return;
     }
+    const location = sightingData.location || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     try {
       await reportSightingMutation.mutateAsync({
-        lostDogId: sightingData.lostDogId,
-        location: sightingData.location,
+        // lostDogId=0 means unknown dog — backend will handle it
+        lostDogId: sightingData.lostDogId > 0 ? sightingData.lostDogId : 0,
+        location,
         latitude: lat,
         longitude: lng,
         sightingDate: new Date(sightingData.sightingDate),
         description: sightingData.description,
         confidence: sightingData.confidence,
       });
-      toast.success("Signalement de repérage envoyé !");
+      toast.success("👁️ Repérage signalé !");
       setSightingData({ lostDogId: 0, location: "", sightingLat: null, sightingLng: null, sightingDate: "", description: "", confidence: "likely" });
       setIsSighting(false);
       refetchSightings();
     } catch (error) {
-      toast.error("Erreur lors du signalement");
+      toast.error("Erreur lors du signalement — réessayez");
     }
   };
 
