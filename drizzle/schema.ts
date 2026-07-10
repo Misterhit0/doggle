@@ -1,4 +1,4 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
+import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double, unique } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -79,6 +79,21 @@ export const swipes = mysqlTable("swipes", {
 
 export type Swipe = typeof swipes.$inferSelect;
 export type InsertSwipe = typeof swipes.$inferInsert;
+
+/**
+ * Favorites table - tracks user interactions (adding to favorites)
+ */
+export const favorites = mysqlTable("favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  targetUserId: int("targetUserId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  unique("unique_user_target").on(table.userId, table.targetUserId),
+]);
+
+export type Favorite = typeof favorites.$inferSelect;
+export type InsertFavorite = typeof favorites.$inferInsert;
 
 /**
  * Matches table - created when two users like each other

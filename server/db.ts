@@ -1147,6 +1147,18 @@ export async function migrateDatabase() {
       )
     `);
     console.log("[Database] Payments table checked/created.");
+
+    // 3. Create favorites table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        targetUserId INT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE KEY unique_user_target (userId, targetUserId)
+      )
+    `);
+    console.log("[Database] Favorites table checked/created.");
   } catch (error) {
     console.error("[Database] Migration failed:", error);
   }
