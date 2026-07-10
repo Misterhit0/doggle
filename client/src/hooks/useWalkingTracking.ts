@@ -62,11 +62,14 @@ export function useWalkingTracking() {
   }, [user?.homeLatitude, user?.homeLongitude]);
 
   // Start tracking
-  const startTracking = useCallback(async () => {
+  const startTracking = useCallback(async (shareLocation: boolean = false) => {
     if (!navigator.geolocation) {
       toast.error('Géolocalisation non disponible');
       return;
     }
+
+    // Toggle sharing status based on selection
+    await toggleLocationMutation.mutateAsync({ isActive: shareLocation });
 
     // Get initial position
     navigator.geolocation.getCurrentPosition(
@@ -111,7 +114,7 @@ export function useWalkingTracking() {
         toast.error('Permission de géolocalisation refusée');
       }
     );
-  }, [updateLocationMutation]);
+  }, [updateLocationMutation, toggleLocationMutation]);
 
   // Stop tracking
   const stopTracking = useCallback(() => {

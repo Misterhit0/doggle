@@ -1,7 +1,7 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification } from "../drizzle/schema";
+import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification, payments } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { logger } from "./_core/logger";
 
@@ -265,14 +265,16 @@ export async function getMatchesForUser(userId: number) {
         u1.name as user1Name,
         u1.profilePhotoUrl as user1Photo,
         u2.name as user2Name,
-        u2.profilePhotoUrl as user2Photo
+        u2.profilePhotoUrl as user2Photo,
+        IF(f.id IS NOT NULL, 1, 0) as isFavorite
       FROM matches m
       JOIN users u1 ON m.userId1 = u1.id
       JOIN users u2 ON m.userId2 = u2.id
+      LEFT JOIN favorites f ON f.userId = ? AND f.targetUserId = IF(m.userId1 = ?, m.userId2, m.userId1)
       WHERE m.userId1 = ? OR m.userId2 = ?
-      ORDER BY m.createdAt DESC
+      ORDER BY isFavorite DESC, m.createdAt DESC
     `;
-    const [rows] = await connection.execute(query, [userId, userId]);
+    const [rows] = await connection.execute(query, [userId, userId, userId, userId]);
     const matchesList = (rows as any[]) || [];
 
     const withDogs = await Promise.all(
@@ -284,6 +286,7 @@ export async function getMatchesForUser(userId: number) {
         
         return {
           ...match,
+          isFavorite: Boolean(match.isFavorite),
           otherDog: otherDogs.length > 0 ? otherDogs[0] : null,
         };
       })
@@ -383,17 +386,17 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   }
 
   const currentUser = await getUserById(userId);
-  if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
-    return [];
-  }
-
-  // Get all users with location
+  
+  // Get all users
   const allUsers = await db.select().from(users);
+
+  if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
+    return allUsers.filter(user => user.id !== userId);
+  }
 
   // Filter by distance
   const nearby = allUsers.filter(user => {
     if (user.id === userId || user.latitude === null || user.longitude === null) return false;
-    if (currentUser.latitude === null || currentUser.longitude === null) return false;
     const distance = calculateDistance(
       currentUser.latitude,
       currentUser.longitude,
@@ -402,6 +405,10 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
     );
     return distance <= radiusKm;
   });
+
+  if (nearby.length === 0) {
+    return allUsers.filter(user => user.id !== userId);
+  }
 
   return nearby;
 }
@@ -431,6 +438,121 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
   );
 
   return duos.filter(duo => duo.dogs.length > 0);
+}
+
+// Block and Unmatch Management
+export async function blockUser(userId: number, targetUserId: number, isPermanent: boolean) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const pool = getPool();
+  if (!pool) return undefined;
+
+  try {
+    const type = isPermanent ? 'permanent' : 'temporary';
+    
+    // Insert block record (update if already exists)
+    await pool.execute(
+      `INSERT INTO blocks (userId, targetUserId, type, expiresAt) 
+       VALUES (?, ?, ?, IF(?, DATE_ADD(NOW(), INTERVAL 7 DAY), NULL))
+       ON DUPLICATE KEY UPDATE 
+         type = VALUES(type), 
+         expiresAt = VALUES(expiresAt),
+         createdAt = CURRENT_TIMESTAMP`,
+      [userId, targetUserId, type, !isPermanent]
+    );
+
+    // Delete matches between them
+    await pool.execute(
+      `DELETE FROM matches WHERE (userId1 = ? AND userId2 = ?) OR (userId1 = ? AND userId2 = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    // Delete swipes between them
+    await pool.execute(
+      `DELETE FROM swipes WHERE (userId = ? AND targetUserId = ?) OR (userId = ? AND targetUserId = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    // Delete favorites between them
+    await pool.execute(
+      `DELETE FROM favorites WHERE (userId = ? AND targetUserId = ?) OR (userId = ? AND targetUserId = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to block user:", error);
+    return false;
+  }
+}
+
+export async function getBlockedUserIds(userId: number): Promise<number[]> {
+  const pool = getPool();
+  if (!pool) return [];
+
+  try {
+    // Get all user IDs blocked by current user OR users who blocked the current user
+    // only if block is permanent or not yet expired
+    const [rows] = await pool.execute(
+      `SELECT targetUserId FROM blocks WHERE userId = ? AND (type = 'permanent' OR expiresAt > NOW())
+       UNION
+       SELECT userId FROM blocks WHERE targetUserId = ? AND (type = 'permanent' OR expiresAt > NOW())`,
+      [userId, userId]
+    );
+
+    return (rows as any[]).map(r => Number(r.targetUserId || r.userId));
+  } catch (error) {
+    console.error("[Database] Failed to get blocked user IDs:", error);
+    return [];
+  }
+}
+
+export async function getBlockedUsers(userId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT b.id as blockId, b.targetUserId, b.type, b.expiresAt, b.createdAt as blockedAt,
+              u.name, u.profilePhotoUrl, u.age, u.bio
+       FROM blocks b
+       JOIN users u ON b.targetUserId = u.id
+       WHERE b.userId = ? AND (b.type = 'permanent' OR b.expiresAt > NOW())
+       ORDER BY b.createdAt DESC`,
+      [userId]
+    );
+
+    const blockedWithDogs = await Promise.all(
+      (rows as any[]).map(async (row) => {
+        const dogs = await getDogsByUserId(row.targetUserId);
+        return {
+          ...row,
+          dogs,
+        };
+      })
+    );
+
+    return blockedWithDogs;
+  } catch (error) {
+    console.error("[Database] Failed to get blocked users list:", error);
+    return [];
+  }
+}
+
+export async function unblockUser(userId: number, targetUserId: number) {
+  const pool = getPool();
+  if (!pool) return false;
+
+  try {
+    await pool.execute(
+      `DELETE FROM blocks WHERE userId = ? AND targetUserId = ?`,
+      [userId, targetUserId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to unblock user:", error);
+    return false;
+  }
 }
 
 // Favorites Management
@@ -550,8 +672,8 @@ export async function getSwipeHistory(userId: number, limit: number = 50) {
        JOIN users u ON s.targetUserId = u.id
        WHERE s.userId = ?
        ORDER BY s.createdAt DESC
-       LIMIT ?`,
-      [userId, limit]
+       LIMIT ${Number(limit)}`,
+      [userId]
     );
     
     // Get dogs for each swiped user
@@ -1091,11 +1213,145 @@ export async function updateVerificationStatus(
   }
 }
 
+export async function migrateDatabase() {
+  const pool = getPool();
+  if (!pool) return;
+
+  try {
+    console.log("[Database] Running migrations for monetization/payments...");
+
+    // 1. Alter users table columns if they do not exist
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN bypassPaymentLimits BOOLEAN NOT NULL DEFAULT FALSE");
+      console.log("[Database] Added column bypassPaymentLimits to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding bypassPaymentLimits:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN superLikeCredits INT NOT NULL DEFAULT 0");
+      console.log("[Database] Added column superLikeCredits to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding superLikeCredits:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN swipeLimitUntil TIMESTAMP NULL DEFAULT NULL");
+      console.log("[Database] Added column swipeLimitUntil to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding swipeLimitUntil:", e.message || e);
+      }
+    }
+
+    // 2. Create payments table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+        packageType VARCHAR(64) NOT NULL,
+        paymentMethod VARCHAR(32) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'completed',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Payments table checked/created.");
+
+    // 3. Create favorites table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        targetUserId INT NOT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE KEY unique_user_target (userId, targetUserId)
+      )
+    `);
+    console.log("[Database] Favorites table checked/created.");
+
+    // 4. Create blocks table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS blocks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        targetUserId INT NOT NULL,
+        type VARCHAR(16) NOT NULL DEFAULT 'permanent',
+        expiresAt TIMESTAMP NULL DEFAULT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE KEY unique_user_block (userId, targetUserId)
+      )
+    `);
+    console.log("[Database] Blocks table checked/created.");
+
+    // Alter blocks table if it exists but is missing type or expiresAt
+    try {
+      await pool.execute("ALTER TABLE blocks ADD COLUMN type VARCHAR(16) NOT NULL DEFAULT 'permanent'");
+      console.log("[Database] Added column type to blocks table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding type to blocks:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE blocks ADD COLUMN expiresAt TIMESTAMP NULL DEFAULT NULL");
+      console.log("[Database] Added column expiresAt to blocks table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding expiresAt to blocks:", e.message || e);
+      }
+    }
+
+    // 5. Add plan column to users if not exists
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN plan VARCHAR(32) NOT NULL DEFAULT 'free'");
+      console.log("[Database] Added column plan to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding plan to users:", e.message || e);
+      }
+    }
+
+    // 6. Create plan_settings table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS plan_settings (
+        plan VARCHAR(32) PRIMARY KEY,
+        maxSwipesPerDay INT NOT NULL DEFAULT 10,
+        maxFavoritesPerDay INT NOT NULL DEFAULT 1,
+        price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Plan settings table checked/created.");
+
+    // Seed default plans
+    await pool.execute(`
+      INSERT IGNORE INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
+      ('free', 10, 1, 0.00),
+      ('premium', 20, 2, 4.99),
+      ('vip', -1, 5, 9.99)
+    `);
+    console.log("[Database] Default plan settings seeded.");
+  } catch (error) {
+    console.error("[Database] Migration failed:", error);
+  }
+}
+
 export async function healStuckMatches() {
   const pool = getPool();
   if (!pool) return;
 
   try {
+    // Run migrations on startup
+    await migrateDatabase();
+
     console.log("[Database] Running self-healing check for stuck matches...");
     
     // Find all pairs (user A, user B) who have both swiped liked: true,
@@ -1147,4 +1403,480 @@ export async function getSwipedUserIds(userId: number): Promise<number[]> {
     console.error("[Database] Failed to get swiped user ids:", error);
     return [];
   }
+}
+
+export async function getDailySwipeCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as count FROM swipes WHERE userId = ? AND createdAt >= CURDATE()`,
+      [userId]
+    );
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get daily swipe count:", error);
+    return 0;
+  }
+}
+
+export async function getDailyFavoriteCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as count FROM favorites WHERE userId = ? AND createdAt >= CURDATE()`,
+      [userId]
+    );
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get daily favorite count:", error);
+    return 0;
+  }
+}
+
+
+export async function usersAreMatched(userId1: number, userId2: number): Promise<boolean> {
+  const match1 = await getMatch(userId1, userId2);
+  const match2 = await getMatch(userId2, userId1);
+  return !!(match1 || match2);
+}
+
+export async function getPublicUserProfile(viewerId: number, targetUserId: number) {
+  if (viewerId === targetUserId) {
+    const self = await getUserById(viewerId);
+    if (!self) return undefined;
+    const selfDogs = await getDogsByUserId(viewerId);
+    return {
+      id: self.id,
+      name: self.name,
+      age: self.age,
+      bio: self.bio,
+      profilePhotoUrl: self.profilePhotoUrl,
+      interests: self.interests,
+      walkingHabits: self.walkingHabits,
+      whatISeek: self.whatISeek,
+      dogs: selfDogs,
+    };
+  }
+
+  const isMatched = await usersAreMatched(viewerId, targetUserId);
+  const hasSwiped = await getSwipe(viewerId, targetUserId);
+  const isFav = await isFavorite(viewerId, targetUserId);
+
+  if (!isMatched && !hasSwiped && !isFav) {
+    return undefined;
+  }
+
+  const target = await getUserById(targetUserId);
+  if (!target) return undefined;
+
+  const targetDogs = await getDogsByUserId(targetUserId);
+  return {
+    id: target.id,
+    name: target.name,
+    age: target.age,
+    bio: target.bio,
+    profilePhotoUrl: target.profilePhotoUrl,
+    interests: target.interests,
+    walkingHabits: target.walkingHabits,
+    whatISeek: target.whatISeek,
+    dogs: targetDogs,
+    isMatched,
+  };
+}
+
+export async function getAdminStats() {
+  const db = await getDb();
+  if (!db) return null;
+
+  const userList = await db.select().from(users);
+  const dogList = await db.select().from(dogs);
+  const swipeList = await db.select().from(swipes);
+  const matchList = await db.select().from(matches);
+  const messageList = await db.select().from(messages);
+  const verificationList = await db.select().from(verifications);
+
+  const totalUsers = userList.length;
+  const totalDogs = dogList.length;
+  const totalSwipes = swipeList.length;
+  const totalMatches = matchList.length;
+  const totalMessages = messageList.length;
+
+  const likesCount = swipeList.filter(s => s.liked).length;
+  const passesCount = swipeList.filter(s => !s.liked).length;
+  const likeRate = totalSwipes > 0 ? (likesCount / totalSwipes) * 100 : 0;
+  const matchRate = totalSwipes > 0 ? (totalMatches * 2 / totalSwipes) * 100 : 0;
+
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const activeUsers24h = userList.filter(u => u.lastSignedIn && new Date(u.lastSignedIn) > oneDayAgo).length;
+
+  const pendingVerifications = verificationList.filter(v => v.status === "pending").map(v => {
+    const user = userList.find(u => u.id === v.userId);
+    return {
+      ...v,
+      userName: user?.name || "Inconnu",
+      userEmail: user?.email || "Inconnu"
+    };
+  });
+
+  const activeWalkersCount = userList.filter(u => u.isShareLocationActive).length;
+
+  const pool = getPool();
+  let totalRevenue = 0.0;
+  let totalSales = 0;
+  let packageStats = { extra_favorites: 0, unlimited_swipes: 0, premium_pass: 0 };
+  let paymentMethodStats = { card: 0, google_pay: 0, apple_pay: 0 };
+
+  if (pool) {
+    try {
+      const [paymentsRows] = await pool.execute("SELECT amount, packageType, paymentMethod FROM payments WHERE status = 'completed'");
+      const paymentsList = (paymentsRows as any[]) || [];
+      totalSales = paymentsList.length;
+      paymentsList.forEach(p => {
+        totalRevenue += parseFloat(p.amount || 0);
+        if (p.packageType in packageStats) {
+          packageStats[p.packageType as keyof typeof packageStats]++;
+        }
+        if (p.paymentMethod in paymentMethodStats) {
+          paymentMethodStats[p.paymentMethod as keyof typeof paymentMethodStats]++;
+        }
+      });
+    } catch (err) {
+      console.error("[Database] Failed to get payment statistics in admin stats:", err);
+    }
+  }
+
+  return {
+    totalUsers,
+    totalDogs,
+    totalSwipes,
+    totalMatches,
+    totalMessages,
+    likesCount,
+    passesCount,
+    likeRate,
+    matchRate,
+    activeUsers24h,
+    activeWalkersCount,
+    pendingVerifications,
+    totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+    totalSales,
+    packageStats,
+    paymentMethodStats,
+  };
+}
+
+export async function getAdminUsers() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+  const allDogs = await db.select().from(dogs);
+  const allVerifications = await db.select().from(verifications);
+
+  return allUsers.map(user => {
+    const userDogs = allDogs.filter(d => d.userId === user.id);
+    const userVerif = allVerifications.find(v => v.userId === user.id);
+    return {
+      ...user,
+      dogs: userDogs,
+      verificationStatus: userVerif ? userVerif.status : "none",
+      verificationUrl: userVerif ? userVerif.photoUrl : null,
+      verificationRejectionReason: userVerif ? userVerif.rejectionReason : null,
+    };
+  });
+}
+
+export async function deleteUserAdmin(userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  await db.delete(dogs).where(eq(dogs.userId, userId));
+  await db.delete(swipes).where(eq(swipes.userId, userId));
+  await db.delete(swipes).where(eq(swipes.targetUserId, userId));
+  await db.delete(matches).where(sql`userId1 = ${userId} OR userId2 = ${userId}`);
+  await db.delete(messages).where(eq(messages.senderId, userId));
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+  await db.delete(reviews).where(sql`reviewerId = ${userId} OR reviewedId = ${userId}`);
+  await db.delete(verifications).where(eq(verifications.userId, userId));
+  await db.delete(users).where(eq(users.id, userId));
+
+  return true;
+}
+
+export async function recordPayment(userId: number, amount: number, packageType: string, paymentMethod: string) {
+  const pool = getPool();
+  if (!pool) return undefined;
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO payments (userId, amount, packageType, paymentMethod) VALUES (?, ?, ?, ?)`,
+      [userId, amount, packageType, paymentMethod]
+    );
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to record payment:", error);
+    return undefined;
+  }
+}
+
+export async function getPaymentsForUser(userId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT * FROM payments WHERE userId = ? ORDER BY createdAt DESC`,
+      [userId]
+    );
+    return (rows as any[]) || [];
+  } catch (error) {
+    console.error("[Database] Failed to get user payments:", error);
+    return [];
+  }
+}
+
+export async function getAdminPayments() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT p.*, u.name as userName, u.email as userEmail 
+       FROM payments p 
+       JOIN users u ON p.userId = u.id 
+       ORDER BY p.createdAt DESC`
+    );
+    return (rows as any[]) || [];
+  } catch (error) {
+    console.error("[Database] Failed to get admin payments:", error);
+    return [];
+  }
+}
+
+export async function togglePaymentBypass(userId: number, bypass: boolean) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(users).set({ bypassPaymentLimits: bypass }).where(eq(users.id, userId));
+  return true;
+}
+
+export async function addSuperLikeCredits(userId: number, credits: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const user = await getUserById(userId);
+  if (!user) return false;
+  await db.update(users).set({ superLikeCredits: (user.superLikeCredits || 0) + credits }).where(eq(users.id, userId));
+  return true;
+}
+
+export async function addSwipeLimitExtension(userId: number, hours: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const now = new Date();
+  const limitUntil = new Date(now.getTime() + hours * 60 * 60 * 1000);
+  await db.update(users).set({ swipeLimitUntil: limitUntil }).where(eq(users.id, userId));
+  return true;
+}
+
+let _preprodPool: mysql.Pool | null = null;
+let _prodPool: mysql.Pool | null = null;
+
+export function getDbPoolForAdmin(target: "preprod" | "prod"): mysql.Pool {
+  if (target === "preprod") {
+    if (!_preprodPool) {
+      const url = process.env.DATABASE_URL || "mysql://root@127.0.0.1:3306/doggle?multipleStatements=true";
+      _preprodPool = mysql.createPool(url);
+    }
+    return _preprodPool;
+  } else {
+    if (!_prodPool) {
+      const rawUrl = process.env.VPS_MYSQL_URL || "mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle?multipleStatements=true";
+      _prodPool = mysql.createPool(rawUrl);
+    }
+    return _prodPool;
+  }
+}
+
+const ALLOWED_TABLES = ["users", "dogs", "swipes", "matches", "messages", "notifications", "reviews", "verifications", "payments"];
+
+function validateTableName(table: string) {
+  if (!ALLOWED_TABLES.includes(table)) {
+    throw new Error(`Access denied: Invalid table name "${table}"`);
+  }
+}
+
+async function validateTableColumns(target: "preprod" | "prod", table: string, columns: string[]) {
+  const schema = await adminGetTableSchema(target, table);
+  const validColumns = schema.map(c => c.Field);
+  for (const col of columns) {
+    if (!validColumns.includes(col)) {
+      throw new Error(`Access denied: Invalid column "${col}" for table "${table}"`);
+    }
+  }
+}
+
+export async function adminListTables(target: "preprod" | "prod"): Promise<string[]> {
+  const pool = getDbPoolForAdmin(target);
+  const [rows] = await pool.query("SHOW TABLES");
+  const list = rows as any[];
+  const tableNames = list.map(r => Object.values(r)[0] as string);
+  // Return only allowlisted tables to prevent leakage of other system tables
+  return tableNames.filter(name => ALLOWED_TABLES.includes(name));
+}
+
+export async function adminGetTableSchema(target: "preprod" | "prod", table: string): Promise<any[]> {
+  validateTableName(table);
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const [rows] = await pool.query(`SHOW COLUMNS FROM \`${sanitizedTable}\``);
+  return rows as any[];
+}
+
+export async function adminGetTableRows(target: "preprod" | "prod", table: string): Promise<any[]> {
+  validateTableName(table);
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const [rows] = await pool.query(`SELECT * FROM \`${sanitizedTable}\` LIMIT 200`);
+  return rows as any[];
+}
+
+export async function adminInsertTableRow(target: "preprod" | "prod", table: string, rowData: Record<string, any>): Promise<any> {
+  validateTableName(table);
+  const cols = Object.keys(rowData);
+  await validateTableColumns(target, table, cols);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  
+  const columns = cols.map(c => `\`${c.replace(/[^a-zA-Z0-9_]/g, "")}\``).join(", ");
+  const values = Object.values(rowData);
+  const placeholders = values.map(() => "?").join(", ");
+
+  const [result] = await pool.query(
+    `INSERT INTO \`${sanitizedTable}\` (${columns}) VALUES (${placeholders})`,
+    values
+  );
+  return result;
+}
+
+export async function adminUpdateTableRow(
+  target: "preprod" | "prod",
+  table: string,
+  primaryKey: string,
+  primaryValue: any,
+  rowData: Record<string, any>
+): Promise<any> {
+  validateTableName(table);
+  const cols = Object.keys(rowData);
+  await validateTableColumns(target, table, [...cols, primaryKey]);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const sanitizedKey = primaryKey.replace(/[^a-zA-Z0-9_]/g, "");
+
+  const sets: string[] = [];
+  const values: any[] = [];
+
+  Object.entries(rowData).forEach(([col, val]) => {
+    sets.push(`\`${col.replace(/[^a-zA-Z0-9_]/g, "")}\` = ?`);
+    values.push(val);
+  });
+  values.push(primaryValue);
+
+  const [result] = await pool.query(
+    `UPDATE \`${sanitizedTable}\` SET ${sets.join(", ")} WHERE \`${sanitizedKey}\` = ?`,
+    values
+  );
+  return result;
+}
+
+export async function adminDeleteTableRowCascade(
+  target: "preprod" | "prod",
+  table: string,
+  primaryKey: string,
+  primaryValue: any
+): Promise<any> {
+  validateTableName(table);
+  await validateTableColumns(target, table, [primaryKey]);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const sanitizedKey = primaryKey.replace(/[^a-zA-Z0-9_]/g, "");
+
+  if (sanitizedTable === "users") {
+    await pool.query("DELETE FROM verifications WHERE userId = ?", [primaryValue]);
+    await pool.query("DELETE FROM dogs WHERE userId = ?", [primaryValue]);
+    await pool.query("DELETE FROM swipes WHERE userId = ? OR targetUserId = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM messages WHERE senderId = ? OR recipientId = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM matches WHERE user1Id = ? OR user2Id = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM payments WHERE userId = ?", [primaryValue]);
+  }
+
+  const [result] = await pool.query(
+    `DELETE FROM \`${sanitizedTable}\` WHERE \`${sanitizedKey}\` = ?`,
+    [primaryValue]
+  );
+  return result;
+}
+
+// Plan Settings Helpers
+export async function getPlanSettings(): Promise<any[]> {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(`SELECT * FROM plan_settings`);
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get plan settings:", error);
+    return [];
+  }
+}
+
+export async function updatePlanSettings(
+  plan: string,
+  maxSwipesPerDay: number,
+  maxFavoritesPerDay: number,
+  price: number
+) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `INSERT INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+         maxSwipesPerDay = VALUES(maxSwipesPerDay),
+         maxFavoritesPerDay = VALUES(maxFavoritesPerDay),
+         price = VALUES(price)`,
+      [plan, maxSwipesPerDay, maxFavoritesPerDay, price]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update plan setting:", error);
+    return false;
+  }
+}
+
+export async function getPlanConfig(plan: string): Promise<any> {
+  const pool = getPool();
+  if (!pool) return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
+  try {
+    const [rows] = await pool.execute(
+      `SELECT maxSwipesPerDay, maxFavoritesPerDay FROM plan_settings WHERE plan = ?`,
+      [plan]
+    );
+    const results = rows as any[];
+    if (results.length > 0) {
+      return results[0];
+    }
+  } catch (error) {
+    console.error("[Database] Failed to get plan config:", error);
+  }
+  // Fallbacks based on plan name
+  if (plan === "premium") {
+    return { maxSwipesPerDay: 20, maxFavoritesPerDay: 2 };
+  } else if (plan === "vip") {
+    return { maxSwipesPerDay: -1, maxFavoritesPerDay: 5 };
+  }
+  return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
 }

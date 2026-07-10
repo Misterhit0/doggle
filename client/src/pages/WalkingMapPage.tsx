@@ -14,6 +14,7 @@ import maplibregl from 'maplibre-gl';
 
 export default function WalkingMapPage() {
   const { user } = useAuth();
+  const isShareEnabled = user?.isShareLocationActive;
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [markers, setMarkers] = useState<maplibregl.Marker[]>([]);
   const [userMarker, setUserMarker] = useState<maplibregl.Marker | null>(null);
@@ -22,6 +23,7 @@ export default function WalkingMapPage() {
   const [radiusKm, setRadiusKm] = useState(10);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<{ breed?: string; size?: string }>({});
+  const [shareLocationPref, setShareLocationPref] = useState(false);
   const markerIconsRef = useRef<Map<string, string>>(new Map());
 
   const {
@@ -40,16 +42,19 @@ export default function WalkingMapPage() {
     setHomeLocation,
   } = useWalkingTracking();
 
-  // RGPD: only show other walkers if the current user has opted in to location sharing
-  const isShareEnabled = (user as any)?.isShareLocationActive === true;
+  // Helper to parse dog photo URLs safely
+  const parsePhotoUrls = (raw: any): string[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    try { return JSON.parse(raw); } catch { return []; }
+  };
 
-  // Get active walkers — server already filters by isShareLocationActive=true
+  // Get active walkers — only if tracking AND sharing is enabled by checkbox
   const { data: activeWalkers, refetch: refetchWalkers } = trpc.discovery.getActiveWalkers.useQuery(
     currentLat && currentLon
       ? { latitude: currentLat, longitude: currentLon, radiusKm }
       : { latitude: 0, longitude: 0, radiusKm },
-    // Only fetch if user has enabled sharing AND is currently tracking
-    { enabled: !!currentLat && !!currentLon && isTracking && isShareEnabled }
+    { enabled: !!currentLat && !!currentLon && isTracking && shareLocationPref }
   );
 
   // Filter walkers by breed and size
@@ -83,18 +88,34 @@ export default function WalkingMapPage() {
       for (const walker of filteredWalkers) {
         if (!walker.latitude || !walker.longitude) continue;
 
-        const dogName = walker.dogs?.[0]?.name || 'Chien';
-        const photoUrls = walker.dogs?.[0]?.photoUrls;
-        const photoUrl = photoUrls?.[0] || undefined;
-        const markerId = `${walker.id}-${walker.dogs?.[0]?.id}`;
+        let favoriteDogPhotoUrl: string | undefined = undefined;
+        let favoriteDogName = 'Chien';
+        let markerId = `${walker.id}-no-dog`;
+
+        if (walker.dogs && Array.isArray(walker.dogs) && walker.dogs.length > 0) {
+          const dogWithPhoto = walker.dogs.find((d: any) => {
+            const urls = parsePhotoUrls(d.photoUrls);
+            return urls.length > 0 && urls[0];
+          });
+
+          if (dogWithPhoto) {
+            const urls = parsePhotoUrls(dogWithPhoto.photoUrls);
+            favoriteDogPhotoUrl = urls[0] || undefined;
+            favoriteDogName = dogWithPhoto.name;
+            markerId = `${walker.id}-${dogWithPhoto.id}`;
+          } else {
+            favoriteDogName = walker.dogs[0].name;
+            markerId = `${walker.id}-${walker.dogs[0].id}`;
+          }
+        }
 
         // Get or create marker icon DataURL
         let iconUrl = markerIconsRef.current.get(markerId);
         if (!iconUrl) {
           try {
             iconUrl = await createDogMarkerIcon({
-              photoUrl: photoUrl || undefined,
-              dogName,
+              photoUrl: favoriteDogPhotoUrl,
+              dogName: favoriteDogName,
               ownerName: walker.name || 'Maître',
               size: 40,
             });
@@ -119,7 +140,7 @@ export default function WalkingMapPage() {
         const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
           <div class="p-2 text-black">
             <h3 class="font-bold">${walker.name || 'Maître'}</h3>
-            <p class="text-sm">${dogName}</p>
+            <p class="text-sm">${favoriteDogName}</p>
             <p class="text-xs text-gray-600">${walker.age || '?'} ans</p>
           </div>
         `);
@@ -392,7 +413,11 @@ export default function WalkingMapPage() {
                 </span>
               </div>
               <div className="text-sm space-y-2 max-h-24 overflow-y-auto">
-                {activeWalkers && activeWalkers.length > 0 ? (
+                {!isTracking ? (
+                  <p className="text-muted-foreground text-xs font-medium">Démarrez votre balade pour chercher les autres maîtres</p>
+                ) : !shareLocationPref ? (
+                  <p className="text-muted-foreground text-xs font-medium">Mode privé activé (autres maîtres masqués)</p>
+                ) : activeWalkers && activeWalkers.length > 0 ? (
                   activeWalkers.map((walker) => (
                     <div key={walker.id} className="flex items-center gap-2 p-2 border border-black bg-muted rounded shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                       <MapPin className="w-4 h-4 text-primary" />
@@ -412,13 +437,27 @@ export default function WalkingMapPage() {
           {/* Controls */}
           <div className="flex flex-col md:flex-row gap-3 pt-1">
             {!isTracking ? (
-              <Button
-                onClick={startTracking}
-                className="flex-1 gap-2 bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600 border-2 border-black text-white font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase"
-              >
-                <Navigation className="w-4 h-4" />
-                Démarrer la balade
-              </Button>
+              <div className="flex flex-col gap-3 flex-1">
+                <div className="flex items-center gap-2 px-1">
+                  <input
+                    type="checkbox"
+                    id="shareLocationPref"
+                    checked={shareLocationPref}
+                    onChange={(e) => setShareLocationPref(e.target.checked)}
+                    className="w-4 h-4 rounded border-black text-pink-500 focus:ring-pink-400"
+                  />
+                  <label htmlFor="shareLocationPref" className="text-xs font-bold text-foreground cursor-pointer select-none">
+                    Partager ma position sur la map avec les autres maîtres
+                  </label>
+                </div>
+                <Button
+                  onClick={() => startTracking(shareLocationPref)}
+                  className="w-full gap-2 bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600 border-2 border-black text-white font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Démarrer la balade
+                </Button>
+              </div>
             ) : (
               <Button
                 onClick={stopTracking}

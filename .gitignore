@@ -116,3 +116,7 @@ client/public/__manus__/version.json
 # Agent directories
 .manus/
 .manus-logs/
+
+# Local Claude Code skill installs (personal tooling, not app source)
+.claude/skills/
+skills-lock.json

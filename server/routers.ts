@@ -1,7 +1,7 @@
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { publicProcedure, router, protectedProcedure, authRateLimitedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
@@ -11,9 +11,63 @@ import bcrypt from "bcryptjs";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import axios from "axios";
 import { logger } from "./_core/logger";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { storagePut } from "./storage";
+import { ENV } from "./_core/env";
 
 export const appRouter = router({
   system: systemRouter,
+  storage: router({
+    uploadPhoto: protectedProcedure
+      .input(
+        z.object({
+          base64Data: z.string(),
+          filename: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const match = input.base64Data.match(/^data:([^;]+);base64,(.+)$/);
+        let mimeType = "application/octet-stream";
+        let base64Payload = input.base64Data;
+        
+        if (match) {
+          mimeType = match[1];
+          base64Payload = match[2];
+        }
+
+        const buffer = Buffer.from(base64Payload, "base64");
+        
+        let extension = "jpg";
+        if (mimeType === "image/png") extension = "png";
+        else if (mimeType === "image/webp") extension = "webp";
+        else if (mimeType === "image/gif") extension = "gif";
+        
+        const fileId = crypto.randomUUID();
+        const baseFilename = input.filename ? path.basename(input.filename, path.extname(input.filename)) : `photo_${fileId}`;
+        const finalFilename = `${baseFilename}_${fileId.slice(0, 8)}.${extension}`;
+        
+        if (ENV.forgeApiUrl && ENV.forgeApiKey) {
+          try {
+            const { key } = await storagePut(`uploads/${finalFilename}`, buffer, mimeType);
+            return { url: `/manus-storage/${key}` };
+          } catch (error) {
+            console.error("[Storage] Forge upload failed, falling back to local storage:", error);
+          }
+        }
+        
+        const uploadsDir = path.resolve(import.meta.dirname, "..", "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const filePath = path.join(uploadsDir, finalFilename);
+        fs.writeFileSync(filePath, buffer);
+        
+        return { url: `/uploads/${finalFilename}` };
+      }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -27,7 +81,7 @@ export const appRouter = router({
     }),
 
     // Email + Password Authentication
-    signup: publicProcedure
+    signup: authRateLimitedProcedure
       .input(
         z.object({
           email: z.string().email(),
@@ -65,10 +119,15 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
         logger.auth("signup_success", input.email, true, `UserId: ${user.id}`);
+        triggerN8nWebhook("user.registered", {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        });
         return { success: true, user };
       }),
 
-    login: publicProcedure
+    login: authRateLimitedProcedure
       .input(
         z.object({
           email: z.string().email(),
@@ -121,7 +180,7 @@ export const appRouter = router({
           walkingHabits: z.string().optional(),
           whatISeek: z.array(z.enum(["friend", "mentor", "intergenerational"])).optional(),
           bio: z.string().max(500).optional(),
-          profilePhotoUrl: z.string().url().optional(),
+          profilePhotoUrl: z.string().optional(),
           phoneNumber: z.string().optional(),
         })
       )
@@ -182,6 +241,12 @@ export const appRouter = router({
         await db.toggleLocationSharing(ctx.user.id, input.isActive);
         return { success: true };
       }),
+
+    getPublicProfile: protectedProcedure
+      .input(z.object({ targetUserId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await db.getPublicUserProfile(ctx.user.id, input.targetUserId);
+      }),
   }),
 
   // Dog Profile Management
@@ -211,7 +276,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).max(3).optional(),
+          photoUrls: z.array(z.string()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -223,6 +288,13 @@ export const appRouter = router({
           description: input.description,
           personality: input.personality ? (JSON.stringify(input.personality) as any) : undefined,
           photoUrls: input.photoUrls ? (JSON.stringify(input.photoUrls) as any) : undefined,
+        });
+        const user = await db.getUserById(ctx.user.id);
+        triggerN8nWebhook("dog.created", {
+          userId: ctx.user.id,
+          userName: user?.name,
+          dogName: input.name,
+          breed: input.breed,
         });
         return { success: true };
       }),
@@ -237,7 +309,7 @@ export const appRouter = router({
           age: z.number().int().min(0).max(50).optional(),
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
-          photoUrls: z.array(z.string().url()).max(3).optional(),
+          photoUrls: z.array(z.string()).max(3).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -406,9 +478,11 @@ export const appRouter = router({
           ];
         }
 
-        // Get swiped user IDs to filter them out of discovery list
+        // Get swiped and blocked user IDs to filter them out of discovery list
         const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
-        const filteredDuos = duos.filter(d => !swipedUserIds.includes(Number(d.user.id)));
+        const blockedUserIds = await db.getBlockedUserIds(ctx.user.id);
+        const excludeUserIds = [...swipedUserIds, ...blockedUserIds];
+        const filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
 
         // Helper parsers for JSON arrays in mysql
         const parseJsonField = (field: any): string[] => {
@@ -508,6 +582,7 @@ export const appRouter = router({
         z.object({
           targetUserId: z.number(),
           liked: z.boolean(),
+          isFavorite: z.boolean().optional().default(false),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -518,6 +593,22 @@ export const appRouter = router({
         if (existingSwipe) {
           logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, "Already swiped on this user");
           throw new TRPCError({ code: "BAD_REQUEST", message: "Already swiped on this user" });
+        }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const bypass = freshUser?.role === "admin" || freshUser?.bypassPaymentLimits || (freshUser?.swipeLimitUntil && freshUser.swipeLimitUntil > new Date());
+
+        if (!bypass) {
+          if (!input.isFavorite) {
+            const userPlan = freshUser?.plan || "free";
+            const config = await db.getPlanConfig(userPlan);
+            if (config.maxSwipesPerDay !== -1) {
+              const dailySwipes = await db.getDailySwipeCount(ctx.user.id);
+              if (dailySwipes >= config.maxSwipesPerDay) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "SWIPE_LIMIT_EXCEEDED" });
+              }
+            }
+          }
         }
 
         // Create swipe
@@ -648,6 +739,10 @@ export const appRouter = router({
         logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, `Swipe recorded, not mutual`);
         return { success: true, matched: false };
       }),
+
+    getDailySwipeCount: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getDailySwipeCount(ctx.user.id);
+    }),
   }),
 
   // Matches
@@ -658,6 +753,42 @@ export const appRouter = router({
       logger.match("fetch", ctx.user.id, 0, 0, `Fetched ${results.length} matches`);
       return results;
     }),
+
+    // Block / Unmatch a user
+    blockUser: protectedProcedure
+      .input(
+        z.object({
+          targetUserId: z.number(),
+          isPermanent: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.id === input.targetUserId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot block yourself" });
+        }
+        await db.blockUser(ctx.user.id, input.targetUserId, input.isPermanent);
+        logger.match(
+          input.isPermanent ? "block" : "unmatch",
+          ctx.user.id,
+          input.targetUserId,
+          0,
+          `User ${input.isPermanent ? "blocked" : "unmatched"} successfully`
+        );
+        return { success: true };
+      }),
+
+    // Get list of blocked users
+    getBlockedUsers: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBlockedUsers(ctx.user.id);
+    }),
+
+    // Unblock a user
+    unblockUser: protectedProcedure
+      .input(z.object({ targetUserId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const success = await db.unblockUser(ctx.user.id, input.targetUserId);
+        return { success };
+      }),
   }),
 
   // Messages
@@ -737,6 +868,27 @@ export const appRouter = router({
         if (input.targetUserId === ctx.user.id) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot favorite yourself" });
         }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const bypass = freshUser?.role === "admin" || freshUser?.bypassPaymentLimits || (freshUser?.swipeLimitUntil && freshUser.swipeLimitUntil > new Date());
+
+        if (!bypass) {
+          const userPlan = freshUser?.plan || "free";
+          const config = await db.getPlanConfig(userPlan);
+          if (config.maxFavoritesPerDay !== -1) {
+            const dailyFavorites = await db.getDailyFavoriteCount(ctx.user.id);
+            if (dailyFavorites >= config.maxFavoritesPerDay) {
+              if (freshUser && freshUser.superLikeCredits > 0) {
+                await db.updateUserProfile(ctx.user.id, {
+                  superLikeCredits: freshUser.superLikeCredits - 1,
+                });
+              } else {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "FAVORITE_LIMIT_EXCEEDED" });
+              }
+            }
+          }
+        }
+
         await db.addFavorite(ctx.user.id, input.targetUserId);
         return { success: true };
       }),
@@ -895,6 +1047,16 @@ export const appRouter = router({
           organizerId: ctx.user.id,
           ...input,
         });
+        const user = await db.getUserById(ctx.user.id);
+        triggerN8nWebhook("event.created", {
+          organizerId: ctx.user.id,
+          organizerName: user?.name,
+          title: input.title,
+          description: input.description,
+          eventType: input.eventType,
+          location: input.location,
+          eventDate: input.eventDate,
+        });
         return { success: !!eventId, eventId };
       }),
 
@@ -947,6 +1109,19 @@ export const appRouter = router({
         const reportId = await reportLostDog({
           ...input,
           userId: ctx.user.id,
+        });
+        const user = await db.getUserById(ctx.user.id);
+        const dog = await db.getDogById(input.dogId);
+        triggerN8nWebhook("dog.lost", {
+          userId: ctx.user.id,
+          userName: user?.name,
+          userPhone: user?.phoneNumber,
+          dogId: input.dogId,
+          dogName: dog?.name,
+          description: input.description,
+          lostLocation: input.lostLocation,
+          reward: input.reward,
+          contactPhone: input.contactPhone || user?.phoneNumber,
         });
         return { success: !!reportId, reportId };
       }),
@@ -1080,6 +1255,326 @@ export const appRouter = router({
           reason: input.reason,
           name: targetUser?.name,
           phoneNumber: targetUser?.phoneNumber,
+        });
+
+        return { success: true };
+      }),
+  }),
+
+  admin: router({
+    getDashboardStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getAdminStats();
+    }),
+
+    getUsers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getAdminUsers();
+    }),
+
+    updateUser: protectedProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          name: z.string().optional(),
+          email: z.string().email().optional(),
+          role: z.enum(["user", "admin"]).optional(),
+          plan: z.enum(["free", "premium", "vip"]).optional(),
+          phoneNumber: z.string().optional(),
+          age: z.number().int().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        
+        const updateData: any = {};
+        if (input.name !== undefined) updateData.name = input.name;
+        if (input.email !== undefined) updateData.email = input.email;
+        if (input.role !== undefined) updateData.role = input.role;
+        if (input.plan !== undefined) updateData.plan = input.plan;
+        if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
+        if (input.age !== undefined) updateData.age = input.age;
+
+        await db.updateUserProfile(input.userId, updateData);
+        return { success: true };
+      }),
+
+    deleteUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const success = await db.deleteUserAdmin(input.userId);
+        return { success };
+      }),
+
+    getPlanSettings: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getPlanSettings();
+    }),
+
+    updatePlanSettings: protectedProcedure
+      .input(
+        z.object({
+          plan: z.string(),
+          maxSwipesPerDay: z.number().int(),
+          maxFavoritesPerDay: z.number().int(),
+          price: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const success = await db.updatePlanSettings(
+          input.plan,
+          input.maxSwipesPerDay,
+          input.maxFavoritesPerDay,
+          input.price
+        );
+        return { success };
+      }),
+
+    getServerStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const mem = process.memoryUsage();
+      const uptime = process.uptime();
+      const cpu = process.cpuUsage();
+
+      let n8nStatus = "Configuré";
+      let n8nLatency = "N/A";
+      const n8nUrl = process.env.N8N_WEBHOOK_URL;
+      if (n8nUrl) {
+        const start = Date.now();
+        try {
+          const parsed = new URL(n8nUrl);
+          const healthUrl = `${parsed.protocol}//${parsed.host}/healthz`;
+          await axios.get(healthUrl, { timeout: 2000 });
+          n8nStatus = "En ligne";
+          n8nLatency = `${Date.now() - start} ms`;
+        } catch (err: any) {
+          n8nStatus = "Pas de réponse / Hors ligne";
+          if (err.response) {
+            n8nStatus = `En ligne (${err.response.status})`;
+            n8nLatency = `${Date.now() - start} ms`;
+          }
+        }
+      } else {
+        n8nStatus = "Non configuré (Pas d'URL)";
+      }
+
+      return {
+        memory: {
+          rss: `${(mem.rss / 1024 / 1024).toFixed(2)} MB`,
+          heapTotal: `${(mem.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+          heapUsed: `${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        },
+        uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+        cpu: {
+          user: `${(cpu.user / 1000000).toFixed(2)}s`,
+          system: `${(cpu.system / 1000000).toFixed(2)}s`,
+        },
+        n8n: {
+          status: n8nStatus,
+          latency: n8nLatency,
+          url: n8nUrl || "Non renseignée",
+        }
+      };
+    }),
+
+    getLogs: protectedProcedure
+      .input(
+        z.object({
+          logFile: z.enum(["auth.log", "swipe.log", "match.log", "message.log", "database.log"]),
+          linesCount: z.number().int().default(100),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+
+        const logPath = path.join(process.cwd(), "logs", input.logFile);
+        if (!fs.existsSync(logPath)) {
+          return [`[Système] Le fichier de log ${input.logFile} n'existe pas encore.`];
+        }
+
+        try {
+          const content = fs.readFileSync(logPath, "utf8");
+          const lines = content.split("\n").filter(Boolean);
+          return lines.slice(-input.linesCount);
+        } catch (error: any) {
+          return [`[Erreur] Impossible de lire le fichier de log : ${error.message}`];
+        }
+      }),
+
+    togglePaymentBypass: protectedProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          bypass: z.boolean(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        await db.togglePaymentBypass(input.userId, input.bypass);
+        return { success: true };
+      }),
+
+    getPayments: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return await db.getAdminPayments();
+    }),
+
+    listTables: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminListTables(input.target);
+      }),
+
+    getTableSchema: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]), table: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminGetTableSchema(input.target, input.table);
+      }),
+
+    getTableRows: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]), table: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminGetTableRows(input.target, input.table);
+      }),
+
+    insertTableRow: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          rowData: z.record(z.any()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminInsertTableRow(input.target, input.table, input.rowData);
+      }),
+
+    updateTableRow: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          primaryKey: z.string(),
+          primaryValue: z.any(),
+          rowData: z.record(z.any()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminUpdateTableRow(
+          input.target,
+          input.table,
+          input.primaryKey,
+          input.primaryValue,
+          input.rowData
+        );
+      }),
+
+    deleteTableRowCascade: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          primaryKey: z.string(),
+          primaryValue: z.any(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminDeleteTableRowCascade(
+          input.target,
+          input.table,
+          input.primaryKey,
+          input.primaryValue
+        );
+      }),
+  }),
+
+  // Payments & Credits
+  payment: router({
+    getHistory: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getPaymentsForUser(ctx.user.id);
+    }),
+
+    purchasePackage: protectedProcedure
+      .input(
+        z.object({
+          packageType: z.enum(["extra_favorites", "unlimited_swipes", "premium_pass"]),
+          paymentMethod: z.enum(["card", "google_pay", "apple_pay"]),
+          cardDetails: z.object({
+            number: z.string().optional(),
+            expiry: z.string().optional(),
+            cvc: z.string().optional(),
+          }).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        let amount = 0.0;
+        if (input.packageType === "extra_favorites") amount = 1.99;
+        else if (input.packageType === "unlimited_swipes") amount = 4.99;
+        else if (input.packageType === "premium_pass") amount = 9.99;
+
+        // Record the payment
+        await db.recordPayment(ctx.user.id, amount, input.packageType, input.paymentMethod);
+
+        // Apply package credits
+        if (input.packageType === "extra_favorites") {
+          await db.addSuperLikeCredits(ctx.user.id, 5);
+        } else if (input.packageType === "unlimited_swipes") {
+          await db.addSwipeLimitExtension(ctx.user.id, 24);
+        } else if (input.packageType === "premium_pass") {
+          await db.addSwipeLimitExtension(ctx.user.id, 24);
+          await db.addSuperLikeCredits(ctx.user.id, 10);
+        }
+
+        logger.swipe(ctx.user.id, 0, false, false, `User purchased ${input.packageType} for ${amount}€ via ${input.paymentMethod}`);
+        
+        // Notify webhook of purchase
+        await triggerN8nWebhook("user.purchased_package", {
+          userId: ctx.user.id,
+          email: ctx.user.email,
+          packageType: input.packageType,
+          amount,
+          paymentMethod: input.paymentMethod,
         });
 
         return { success: true };

@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Users } from "lucide-react";
+import { Heart, MessageCircle, Users, Star, Trash2 } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
+import { motion, AnimatePresence } from "framer-motion";
 
 const parsePhotos = (photoUrls: any): string[] => {
   if (!photoUrls) return [];
@@ -24,9 +26,28 @@ const parsePhotos = (photoUrls: any): string[] => {
 export default function MatchesPage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
 
   // Fetch matches
   const { data: matches, isLoading } = trpc.match.getMatches.useQuery();
+
+  // Block state
+  const [selectedUserForBlock, setSelectedUserForBlock] = useState<{ id: number; name: string } | null>(null);
+
+  // Block mutation
+  const blockMutation = trpc.match.blockUser.useMutation({
+    onSuccess: () => {
+      utils.match.getMatches.invalidate();
+    }
+  });
+
+  const handleBlock = async (targetUserId: number, isPermanent: boolean) => {
+    try {
+      await blockMutation.mutateAsync({ targetUserId, isPermanent });
+    } catch (error) {
+      console.error("Failed to block user:", error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -39,14 +60,23 @@ export default function MatchesPage() {
   return (
     <div className="min-h-screen bg-background py-12">
       <div className="container max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold uppercase text-foreground mb-2">Mes Matchs</h1>
-          <p className="text-muted-foreground">Vous avez {matches?.length || 0} match{matches && matches.length !== 1 ? 'es' : ''}</p>
+        <div className="flex justify-between items-start mb-8 flex-col sm:flex-row gap-4">
+          <div>
+            <h1 className="text-4xl font-bold uppercase text-foreground mb-2">Mes Matchs</h1>
+            <p className="text-muted-foreground">Vous avez {matches?.length || 0} match{matches && matches.length !== 1 ? 'es' : ''}</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setLocation("/blocked")}
+            className="border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all font-black uppercase flex items-center gap-2 cursor-pointer bg-white text-black text-xs px-4 py-2"
+          >
+            Gérer les profils bloqués
+          </Button>
         </div>
 
         {matches && matches.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {matches.map((match: any) => {
+            {matches.map((match: any, index: number) => {
               // Determine if current user is user1 or user2
               const currentUserId = Number(user?.id);
               const isUser1 = Number(match.user1Id) === currentUserId;
@@ -58,14 +88,24 @@ export default function MatchesPage() {
               const dogName = dog?.name || "Son chien";
               const dogBreed = dog?.breed || "Race inconnue";
               const dogAge = dog?.age;
-              
+
               const photoList = parsePhotos(dog?.photoUrls);
               const dogPhoto = photoList.length > 0 ? photoList[0] : null;
 
               return (
-                <Card 
+                <motion.div
+                  key={match.id}
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.07, type: "spring", stiffness: 320, damping: 28 }}
+                >
+                <Card
                   key={match.id} 
-                  className="relative overflow-hidden h-[450px] border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all group"
+                  className={`relative overflow-hidden h-[450px] border-2 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all group ${
+                    match.isFavorite 
+                      ? 'border-yellow-400 border-[3px] shadow-[0_0_15px_rgba(250,204,21,0.5),6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[0_0_20px_rgba(250,204,21,0.7),8px_8px_0px_0px_rgba(0,0,0,1)]' 
+                      : 'border-black hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]'
+                  }`}
                 >
                   {/* Background Image / Placeholder */}
                   {dogPhoto ? (
@@ -86,6 +126,26 @@ export default function MatchesPage() {
                   {/* Top pill for Compatibility Score */}
                   <div className="absolute top-4 left-4 z-10">
                     <CompatibilityScore score={match.compatibilityScore} compact={true} />
+                  </div>
+
+                  {/* Badge & Actions Top Right */}
+                  <div className="absolute top-4 right-4 z-10 flex gap-2 items-center">
+                    {match.isFavorite && (
+                      <div className="bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] px-3 py-1 rounded-full flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-pulse">
+                        <Star className="w-3 h-3 fill-black" />
+                        Favori
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedUserForBlock({ id: otherUserId, name: otherUserName });
+                      }}
+                      className="bg-red-500 hover:bg-red-600 hover:scale-105 active:scale-95 text-white border-2 border-black p-1.5 rounded-full flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                      title="Bloquer / Retirer ce match"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
 
                   {/* Card Content Overlay */}
@@ -128,6 +188,7 @@ export default function MatchesPage() {
                       <Button
                         variant="outline"
                         className="flex-1 bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all gap-2"
+                        onClick={() => setLocation(`/profile/${otherUserId}`)}
                       >
                         <Users size={18} />
                         Profil
@@ -135,6 +196,7 @@ export default function MatchesPage() {
                     </div>
                   </div>
                 </Card>
+                </motion.div>
               );
             })}
           </div>
@@ -154,6 +216,58 @@ export default function MatchesPage() {
           </Card>
         )}
       </div>
+
+      <AnimatePresence>
+        {selectedUserForBlock && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-background border-4 border-black p-6 rounded-none max-w-md w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black relative"
+            >
+              <h3 className="text-2xl font-black uppercase mb-2 tracking-wide">Retirer / Bloquer</h3>
+              <p className="text-sm text-gray-700 mb-6 font-medium">
+                Voulez-vous retirer {selectedUserForBlock.name} de vos matchs ?
+                <br /><br />
+                - **Suppression temporaire** : Cache le profil de vos matchs et de votre découverte pendant 7 jours.
+                <br />
+                - **Blocage définitif** : Cache le profil indéfiniment.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={async () => {
+                    await handleBlock(selectedUserForBlock.id, false);
+                    setSelectedUserForBlock(null);
+                  }}
+                  className="w-full bg-blue-400 hover:bg-blue-500 text-black border-2 border-black font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  Supprimer (1 semaine)
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    await handleBlock(selectedUserForBlock.id, true);
+                    setSelectedUserForBlock(null);
+                  }}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white border-2 border-black font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  Bloquer définitivement
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedUserForBlock(null)}
+                  className="w-full bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer animate-none"
+                >
+                  Annuler
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

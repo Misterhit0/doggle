@@ -12,6 +12,7 @@ export default function VerificationPage() {
   const [isDragging, setIsDragging] = useState(false);
 
   const getVerificationQuery = trpc.verification.getVerification.useQuery();
+  const uploadPhotoMutation = trpc.storage.uploadPhoto.useMutation();
   const submitVerificationMutation = trpc.verification.submitVerification.useMutation({
     onSuccess: () => {
       toast.success("Selfie soumis pour vérification !");
@@ -63,14 +64,24 @@ export default function VerificationPage() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedFile) {
+    if (!selectedFile || !preview) {
       toast.error("Veuillez sélectionner une photo");
       return;
     }
 
-    submitVerificationMutation.mutate({
-      photoUrl: preview || "",
-    });
+    try {
+      toast.loading("Upload de la photo...", { id: "upload-verification" });
+      const res = await uploadPhotoMutation.mutateAsync({
+        base64Data: preview,
+        filename: selectedFile.name,
+      });
+      submitVerificationMutation.mutate({
+        photoUrl: res.url,
+      });
+      toast.success("Photo uploadée avec succès !", { id: "upload-verification" });
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de l'upload", { id: "upload-verification" });
+    }
   };
 
   const verification = getVerificationQuery.data;

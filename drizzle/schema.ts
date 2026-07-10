@@ -1,4 +1,4 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double } from "drizzle-orm/mysql-core";
+import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar, json, boolean, double, unique } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -33,6 +33,12 @@ export const users = mysqlTable("users", {
   isShareLocationActive: boolean("isShareLocationActive").default(false).notNull(),
   
   phoneNumber: varchar("phoneNumber", { length: 20 }),
+  
+  // Payment / Monetization Limits
+  plan: varchar("plan", { length: 32 }).default("free").notNull(),
+  bypassPaymentLimits: boolean("bypassPaymentLimits").default(false).notNull(),
+  superLikeCredits: int("superLikeCredits").default(0).notNull(),
+  swipeLimitUntil: timestamp("swipeLimitUntil"),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -74,6 +80,38 @@ export const swipes = mysqlTable("swipes", {
 
 export type Swipe = typeof swipes.$inferSelect;
 export type InsertSwipe = typeof swipes.$inferInsert;
+
+/**
+ * Favorites table - tracks user interactions (adding to favorites)
+ */
+export const favorites = mysqlTable("favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  targetUserId: int("targetUserId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  unique("unique_user_target").on(table.userId, table.targetUserId),
+]);
+
+export type Favorite = typeof favorites.$inferSelect;
+export type InsertFavorite = typeof favorites.$inferInsert;
+
+/**
+ * Blocks table - tracks users blocked or unmatched
+ */
+export const blocks = mysqlTable("blocks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // who blocked
+  targetUserId: int("targetUserId").notNull(), // who was blocked
+  type: varchar("type", { length: 16 }).default("permanent").notNull(), // 'temporary' or 'permanent'
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  unique("unique_user_block").on(table.userId, table.targetUserId),
+]);
+
+export type Block = typeof blocks.$inferSelect;
+export type InsertBlock = typeof blocks.$inferInsert;
 
 /**
  * Matches table - created when two users like each other
@@ -243,3 +281,36 @@ export const verificationsRelations = relations(verifications, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const payments = mysqlTable("payments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("EUR").notNull(),
+  packageType: varchar("packageType", { length: 64 }).notNull(), // 'extra_favorites', 'unlimited_swipes', 'premium_pass'
+  paymentMethod: varchar("paymentMethod", { length: 32 }).notNull(), // 'card', 'google_pay', 'apple_pay'
+  status: varchar("status", { length: 32 }).default("completed").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  user: one(users, {
+    fields: [payments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const planSettings = mysqlTable("plan_settings", {
+  plan: varchar("plan", { length: 32 }).primaryKey(),
+  maxSwipesPerDay: int("maxSwipesPerDay").notNull().default(10),
+  maxFavoritesPerDay: int("maxFavoritesPerDay").notNull().default(1),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PlanSetting = typeof planSettings.$inferSelect;
+export type InsertPlanSetting = typeof planSettings.$inferInsert;
