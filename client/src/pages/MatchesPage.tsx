@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Users, Star, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Users, Star, Trash2, CheckCircle, AlertCircle } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,6 +33,12 @@ export default function MatchesPage() {
 
   // Block state
   const [selectedUserForBlock, setSelectedUserForBlock] = useState<{ id: number; name: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // Block mutation
   const blockMutation = trpc.match.blockUser.useMutation({
@@ -44,8 +50,10 @@ export default function MatchesPage() {
   const handleBlock = async (targetUserId: number, isPermanent: boolean) => {
     try {
       await blockMutation.mutateAsync({ targetUserId, isPermanent });
+      showToast("success", isPermanent ? "Utilisateur bloqué définitivement." : "Match retiré pour 1 semaine.");
     } catch (error) {
       console.error("Failed to block user:", error);
+      showToast("error", "Une erreur est survenue. Veuillez réessayer.");
     }
   };
 
@@ -129,7 +137,7 @@ export default function MatchesPage() {
                   </div>
 
                   {/* Badge & Actions Top Right */}
-                  <div className="absolute top-4 right-4 z-10 flex gap-2 items-center">
+                  <div className="absolute top-4 right-4 z-20 flex gap-2 items-center">
                     {match.isFavorite && (
                       <div className="bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] px-3 py-1 rounded-full flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-pulse">
                         <Star className="w-3 h-3 fill-black" />
@@ -266,6 +274,29 @@ export default function MatchesPage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3 rounded-none border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] font-bold text-sm ${
+              toast.type === "success"
+                ? "bg-green-400 text-black"
+                : "bg-red-500 text-white"
+            }`}
+          >
+            {toast.type === "success" ? (
+              <CheckCircle className="w-5 h-5 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            )}
+            {toast.message}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
