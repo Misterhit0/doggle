@@ -22,19 +22,22 @@ interface LocationPickerMapProps {
 }
 
 function LocationPickerMap({ onLocationPicked, initialLat, initialLng, label }: LocationPickerMapProps) {
-  const [map, setMap] = useState<maplibregl.Map | null>(null);
-  const [marker, setMarker] = useState<maplibregl.Marker | null>(null);
   const [pickedAddress, setPickedAddress] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isGeolocating, setIsGeolocating] = useState(false);
+
+  // Use refs to avoid stale closures inside maplibre event listeners
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const onLocationPickedRef = useRef(onLocationPicked);
+  onLocationPickedRef.current = onLocationPicked;
 
   // Address search using Nominatim (OpenStreetMap Geocoding API)
   const handleAddressSearch = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!query.trim()) { setSearchResults([]); return; }
     setIsSearching(true);
     try {
       const res = await fetch(
@@ -49,98 +52,141 @@ function LocationPickerMap({ onLocationPicked, initialLat, initialLng, label }: 
     }
   };
 
-  // Debounced search trigger
+  // Debounced search — 600ms
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery) {
-        handleAddressSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 4000);
+      if (searchQuery.length > 2) handleAddressSearch(searchQuery);
+      else setSearchResults([]);
+    }, 600);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const selectSearchResult = (result: any) => {
-    const lat = parseFloat(result.lat);
-    const lon = parseFloat(result.lon);
-    const address = result.display_name;
+  const placeMarker = (lat: number, lng: number, address: string) => {
+    const mapInstance = mapRef.current;
+    if (!mapInstance) return;
 
-    setSearchQuery(address);
-    setSearchResults([]);
+    // Remove old marker
+    if (markerRef.current) { markerRef.current.remove(); markerRef.current = null; }
 
-    if (map) {
-      map.setCenter([lon, lat]);
-      map.setZoom(16);
-      placeMarkerOnMap(map, lat, lon, address);
-    }
-  };
+    // Custom retro SVG pin
+    const el = document.createElement("div");
+    el.innerHTML = `
+      <div style="position:relative;width:32px;height:42px;cursor:pointer">
+        <svg viewBox="0 0 32 42" width="32" height="42" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 0C7.163 0 0 7.163 0 16c0 10 16 26 16 26S32 26 32 16C32 7.163 24.837 0 16 0z"
+            fill="#dc2626" stroke="#000" stroke-width="2"/>
+          <circle cx="16" cy="16" r="7" fill="white" stroke="#000" stroke-width="1.5"/>
+          <circle cx="16" cy="16" r="4" fill="#dc2626"/>
+        </svg>
+      </div>`;
 
-  const placeMarkerOnMap = (mapInstance: maplibregl.Map, lat: number, lng: number, address: string) => {
-    setMarker(prev => {
-      if (prev) prev.remove();
-
-      // Create a nice retro pin element
-      const el = document.createElement("div");
-      el.className = "w-6 h-6 bg-red-600 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ring-4 ring-red-500/30 animate-bounce";
-
-      const newMarker = new maplibregl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .addTo(mapInstance);
-
-      return newMarker;
-    });
+    const newMarker = new maplibregl.Marker({ element: el.firstElementChild as HTMLElement, anchor: "bottom" })
+      .setLngLat([lng, lat])
+      .addTo(mapInstance);
+    markerRef.current = newMarker;
 
     setPickedAddress(address);
-    onLocationPicked(lat, lng, address);
+    onLocationPickedRef.current(lat, lng, address);
   };
 
-  const handleReverseGeocode = async (mapInstance: maplibregl.Map, lat: number, lng: number) => {
+  const reverseGeocode = async (lat: number, lng: number) => {
+    setIsGeocoding(true);
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
       );
       const data = await res.json();
       const address = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      placeMarkerOnMap(mapInstance, lat, lng, address);
+      placeMarker(lat, lng, address);
       setSearchQuery(address);
-    } catch (e) {
+    } catch {
       const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      placeMarkerOnMap(mapInstance, lat, lng, fallback);
+      placeMarker(lat, lng, fallback);
       setSearchQuery(fallback);
+    } finally {
+      setIsGeocoding(false);
     }
   };
 
-  const handleMapReady = useCallback((mapInstance: maplibregl.Map) => {
-    setMap(mapInstance);
+  // Store reverseGeocode in a ref so the map click listener is NEVER stale
+  const reverseGeocodeRef = useRef(reverseGeocode);
+  reverseGeocodeRef.current = reverseGeocode;
 
-    // Initial marker if coordinates exist
+  const selectSearchResult = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    const address = result.display_name;
+    setSearchQuery(address);
+    setSearchResults([]);
+    const mapInstance = mapRef.current;
+    if (mapInstance) {
+      mapInstance.flyTo({ center: [lon, lat], zoom: 16, duration: 800 });
+      placeMarker(lat, lon, address);
+    }
+  };
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) { toast.error("Géolocalisation non disponible sur cet appareil"); return; }
+    setIsGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        mapRef.current?.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
+        reverseGeocodeRef.current(lat, lng);
+        setIsGeolocating(false);
+      },
+      () => { toast.error("Impossible d'obtenir votre position GPS"); setIsGeolocating(false); },
+      { timeout: 10000 }
+    );
+  };
+
+  const handleMapReady = useCallback((mapInstance: maplibregl.Map) => {
+    mapRef.current = mapInstance;
+
+    // Crosshair cursor = visual hint that clicking places a pin
+    mapInstance.getCanvas().style.cursor = "crosshair";
+
+    // Initial marker if coordinates provided
     if (initialLat && initialLng) {
-      handleReverseGeocode(mapInstance, initialLat, initialLng);
+      mapInstance.setCenter([initialLng, initialLat]);
+      reverseGeocodeRef.current(initialLat, initialLng);
     }
 
-    // Add click event for placing pins
+    // ✅ Click via ref — no stale closure bug
     mapInstance.on("click", (e) => {
       const { lat, lng } = e.lngLat;
-      handleReverseGeocode(mapInstance, lat, lng);
+      reverseGeocodeRef.current(lat, lng);
     });
-  }, [initialLat, initialLng]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-2 relative">
-      {/* Address search input */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-3 text-muted-foreground" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Rechercher une adresse..."
-          className="w-full pl-9 pr-4 py-2.5 border-2 border-black rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white text-black"
-        />
-        {isSearching && (
-          <span className="absolute right-3 top-3.5 text-xs text-muted-foreground animate-pulse">Recherche...</span>
-        )}
+      {/* Address search input + geolocate button */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-3 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher une adresse..."
+            className="w-full pl-9 pr-4 py-2.5 border-2 border-black rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white text-black"
+          />
+          {isSearching && (
+            <span className="absolute right-3 top-3.5 text-xs text-muted-foreground animate-pulse">Recherche...</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleGeolocate}
+          disabled={isGeolocating}
+          title="Utiliser ma position GPS actuelle"
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white border-2 border-black rounded-lg text-xs font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all whitespace-nowrap cursor-pointer"
+        >
+          <Navigation size={14} className={isGeolocating ? "animate-spin" : ""} />
+          {isGeolocating ? "Localisation..." : "Ma position"}
+        </button>
       </div>
 
       {/* Search results dropdown */}
@@ -163,8 +209,9 @@ function LocationPickerMap({ onLocationPicked, initialLat, initialLng, label }: 
       {/* Map container */}
       <div className="rounded-xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] relative">
         <div className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 flex items-center gap-2">
-          <Navigation size={12} />
-          <span>{label} — Cliquez sur la carte pour placer le marqueur</span>
+          <MapPin size={12} />
+          <span>{label} — Touchez / cliquez sur la carte pour placer l'épingle 📍</span>
+          {isGeocoding && <span className="ml-auto animate-pulse font-normal">Résolution adresse...</span>}
         </div>
         <MapView
           onMapReady={handleMapReady}
@@ -174,15 +221,15 @@ function LocationPickerMap({ onLocationPicked, initialLat, initialLng, label }: 
               : { lat: 48.8566, lng: 2.3522 }
           }
           initialZoom={13}
-          className="w-full h-[260px]"
+          className="w-full h-[280px]"
         />
       </div>
 
       {/* Selected address display */}
       {pickedAddress && (
-        <div className="flex items-center gap-2 bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2">
-          <MapPin size={14} className="text-red-600 flex-shrink-0" />
-          <span className="text-xs font-semibold text-red-800 truncate">{pickedAddress}</span>
+        <div className="flex items-start gap-2 bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2">
+          <MapPin size={14} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <span className="text-xs font-semibold text-red-800">{pickedAddress}</span>
         </div>
       )}
     </div>
