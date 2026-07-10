@@ -396,25 +396,25 @@ export default function Home() {
             <div>
               <h4 className="font-bold uppercase mb-4">Produit</h4>
               <ul className="space-y-2 text-sm text-gray-300">
-                <li className="text-gray-400">Fonctionnalités (bientôt)</li>
-                <li className="text-gray-400">Tarification (bientôt)</li>
-                <li className="text-gray-400">Sécurité (bientôt)</li>
+                <li><a href="/features" className="hover:text-accent transition-colors">Fonctionnalités</a></li>
+                <li><a href="/pricing" className="hover:text-accent transition-colors">Tarification</a></li>
+                <li><a href="/security" className="hover:text-accent transition-colors">Sécurité</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-bold uppercase mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm text-gray-300">
-                <li className="text-gray-400">À propos (bientôt)</li>
-                <li className="text-gray-400">Blog (bientôt)</li>
-                <li className="text-gray-400">Contact (bientôt)</li>
+                <li><a href="/about" className="hover:text-accent transition-colors">À propos</a></li>
+                <li><a href="/blog" className="hover:text-accent transition-colors">Blog</a></li>
+                <li><a href="/contact" className="hover:text-accent transition-colors">Contact</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-bold uppercase mb-4">Légal</h4>
               <ul className="space-y-2 text-sm text-gray-300">
-                <li className="text-gray-400">Confidentialité (bientôt)</li>
-                <li className="text-gray-400">Conditions (bientôt)</li>
-                <li className="text-gray-400">Cookies (bientôt)</li>
+                <li><a href="/privacy" className="hover:text-accent transition-colors">Confidentialité</a></li>
+                <li><a href="/terms" className="hover:text-accent transition-colors">Conditions</a></li>
+                <li><a href="/cookies" className="hover:text-accent transition-colors">Cookies</a></li>
               </ul>
             </div>
           </div>

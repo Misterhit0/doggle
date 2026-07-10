@@ -21,6 +21,15 @@ import VerificationPage from "./pages/VerificationPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import AppNav from "./components/AppNav";
+import FeaturesPage from "./pages/FeaturesPage";
+import PricingPage from "./pages/PricingPage";
+import SecurityPage from "./pages/SecurityPage";
+import AboutPage from "./pages/AboutPage";
+import BlogPage from "./pages/BlogPage";
+import ContactPage from "./pages/ContactPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+import CookiesPage from "./pages/CookiesPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -45,6 +54,15 @@ function Router() {
           <Route path="/verification" component={VerificationPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/signup" component={SignupPage} />
+          <Route path="/features" component={FeaturesPage} />
+          <Route path="/pricing" component={PricingPage} />
+          <Route path="/security" component={SecurityPage} />
+          <Route path="/about" component={AboutPage} />
+          <Route path="/blog" component={BlogPage} />
+          <Route path="/contact" component={ContactPage} />
+          <Route path="/privacy" component={PrivacyPage} />
+          <Route path="/terms" component={TermsPage} />
+          <Route path="/cookies" component={CookiesPage} />
           <Route path="/404" component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />
