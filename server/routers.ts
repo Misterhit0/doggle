@@ -1,7 +1,7 @@
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { publicProcedure, router, protectedProcedure, authRateLimitedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
@@ -27,7 +27,7 @@ export const appRouter = router({
     }),
 
     // Email + Password Authentication
-    signup: publicProcedure
+    signup: authRateLimitedProcedure
       .input(
         z.object({
           email: z.string().email(),
@@ -68,7 +68,7 @@ export const appRouter = router({
         return { success: true, user };
       }),
 
-    login: publicProcedure
+    login: authRateLimitedProcedure
       .input(
         z.object({
           email: z.string().email(),

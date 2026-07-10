@@ -106,9 +106,12 @@ async function startServer() {
     };
   }
 
-  app.use("/api/trpc/auth.login", createRateLimiter(5, 60 * 1000));
-  app.use("/api/trpc/auth.signup", createRateLimiter(5, 60 * 1000));
-  app.use("/api", createRateLimiter(200, 15 * 60 * 1000));
+  // All /api/trpc/* traffic is rate-limited inside tRPC itself (see server/_core/trpc.ts:
+  // baseProcedure and authRateLimitedProcedure) so a 429 is always serialized by tRPC.
+  // Raw Express JSON responses can't be deserialized by the httpBatchLink + superjson
+  // client and previously caused "Unable to transform response from server" whenever
+  // this limiter fired for a tRPC route — so it's now scoped to non-tRPC /api routes only.
+  app.use("/api/oauth", createRateLimiter(200, 15 * 60 * 1000));
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
