@@ -1184,6 +1184,135 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  admin: router({
+    getDashboardStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getAdminStats();
+    }),
+
+    getUsers: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return db.getAdminUsers();
+    }),
+
+    updateUser: protectedProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          name: z.string().optional(),
+          email: z.string().email().optional(),
+          role: z.enum(["user", "admin"]).optional(),
+          phoneNumber: z.string().optional(),
+          age: z.number().int().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        
+        const updateData: any = {};
+        if (input.name !== undefined) updateData.name = input.name;
+        if (input.email !== undefined) updateData.email = input.email;
+        if (input.role !== undefined) updateData.role = input.role;
+        if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
+        if (input.age !== undefined) updateData.age = input.age;
+
+        await db.updateUserProfile(input.userId, updateData);
+        return { success: true };
+      }),
+
+    deleteUser: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const success = await db.deleteUserAdmin(input.userId);
+        return { success };
+      }),
+
+    getServerStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const mem = process.memoryUsage();
+      const uptime = process.uptime();
+      const cpu = process.cpuUsage();
+
+      let n8nStatus = "Configuré";
+      let n8nLatency = "N/A";
+      const n8nUrl = process.env.N8N_WEBHOOK_URL;
+      if (n8nUrl) {
+        const start = Date.now();
+        try {
+          const parsed = new URL(n8nUrl);
+          const healthUrl = `${parsed.protocol}//${parsed.host}/healthz`;
+          await axios.get(healthUrl, { timeout: 2000 });
+          n8nStatus = "En ligne";
+          n8nLatency = `${Date.now() - start} ms`;
+        } catch (err: any) {
+          n8nStatus = "Pas de réponse / Hors ligne";
+          if (err.response) {
+            n8nStatus = `En ligne (${err.response.status})`;
+            n8nLatency = `${Date.now() - start} ms`;
+          }
+        }
+      } else {
+        n8nStatus = "Non configuré (Pas d'URL)";
+      }
+
+      return {
+        memory: {
+          rss: `${(mem.rss / 1024 / 1024).toFixed(2)} MB`,
+          heapTotal: `${(mem.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+          heapUsed: `${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        },
+        uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${Math.floor(uptime % 60)}s`,
+        cpu: {
+          user: `${(cpu.user / 1000000).toFixed(2)}s`,
+          system: `${(cpu.system / 1000000).toFixed(2)}s`,
+        },
+        n8n: {
+          status: n8nStatus,
+          latency: n8nLatency,
+          url: n8nUrl || "Non renseignée",
+        }
+      };
+    }),
+
+    getLogs: protectedProcedure
+      .input(
+        z.object({
+          logFile: z.enum(["auth.log", "swipe.log", "match.log", "message.log", "database.log"]),
+          linesCount: z.number().int().default(100),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+
+        const logPath = path.join(process.cwd(), "logs", input.logFile);
+        if (!fs.existsSync(logPath)) {
+          return [`[Système] Le fichier de log ${input.logFile} n'existe pas encore.`];
+        }
+
+        try {
+          const content = fs.readFileSync(logPath, "utf8");
+          const lines = content.split("\n").filter(Boolean);
+          return lines.slice(-input.linesCount);
+        } catch (error: any) {
+          return [`[Erreur] Impossible de lire le fichier de log : ${error.message}`];
+        }
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

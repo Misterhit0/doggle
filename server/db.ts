@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification } from "../drizzle/schema";
@@ -1212,4 +1212,95 @@ export async function getPublicUserProfile(viewerId: number, targetUserId: numbe
     dogs: targetDogs,
     isMatched,
   };
+}
+
+export async function getAdminStats() {
+  const db = await getDb();
+  if (!db) return null;
+
+  const userList = await db.select().from(users);
+  const dogList = await db.select().from(dogs);
+  const swipeList = await db.select().from(swipes);
+  const matchList = await db.select().from(matches);
+  const messageList = await db.select().from(messages);
+  const verificationList = await db.select().from(verifications);
+
+  const totalUsers = userList.length;
+  const totalDogs = dogList.length;
+  const totalSwipes = swipeList.length;
+  const totalMatches = matchList.length;
+  const totalMessages = messageList.length;
+
+  const likesCount = swipeList.filter(s => s.liked).length;
+  const passesCount = swipeList.filter(s => !s.liked).length;
+  const likeRate = totalSwipes > 0 ? (likesCount / totalSwipes) * 100 : 0;
+  const matchRate = totalSwipes > 0 ? (totalMatches * 2 / totalSwipes) * 100 : 0;
+
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const activeUsers24h = userList.filter(u => u.lastSignedIn && new Date(u.lastSignedIn) > oneDayAgo).length;
+
+  const pendingVerifications = verificationList.filter(v => v.status === "pending").map(v => {
+    const user = userList.find(u => u.id === v.userId);
+    return {
+      ...v,
+      userName: user?.name || "Inconnu",
+      userEmail: user?.email || "Inconnu"
+    };
+  });
+
+  const activeWalkersCount = userList.filter(u => u.isShareLocationActive).length;
+
+  return {
+    totalUsers,
+    totalDogs,
+    totalSwipes,
+    totalMatches,
+    totalMessages,
+    likesCount,
+    passesCount,
+    likeRate,
+    matchRate,
+    activeUsers24h,
+    activeWalkersCount,
+    pendingVerifications
+  };
+}
+
+export async function getAdminUsers() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+  const allDogs = await db.select().from(dogs);
+  const allVerifications = await db.select().from(verifications);
+
+  return allUsers.map(user => {
+    const userDogs = allDogs.filter(d => d.userId === user.id);
+    const userVerif = allVerifications.find(v => v.userId === user.id);
+    return {
+      ...user,
+      dogs: userDogs,
+      verificationStatus: userVerif ? userVerif.status : "none",
+      verificationUrl: userVerif ? userVerif.photoUrl : null,
+      verificationRejectionReason: userVerif ? userVerif.rejectionReason : null,
+    };
+  });
+}
+
+export async function deleteUserAdmin(userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  await db.delete(dogs).where(eq(dogs.userId, userId));
+  await db.delete(swipes).where(eq(swipes.userId, userId));
+  await db.delete(swipes).where(eq(swipes.targetUserId, userId));
+  await db.delete(matches).where(sql`userId1 = ${userId} OR userId2 = ${userId}`);
+  await db.delete(messages).where(eq(messages.senderId, userId));
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+  await db.delete(reviews).where(sql`reviewerId = ${userId} OR reviewedId = ${userId}`);
+  await db.delete(verifications).where(eq(verifications.userId, userId));
+  await db.delete(users).where(eq(users.id, userId));
+
+  return true;
 }

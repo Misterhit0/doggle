@@ -30,6 +30,7 @@ import ContactPage from "./pages/ContactPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import CookiesPage from "./pages/CookiesPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -63,6 +64,7 @@ function Router() {
           <Route path="/privacy" component={PrivacyPage} />
           <Route path="/terms" component={TermsPage} />
           <Route path="/cookies" component={CookiesPage} />
+          <Route path="/admin" component={AdminDashboardPage} />
           <Route path="/404" component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

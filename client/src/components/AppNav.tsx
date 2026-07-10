@@ -11,7 +11,8 @@ import {
   Map,
   Home as HomeIcon,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -118,6 +119,14 @@ export default function AppNav() {
                       Mon profil
                     </a>
                   </DropdownMenuItem>
+                  {user.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <a href="/admin" className="cursor-pointer flex items-center font-bold text-red-600 focus:text-red-700">
+                        <ShieldAlert className="w-4 h-4 mr-2" />
+                        Dashboard Admin
+                      </a>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem asChild className="md:hidden">
                     <a href="/dogs" className="cursor-pointer flex items-center font-bold">
                       <HomeIcon className="w-4 h-4 mr-2" />
