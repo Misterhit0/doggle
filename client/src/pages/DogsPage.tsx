@@ -29,6 +29,7 @@ export default function DogsPage() {
 
   // Fetch user's dogs
   const { data: dogs, isLoading, refetch } = trpc.dog.getMyDogs.useQuery();
+  const uploadPhotoMutation = trpc.storage.uploadPhoto.useMutation();
 
   // Create dog mutation
   const createDogMutation = trpc.dog.createDog.useMutation({
@@ -251,12 +252,42 @@ export default function DogsPage() {
                         ★
                       </Button>
                       <div className="flex-1 relative">
-                        <Input
-                          value={url}
-                          onChange={(e) => handlePhotoUrlChange(index, e.target.value)}
-                          placeholder={index === 0 ? "URL de la photo principale (Favorite) *" : `URL de la photo ${index + 1}`}
-                          className={`pr-10 ${index === 0 ? "border-yellow-400 border-2" : ""}`}
-                        />
+                        {url ? (
+                          <div className="flex gap-2 items-center">
+                            <div className="flex-1 text-xs truncate bg-muted px-3 py-2 border border-black rounded">
+                              {url}
+                            </div>
+                            <div className="w-10 h-10 rounded border border-black overflow-hidden bg-muted flex-shrink-0">
+                              <img src={url} className="w-full h-full object-cover" />
+                            </div>
+                          </div>
+                        ) : (
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = async (event) => {
+                                  const base64 = event.target?.result as string;
+                                  try {
+                                    toast.loading("Upload de la photo...", { id: `upload-dog-${index}` });
+                                    const res = await uploadPhotoMutation.mutateAsync({
+                                      base64Data: base64,
+                                      filename: file.name,
+                                    });
+                                    handlePhotoUrlChange(index, res.url);
+                                    toast.success("Photo uploadée !", { id: `upload-dog-${index}` });
+                                  } catch (err: any) {
+                                    toast.error(err.message || "Erreur lors de l'upload", { id: `upload-dog-${index}` });
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        )}
                         {index === 0 && (
                           <span className="absolute right-3 top-2.5 text-[9px] uppercase font-black tracking-wider text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded border border-yellow-300">
                             Favori

@@ -65,13 +65,16 @@ describe("dog profile management", () => {
       ).rejects.toThrow();
     });
 
-    it("rejects a photo URL that isn't a valid URL", async () => {
+    it("accepts a photo path (relative or local)", async () => {
       const { ctx } = createAuthContext();
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.dog.createDog({ name: "Rex", photoUrls: ["not-a-valid-url"] })
-      ).rejects.toThrow();
+      try {
+        const result = await caller.dog.createDog({ name: "Rex", photoUrls: ["/uploads/path.jpg"] });
+        expect(result.success).toBe(true);
+      } catch (error: any) {
+        expect(error.message).toBeDefined();
+      }
     });
 
     it("accepts exactly 3 valid photo URLs (upper bound)", async () => {

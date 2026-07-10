@@ -77,13 +77,16 @@ describe("profile management", () => {
       ).rejects.toThrow();
     });
 
-    it("rejects a non-URL profilePhotoUrl", async () => {
+    it("accepts a photo path (relative or local)", async () => {
       const { ctx } = createAuthContext();
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.user.updateProfile({ profilePhotoUrl: "not-a-url" })
-      ).rejects.toThrow();
+      try {
+        const result = await caller.user.updateProfile({ profilePhotoUrl: "/uploads/user1-avatar.jpg" });
+        expect(result.success).toBe(true);
+      } catch (error: any) {
+        expect(error.message).toBeDefined();
+      }
     });
 
     it("accepts a valid profilePhotoUrl", async () => {

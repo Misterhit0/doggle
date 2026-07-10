@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
+import { useLocation } from "wouter";
 
 const parseJsonArray = (val: any): any[] => {
   if (!val) return [];
@@ -28,14 +29,16 @@ const parseJsonArray = (val: any): any[] => {
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const [_, setLocation] = useLocation();
   const [isEditing, setIsEditing] = useState(false);
   const [dogs, setDogs] = useState<any[]>([]);
   const [newDog, setNewDog] = useState({ name: "", breed: "", age: "" });
 
   // Fetch user profile
   const { data: profile, isLoading, refetch } = trpc.user.getProfile.useQuery();
-  // Placeholder for user dogs
-  const userDogs = (profile as any)?.dogs;
+  // Fetch actual user dogs
+  const { data: myDogs } = trpc.dog.getMyDogs.useQuery();
+  const uploadPhotoMutation = trpc.storage.uploadPhoto.useMutation();
 
 
   // Update profile mutation
@@ -248,9 +251,9 @@ export default function ProfilePage() {
             {/* Dogs Section */}
             <Card className="p-8 border-2 border-accent">
               <h2 className="text-2xl font-bold uppercase mb-6 text-foreground">Mes chiens</h2>
-              {dogs && dogs.length > 0 ? (
+              {myDogs && myDogs.length > 0 ? (
                 <div className="space-y-4 mb-6">
-                  {dogs.map((dog) => (
+                  {myDogs.map((dog) => (
                     <div key={dog.id} className="p-4 border-2 border-muted rounded-lg">
                       <p className="font-bold text-foreground">{dog.name}</p>
                       <p className="text-sm text-muted-foreground">{dog.breed} • {dog.age} ans</p>
@@ -261,7 +264,7 @@ export default function ProfilePage() {
                 <p className="text-muted-foreground mb-6">Aucun chien ajouté</p>
               )}
               <Button
-                onClick={() => setIsEditing(true)}
+                onClick={() => setLocation("/dogs")}
                 variant="outline"
                 className="w-full"
               >
@@ -291,15 +294,43 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="profilePhotoUrl">Photo de profil (URL)</Label>
-                    <Input
-                      id="profilePhotoUrl"
-                      name="profilePhotoUrl"
-                      type="url"
-                      value={formData.profilePhotoUrl}
-                      onChange={handleInputChange}
-                      placeholder="https://..."
-                    />
+                    <Label htmlFor="profilePhotoFile">Photo de profil</Label>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        id="profilePhotoFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const base64 = event.target?.result as string;
+                              try {
+                                toast.loading("Upload de la photo...", { id: "upload-profile" });
+                                const res = await uploadPhotoMutation.mutateAsync({
+                                  base64Data: base64,
+                                  filename: file.name,
+                                });
+                                setFormData(prev => ({
+                                  ...prev,
+                                  profilePhotoUrl: res.url,
+                                }));
+                                toast.success("Photo uploadée avec succès !", { id: "upload-profile" });
+                              } catch (err: any) {
+                                toast.error(err.message || "Erreur lors de l'upload", { id: "upload-profile" });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      {formData.profilePhotoUrl && (
+                        <div className="w-10 h-10 rounded border border-black overflow-hidden flex-shrink-0 bg-muted">
+                          <img src={formData.profilePhotoUrl} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

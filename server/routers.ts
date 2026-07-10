@@ -971,6 +971,16 @@ export const appRouter = router({
           organizerId: ctx.user.id,
           ...input,
         });
+        const user = await db.getUserById(ctx.user.id);
+        triggerN8nWebhook("event.created", {
+          organizerId: ctx.user.id,
+          organizerName: user?.name,
+          title: input.title,
+          description: input.description,
+          eventType: input.eventType,
+          location: input.location,
+          eventDate: input.eventDate,
+        });
         return { success: !!eventId, eventId };
       }),
 
