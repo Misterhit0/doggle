@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Heart, X, MessageCircle } from "lucide-react";
+import { Heart, X, MessageCircle, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { useState } from "react";
@@ -11,14 +11,28 @@ export default function SwipeHistoryPage() {
   const [, navigate] = useLocation();
   const [limit, setLimit] = useState(50);
 
+  const utils = trpc.useUtils();
   const { data: history, isLoading } = trpc.history.getSwipeHistory.useQuery({ limit }, { refetchOnMount: 'always' });
   const addFavoriteMutation = trpc.favorite.addFavorite.useMutation();
+  const blockMutation = trpc.match.blockUser.useMutation({
+    onSuccess: () => {
+      utils.history.getSwipeHistory.invalidate();
+    }
+  });
 
   const handleAddFavorite = async (targetUserId: number) => {
     try {
       await addFavoriteMutation.mutateAsync({ targetUserId });
     } catch (error) {
       // Error handled by mutation
+    }
+  };
+
+  const handleBlock = async (targetUserId: number) => {
+    try {
+      await blockMutation.mutateAsync({ targetUserId });
+    } catch (error) {
+      console.error("Failed to block user:", error);
     }
   };
 
@@ -130,8 +144,22 @@ export default function SwipeHistoryPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleAddFavorite(profile.targetUserId)}
+                        title="Ajouter aux favoris"
                       >
                         <Heart className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 hover:border-red-300"
+                        onClick={() => {
+                          if (confirm("Voulez-vous vraiment retirer et bloquer ce profil définitivement ?")) {
+                            handleBlock(profile.targetUserId);
+                          }
+                        }}
+                        title="Bloquer / Retirer"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -193,15 +221,30 @@ export default function SwipeHistoryPage() {
                       </div>
                     )}
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleAddFavorite(profile.targetUserId)}
-                    >
-                      <Heart className="w-4 h-4 mr-2" />
-                      Ajouter aux favoris
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleAddFavorite(profile.targetUserId)}
+                      >
+                        <Heart className="w-4 h-4 mr-2" />
+                        Ajouter aux favoris
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 hover:border-red-300"
+                        onClick={() => {
+                          if (confirm("Voulez-vous vraiment retirer et bloquer ce profil définitivement ?")) {
+                            handleBlock(profile.targetUserId);
+                          }
+                        }}
+                        title="Bloquer / Retirer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))}

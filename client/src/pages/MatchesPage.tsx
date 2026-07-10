@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Users, Star } from "lucide-react";
+import { Heart, MessageCircle, Users, Star, Trash2 } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
 import { motion } from "framer-motion";
@@ -25,9 +25,25 @@ const parsePhotos = (photoUrls: any): string[] => {
 export default function MatchesPage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
 
   // Fetch matches
   const { data: matches, isLoading } = trpc.match.getMatches.useQuery();
+
+  // Block mutation
+  const blockMutation = trpc.match.blockUser.useMutation({
+    onSuccess: () => {
+      utils.match.getMatches.invalidate();
+    }
+  });
+
+  const handleBlock = async (targetUserId: number) => {
+    try {
+      await blockMutation.mutateAsync({ targetUserId });
+    } catch (error) {
+      console.error("Failed to block user:", error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -99,13 +115,27 @@ export default function MatchesPage() {
                     <CompatibilityScore score={match.compatibilityScore} compact={true} />
                   </div>
 
-                  {/* Favorite Badge */}
-                  {match.isFavorite && (
-                    <div className="absolute top-4 right-4 z-10 bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] px-3 py-1 rounded-full flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-pulse">
-                      <Star className="w-3 h-3 fill-black" />
-                      Favori
-                    </div>
-                  )}
+                  {/* Badge & Actions Top Right */}
+                  <div className="absolute top-4 right-4 z-10 flex gap-2 items-center">
+                    {match.isFavorite && (
+                      <div className="bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] px-3 py-1 rounded-full flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-pulse">
+                        <Star className="w-3 h-3 fill-black" />
+                        Favori
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm("Voulez-vous vraiment retirer et bloquer ce match définitivement ?")) {
+                          handleBlock(otherUserId);
+                        }
+                      }}
+                      className="bg-red-500 hover:bg-red-600 hover:scale-105 active:scale-95 text-white border-2 border-black p-1.5 rounded-full flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                      title="Bloquer / Retirer ce match"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
 
                   {/* Card Content Overlay */}
                   <div className="absolute inset-0 flex flex-col justify-end p-6 text-white z-10">
