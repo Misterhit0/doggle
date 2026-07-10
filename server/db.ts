@@ -440,6 +440,121 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
   return duos.filter(duo => duo.dogs.length > 0);
 }
 
+// Block and Unmatch Management
+export async function blockUser(userId: number, targetUserId: number, isPermanent: boolean) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const pool = getPool();
+  if (!pool) return undefined;
+
+  try {
+    const type = isPermanent ? 'permanent' : 'temporary';
+    
+    // Insert block record (update if already exists)
+    await pool.execute(
+      `INSERT INTO blocks (userId, targetUserId, type, expiresAt) 
+       VALUES (?, ?, ?, IF(?, DATE_ADD(NOW(), INTERVAL 7 DAY), NULL))
+       ON DUPLICATE KEY UPDATE 
+         type = VALUES(type), 
+         expiresAt = VALUES(expiresAt),
+         createdAt = CURRENT_TIMESTAMP`,
+      [userId, targetUserId, type, !isPermanent]
+    );
+
+    // Delete matches between them
+    await pool.execute(
+      `DELETE FROM matches WHERE (userId1 = ? AND userId2 = ?) OR (userId1 = ? AND userId2 = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    // Delete swipes between them
+    await pool.execute(
+      `DELETE FROM swipes WHERE (userId = ? AND targetUserId = ?) OR (userId = ? AND targetUserId = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    // Delete favorites between them
+    await pool.execute(
+      `DELETE FROM favorites WHERE (userId = ? AND targetUserId = ?) OR (userId = ? AND targetUserId = ?)`,
+      [userId, targetUserId, targetUserId, userId]
+    );
+
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to block user:", error);
+    return false;
+  }
+}
+
+export async function getBlockedUserIds(userId: number): Promise<number[]> {
+  const pool = getPool();
+  if (!pool) return [];
+
+  try {
+    // Get all user IDs blocked by current user OR users who blocked the current user
+    // only if block is permanent or not yet expired
+    const [rows] = await pool.execute(
+      `SELECT targetUserId FROM blocks WHERE userId = ? AND (type = 'permanent' OR expiresAt > NOW())
+       UNION
+       SELECT userId FROM blocks WHERE targetUserId = ? AND (type = 'permanent' OR expiresAt > NOW())`,
+      [userId, userId]
+    );
+
+    return (rows as any[]).map(r => Number(r.targetUserId || r.userId));
+  } catch (error) {
+    console.error("[Database] Failed to get blocked user IDs:", error);
+    return [];
+  }
+}
+
+export async function getBlockedUsers(userId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT b.id as blockId, b.targetUserId, b.type, b.expiresAt, b.createdAt as blockedAt,
+              u.name, u.profilePhotoUrl, u.age, u.bio
+       FROM blocks b
+       JOIN users u ON b.targetUserId = u.id
+       WHERE b.userId = ? AND (b.type = 'permanent' OR b.expiresAt > NOW())
+       ORDER BY b.createdAt DESC`,
+      [userId]
+    );
+
+    const blockedWithDogs = await Promise.all(
+      (rows as any[]).map(async (row) => {
+        const dogs = await getDogsByUserId(row.targetUserId);
+        return {
+          ...row,
+          dogs,
+        };
+      })
+    );
+
+    return blockedWithDogs;
+  } catch (error) {
+    console.error("[Database] Failed to get blocked users list:", error);
+    return [];
+  }
+}
+
+export async function unblockUser(userId: number, targetUserId: number) {
+  const pool = getPool();
+  if (!pool) return false;
+
+  try {
+    await pool.execute(
+      `DELETE FROM blocks WHERE userId = ? AND targetUserId = ?`,
+      [userId, targetUserId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to unblock user:", error);
+    return false;
+  }
+}
+
 // Favorites Management
 export async function addFavorite(userId: number, targetUserId: number) {
   const db = await getDb();
@@ -557,8 +672,8 @@ export async function getSwipeHistory(userId: number, limit: number = 50) {
        JOIN users u ON s.targetUserId = u.id
        WHERE s.userId = ?
        ORDER BY s.createdAt DESC
-       LIMIT ?`,
-      [userId, limit]
+       LIMIT ${Number(limit)}`,
+      [userId]
     );
     
     // Get dogs for each swiped user
@@ -1159,6 +1274,39 @@ export async function migrateDatabase() {
       )
     `);
     console.log("[Database] Favorites table checked/created.");
+
+    // 4. Create blocks table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS blocks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        targetUserId INT NOT NULL,
+        type VARCHAR(16) NOT NULL DEFAULT 'permanent',
+        expiresAt TIMESTAMP NULL DEFAULT NULL,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        UNIQUE KEY unique_user_block (userId, targetUserId)
+      )
+    `);
+    console.log("[Database] Blocks table checked/created.");
+
+    // Alter blocks table if it exists but is missing type or expiresAt
+    try {
+      await pool.execute("ALTER TABLE blocks ADD COLUMN type VARCHAR(16) NOT NULL DEFAULT 'permanent'");
+      console.log("[Database] Added column type to blocks table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding type to blocks:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE blocks ADD COLUMN expiresAt TIMESTAMP NULL DEFAULT NULL");
+      console.log("[Database] Added column expiresAt to blocks table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding expiresAt to blocks:", e.message || e);
+      }
+    }
   } catch (error) {
     console.error("[Database] Migration failed:", error);
   }

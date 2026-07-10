@@ -9,6 +9,7 @@ import ProfilePage from "./pages/ProfilePage";
 import DogsPage from "./pages/DogsPage";
 import DiscoveryPage from "./pages/DiscoveryPage";
 import MatchesPage from "./pages/MatchesPage";
+import BlockedProfilesPage from "./pages/BlockedProfilesPage";
 import ConversationPage from "./pages/ConversationPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import SwipeHistoryPage from "./pages/SwipeHistoryPage";
@@ -44,6 +45,7 @@ function Router() {
           <Route path="/dogs" component={DogsPage} />
           <Route path="/discovery" component={DiscoveryPage} />
           <Route path="/matches" component={MatchesPage} />
+          <Route path="/blocked" component={BlockedProfilesPage} />
           <Route path="/conversation/:matchId" component={ConversationPage} />
           <Route path="/favorites" component={FavoritesPage} />
           <Route path="/history" component={SwipeHistoryPage} />

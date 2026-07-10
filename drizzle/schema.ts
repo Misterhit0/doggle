@@ -96,6 +96,23 @@ export type Favorite = typeof favorites.$inferSelect;
 export type InsertFavorite = typeof favorites.$inferInsert;
 
 /**
+ * Blocks table - tracks users blocked or unmatched
+ */
+export const blocks = mysqlTable("blocks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // who blocked
+  targetUserId: int("targetUserId").notNull(), // who was blocked
+  type: varchar("type", { length: 16 }).default("permanent").notNull(), // 'temporary' or 'permanent'
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  unique("unique_user_block").on(table.userId, table.targetUserId),
+]);
+
+export type Block = typeof blocks.$inferSelect;
+export type InsertBlock = typeof blocks.$inferInsert;
+
+/**
  * Matches table - created when two users like each other
  */
 export const matches = mysqlTable("matches", {
