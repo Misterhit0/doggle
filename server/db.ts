@@ -1,7 +1,7 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification } from "../drizzle/schema";
+import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification, payments } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { logger } from "./_core/logger";
 
@@ -265,14 +265,16 @@ export async function getMatchesForUser(userId: number) {
         u1.name as user1Name,
         u1.profilePhotoUrl as user1Photo,
         u2.name as user2Name,
-        u2.profilePhotoUrl as user2Photo
+        u2.profilePhotoUrl as user2Photo,
+        IF(f.id IS NOT NULL, 1, 0) as isFavorite
       FROM matches m
       JOIN users u1 ON m.userId1 = u1.id
       JOIN users u2 ON m.userId2 = u2.id
+      LEFT JOIN favorites f ON f.userId = ? AND f.targetUserId = IF(m.userId1 = ?, m.userId2, m.userId1)
       WHERE m.userId1 = ? OR m.userId2 = ?
-      ORDER BY m.createdAt DESC
+      ORDER BY isFavorite DESC, m.createdAt DESC
     `;
-    const [rows] = await connection.execute(query, [userId, userId]);
+    const [rows] = await connection.execute(query, [userId, userId, userId, userId]);
     const matchesList = (rows as any[]) || [];
 
     const withDogs = await Promise.all(
@@ -284,6 +286,7 @@ export async function getMatchesForUser(userId: number) {
         
         return {
           ...match,
+          isFavorite: Boolean(match.isFavorite),
           otherDog: otherDogs.length > 0 ? otherDogs[0] : null,
         };
       })
@@ -1095,11 +1098,68 @@ export async function updateVerificationStatus(
   }
 }
 
+export async function migrateDatabase() {
+  const pool = getPool();
+  if (!pool) return;
+
+  try {
+    console.log("[Database] Running migrations for monetization/payments...");
+
+    // 1. Alter users table columns if they do not exist
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN bypassPaymentLimits BOOLEAN NOT NULL DEFAULT FALSE");
+      console.log("[Database] Added column bypassPaymentLimits to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding bypassPaymentLimits:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN superLikeCredits INT NOT NULL DEFAULT 0");
+      console.log("[Database] Added column superLikeCredits to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding superLikeCredits:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN swipeLimitUntil TIMESTAMP NULL DEFAULT NULL");
+      console.log("[Database] Added column swipeLimitUntil to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding swipeLimitUntil:", e.message || e);
+      }
+    }
+
+    // 2. Create payments table if not exists
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        userId INT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+        packageType VARCHAR(64) NOT NULL,
+        paymentMethod VARCHAR(32) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'completed',
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )
+    `);
+    console.log("[Database] Payments table checked/created.");
+  } catch (error) {
+    console.error("[Database] Migration failed:", error);
+  }
+}
+
 export async function healStuckMatches() {
   const pool = getPool();
   if (!pool) return;
 
   try {
+    // Run migrations on startup
+    await migrateDatabase();
+
     console.log("[Database] Running self-healing check for stuck matches...");
     
     // Find all pairs (user A, user B) who have both swiped liked: true,
@@ -1167,6 +1227,22 @@ export async function getDailySwipeCount(userId: number): Promise<number> {
     return 0;
   }
 }
+
+export async function getDailyFavoriteCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as count FROM favorites WHERE userId = ? AND createdAt >= CURDATE()`,
+      [userId]
+    );
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get daily favorite count:", error);
+    return 0;
+  }
+}
+
 
 export async function usersAreMatched(userId1: number, userId2: number): Promise<boolean> {
   const match1 = await getMatch(userId1, userId2);
@@ -1255,6 +1331,31 @@ export async function getAdminStats() {
 
   const activeWalkersCount = userList.filter(u => u.isShareLocationActive).length;
 
+  const pool = getPool();
+  let totalRevenue = 0.0;
+  let totalSales = 0;
+  let packageStats = { extra_favorites: 0, unlimited_swipes: 0, premium_pass: 0 };
+  let paymentMethodStats = { card: 0, google_pay: 0, apple_pay: 0 };
+
+  if (pool) {
+    try {
+      const [paymentsRows] = await pool.execute("SELECT amount, packageType, paymentMethod FROM payments WHERE status = 'completed'");
+      const paymentsList = (paymentsRows as any[]) || [];
+      totalSales = paymentsList.length;
+      paymentsList.forEach(p => {
+        totalRevenue += parseFloat(p.amount || 0);
+        if (p.packageType in packageStats) {
+          packageStats[p.packageType as keyof typeof packageStats]++;
+        }
+        if (p.paymentMethod in paymentMethodStats) {
+          paymentMethodStats[p.paymentMethod as keyof typeof paymentMethodStats]++;
+        }
+      });
+    } catch (err) {
+      console.error("[Database] Failed to get payment statistics in admin stats:", err);
+    }
+  }
+
   return {
     totalUsers,
     totalDogs,
@@ -1267,7 +1368,11 @@ export async function getAdminStats() {
     matchRate,
     activeUsers24h,
     activeWalkersCount,
-    pendingVerifications
+    pendingVerifications,
+    totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+    totalSales,
+    packageStats,
+    paymentMethodStats,
   };
 }
 
@@ -1307,4 +1412,217 @@ export async function deleteUserAdmin(userId: number) {
   await db.delete(users).where(eq(users.id, userId));
 
   return true;
+}
+
+export async function recordPayment(userId: number, amount: number, packageType: string, paymentMethod: string) {
+  const pool = getPool();
+  if (!pool) return undefined;
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO payments (userId, amount, packageType, paymentMethod) VALUES (?, ?, ?, ?)`,
+      [userId, amount, packageType, paymentMethod]
+    );
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to record payment:", error);
+    return undefined;
+  }
+}
+
+export async function getPaymentsForUser(userId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT * FROM payments WHERE userId = ? ORDER BY createdAt DESC`,
+      [userId]
+    );
+    return (rows as any[]) || [];
+  } catch (error) {
+    console.error("[Database] Failed to get user payments:", error);
+    return [];
+  }
+}
+
+export async function getAdminPayments() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT p.*, u.name as userName, u.email as userEmail 
+       FROM payments p 
+       JOIN users u ON p.userId = u.id 
+       ORDER BY p.createdAt DESC`
+    );
+    return (rows as any[]) || [];
+  } catch (error) {
+    console.error("[Database] Failed to get admin payments:", error);
+    return [];
+  }
+}
+
+export async function togglePaymentBypass(userId: number, bypass: boolean) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(users).set({ bypassPaymentLimits: bypass }).where(eq(users.id, userId));
+  return true;
+}
+
+export async function addSuperLikeCredits(userId: number, credits: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const user = await getUserById(userId);
+  if (!user) return false;
+  await db.update(users).set({ superLikeCredits: (user.superLikeCredits || 0) + credits }).where(eq(users.id, userId));
+  return true;
+}
+
+export async function addSwipeLimitExtension(userId: number, hours: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const now = new Date();
+  const limitUntil = new Date(now.getTime() + hours * 60 * 60 * 1000);
+  await db.update(users).set({ swipeLimitUntil: limitUntil }).where(eq(users.id, userId));
+  return true;
+}
+
+let _preprodPool: mysql.Pool | null = null;
+let _prodPool: mysql.Pool | null = null;
+
+export function getDbPoolForAdmin(target: "preprod" | "prod"): mysql.Pool {
+  if (target === "preprod") {
+    if (!_preprodPool) {
+      const url = process.env.DATABASE_URL || "mysql://root@127.0.0.1:3306/doggle?multipleStatements=true";
+      _preprodPool = mysql.createPool(url);
+    }
+    return _preprodPool;
+  } else {
+    if (!_prodPool) {
+      const rawUrl = process.env.VPS_MYSQL_URL || "mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle?multipleStatements=true";
+      _prodPool = mysql.createPool(rawUrl);
+    }
+    return _prodPool;
+  }
+}
+
+const ALLOWED_TABLES = ["users", "dogs", "swipes", "matches", "messages", "notifications", "reviews", "verifications", "payments"];
+
+function validateTableName(table: string) {
+  if (!ALLOWED_TABLES.includes(table)) {
+    throw new Error(`Access denied: Invalid table name "${table}"`);
+  }
+}
+
+async function validateTableColumns(target: "preprod" | "prod", table: string, columns: string[]) {
+  const schema = await adminGetTableSchema(target, table);
+  const validColumns = schema.map(c => c.Field);
+  for (const col of columns) {
+    if (!validColumns.includes(col)) {
+      throw new Error(`Access denied: Invalid column "${col}" for table "${table}"`);
+    }
+  }
+}
+
+export async function adminListTables(target: "preprod" | "prod"): Promise<string[]> {
+  const pool = getDbPoolForAdmin(target);
+  const [rows] = await pool.query("SHOW TABLES");
+  const list = rows as any[];
+  const tableNames = list.map(r => Object.values(r)[0] as string);
+  // Return only allowlisted tables to prevent leakage of other system tables
+  return tableNames.filter(name => ALLOWED_TABLES.includes(name));
+}
+
+export async function adminGetTableSchema(target: "preprod" | "prod", table: string): Promise<any[]> {
+  validateTableName(table);
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const [rows] = await pool.query(`SHOW COLUMNS FROM \`${sanitizedTable}\``);
+  return rows as any[];
+}
+
+export async function adminGetTableRows(target: "preprod" | "prod", table: string): Promise<any[]> {
+  validateTableName(table);
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const [rows] = await pool.query(`SELECT * FROM \`${sanitizedTable}\` LIMIT 200`);
+  return rows as any[];
+}
+
+export async function adminInsertTableRow(target: "preprod" | "prod", table: string, rowData: Record<string, any>): Promise<any> {
+  validateTableName(table);
+  const cols = Object.keys(rowData);
+  await validateTableColumns(target, table, cols);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  
+  const columns = cols.map(c => `\`${c.replace(/[^a-zA-Z0-9_]/g, "")}\``).join(", ");
+  const values = Object.values(rowData);
+  const placeholders = values.map(() => "?").join(", ");
+
+  const [result] = await pool.query(
+    `INSERT INTO \`${sanitizedTable}\` (${columns}) VALUES (${placeholders})`,
+    values
+  );
+  return result;
+}
+
+export async function adminUpdateTableRow(
+  target: "preprod" | "prod",
+  table: string,
+  primaryKey: string,
+  primaryValue: any,
+  rowData: Record<string, any>
+): Promise<any> {
+  validateTableName(table);
+  const cols = Object.keys(rowData);
+  await validateTableColumns(target, table, [...cols, primaryKey]);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const sanitizedKey = primaryKey.replace(/[^a-zA-Z0-9_]/g, "");
+
+  const sets: string[] = [];
+  const values: any[] = [];
+
+  Object.entries(rowData).forEach(([col, val]) => {
+    sets.push(`\`${col.replace(/[^a-zA-Z0-9_]/g, "")}\` = ?`);
+    values.push(val);
+  });
+  values.push(primaryValue);
+
+  const [result] = await pool.query(
+    `UPDATE \`${sanitizedTable}\` SET ${sets.join(", ")} WHERE \`${sanitizedKey}\` = ?`,
+    values
+  );
+  return result;
+}
+
+export async function adminDeleteTableRowCascade(
+  target: "preprod" | "prod",
+  table: string,
+  primaryKey: string,
+  primaryValue: any
+): Promise<any> {
+  validateTableName(table);
+  await validateTableColumns(target, table, [primaryKey]);
+
+  const pool = getDbPoolForAdmin(target);
+  const sanitizedTable = table.replace(/[^a-zA-Z0-9_]/g, "");
+  const sanitizedKey = primaryKey.replace(/[^a-zA-Z0-9_]/g, "");
+
+  if (sanitizedTable === "users") {
+    await pool.query("DELETE FROM verifications WHERE userId = ?", [primaryValue]);
+    await pool.query("DELETE FROM dogs WHERE userId = ?", [primaryValue]);
+    await pool.query("DELETE FROM swipes WHERE userId = ? OR targetUserId = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM messages WHERE senderId = ? OR recipientId = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM matches WHERE user1Id = ? OR user2Id = ?", [primaryValue, primaryValue]);
+    await pool.query("DELETE FROM payments WHERE userId = ?", [primaryValue]);
+  }
+
+  const [result] = await pool.query(
+    `DELETE FROM \`${sanitizedTable}\` WHERE \`${sanitizedKey}\` = ?`,
+    [primaryValue]
+  );
+  return result;
 }

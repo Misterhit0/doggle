@@ -580,6 +580,7 @@ export const appRouter = router({
         z.object({
           targetUserId: z.number(),
           liked: z.boolean(),
+          isFavorite: z.boolean().optional().default(false),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -590,6 +591,18 @@ export const appRouter = router({
         if (existingSwipe) {
           logger.swipe(ctx.user.id, input.targetUserId, input.liked, false, "Already swiped on this user");
           throw new TRPCError({ code: "BAD_REQUEST", message: "Already swiped on this user" });
+        }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const bypass = freshUser?.role === "admin" || freshUser?.bypassPaymentLimits || (freshUser?.swipeLimitUntil && freshUser.swipeLimitUntil > new Date());
+
+        if (!bypass) {
+          if (!input.isFavorite) {
+            const dailySwipes = await db.getDailySwipeCount(ctx.user.id);
+            if (dailySwipes >= 20) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "SWIPE_LIMIT_EXCEEDED" });
+            }
+          }
         }
 
         // Create swipe
@@ -813,6 +826,23 @@ export const appRouter = router({
         if (input.targetUserId === ctx.user.id) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot favorite yourself" });
         }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const bypass = freshUser?.role === "admin" || freshUser?.bypassPaymentLimits || (freshUser?.swipeLimitUntil && freshUser.swipeLimitUntil > new Date());
+
+        if (!bypass) {
+          const dailyFavorites = await db.getDailyFavoriteCount(ctx.user.id);
+          if (dailyFavorites >= 2) {
+            if (freshUser && freshUser.superLikeCredits > 0) {
+              await db.updateUserProfile(ctx.user.id, {
+                superLikeCredits: freshUser.superLikeCredits - 1,
+              });
+            } else {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "FAVORITE_LIMIT_EXCEEDED" });
+            }
+          }
+        }
+
         await db.addFavorite(ctx.user.id, input.targetUserId);
         return { success: true };
       }),
@@ -1311,6 +1341,166 @@ export const appRouter = router({
         } catch (error: any) {
           return [`[Erreur] Impossible de lire le fichier de log : ${error.message}`];
         }
+      }),
+
+    togglePaymentBypass: protectedProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          bypass: z.boolean(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        await db.togglePaymentBypass(input.userId, input.bypass);
+        return { success: true };
+      }),
+
+    getPayments: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return await db.getAdminPayments();
+    }),
+
+    listTables: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminListTables(input.target);
+      }),
+
+    getTableSchema: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]), table: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminGetTableSchema(input.target, input.table);
+      }),
+
+    getTableRows: protectedProcedure
+      .input(z.object({ target: z.enum(["preprod", "prod"]), table: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminGetTableRows(input.target, input.table);
+      }),
+
+    insertTableRow: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          rowData: z.record(z.any()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminInsertTableRow(input.target, input.table, input.rowData);
+      }),
+
+    updateTableRow: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          primaryKey: z.string(),
+          primaryValue: z.any(),
+          rowData: z.record(z.any()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminUpdateTableRow(
+          input.target,
+          input.table,
+          input.primaryKey,
+          input.primaryValue,
+          input.rowData
+        );
+      }),
+
+    deleteTableRowCascade: protectedProcedure
+      .input(
+        z.object({
+          target: z.enum(["preprod", "prod"]),
+          table: z.string(),
+          primaryKey: z.string(),
+          primaryValue: z.any(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user?.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return await db.adminDeleteTableRowCascade(
+          input.target,
+          input.table,
+          input.primaryKey,
+          input.primaryValue
+        );
+      }),
+  }),
+
+  // Payments & Credits
+  payment: router({
+    getHistory: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getPaymentsForUser(ctx.user.id);
+    }),
+
+    purchasePackage: protectedProcedure
+      .input(
+        z.object({
+          packageType: z.enum(["extra_favorites", "unlimited_swipes", "premium_pass"]),
+          paymentMethod: z.enum(["card", "google_pay", "apple_pay"]),
+          cardDetails: z.object({
+            number: z.string().optional(),
+            expiry: z.string().optional(),
+            cvc: z.string().optional(),
+          }).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        let amount = 0.0;
+        if (input.packageType === "extra_favorites") amount = 1.99;
+        else if (input.packageType === "unlimited_swipes") amount = 4.99;
+        else if (input.packageType === "premium_pass") amount = 9.99;
+
+        // Record the payment
+        await db.recordPayment(ctx.user.id, amount, input.packageType, input.paymentMethod);
+
+        // Apply package credits
+        if (input.packageType === "extra_favorites") {
+          await db.addSuperLikeCredits(ctx.user.id, 5);
+        } else if (input.packageType === "unlimited_swipes") {
+          await db.addSwipeLimitExtension(ctx.user.id, 24);
+        } else if (input.packageType === "premium_pass") {
+          await db.addSwipeLimitExtension(ctx.user.id, 24);
+          await db.addSuperLikeCredits(ctx.user.id, 10);
+        }
+
+        logger.swipe(ctx.user.id, 0, false, false, `User purchased ${input.packageType} for ${amount}€ via ${input.paymentMethod}`);
+        
+        // Notify webhook of purchase
+        await triggerN8nWebhook("user.purchased_package", {
+          userId: ctx.user.id,
+          email: ctx.user.email,
+          packageType: input.packageType,
+          amount,
+          paymentMethod: input.paymentMethod,
+        });
+
+        return { success: true };
       }),
   }),
 });

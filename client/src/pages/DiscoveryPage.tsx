@@ -5,21 +5,33 @@ import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { Heart, X, MapPin, Award, Users, Star } from "lucide-react";
+import { Heart, X, MapPin, Award, Users, Star, CreditCard, ShieldAlert, Sparkles, CheckCircle } from "lucide-react";
 import { useRealTimeGeolocation } from "@/hooks/useRealTimeGeolocation";
 import { GeolocationStatus } from "@/components/GeolocationStatus";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import { sounds } from "@/lib/sounds";
 import { calculateCompatibility, formatCompatibilityScore, getCompatibilityColor } from "@shared/compatibilityEngine";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function DiscoveryPage() {
-  const { user } = useAuth({ redirectOnUnauthenticated: true });
+  const { user, refresh: refreshAuth } = useAuth({ redirectOnUnauthenticated: true });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [radiusKm, setRadiusKm] = useState(5);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+
+  // Payment states
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<'extra_favorites' | 'unlimited_swipes' | 'premium_pass'>('premium_pass');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'google_pay' | 'apple_pay'>('card');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [processingStep, setProcessingStep] = useState('');
 
   const dragX = useMotionValue(0);
   const cardRotate = useTransform(dragX, [-220, 220], [-18, 18]);
@@ -64,13 +76,39 @@ export default function DiscoveryPage() {
     enabled: !!user,
   });
 
+  // Get favorites to check daily limit client-side
+  const { data: myFavorites, refetch: refetchFavorites } = trpc.favorite.getFavorites.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  const favoritesTodayCount = useMemo(() => {
+    if (!myFavorites) return 0;
+    const today = new Date().toDateString();
+    return myFavorites.filter((fav: any) => new Date(fav.createdAt).toDateString() === today).length;
+  }, [myFavorites]);
+
+  // Payment mutation
+  const purchasePackageMutation = trpc.payment.purchasePackage.useMutation({
+    onSuccess: () => {
+      refreshAuth();
+      refetchSwipeCount();
+      refetchFavorites();
+    },
+  });
+
   // Favorite mutation
   const favoriteMutation = trpc.favorite.addFavorite.useMutation({
     onSuccess: () => {
       toast.success("⭐ Ajouté aux favoris !");
+      refetchFavorites();
+      refreshAuth();
     },
-    onError: () => {
-      toast.error("Erreur lors de l'ajout aux favoris");
+    onError: (error) => {
+      if (error.message === "FAVORITE_LIMIT_EXCEEDED") {
+        setIsPaymentModalOpen(true);
+      } else {
+        toast.error("Erreur lors de l'ajout aux favoris");
+      }
     },
   });
 
@@ -88,13 +126,31 @@ export default function DiscoveryPage() {
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Erreur lors du swipe");
+      if (error.message === "SWIPE_LIMIT_EXCEEDED" || error.message === "FAVORITE_LIMIT_EXCEEDED") {
+        setIsPaymentModalOpen(true);
+      } else {
+        toast.error(error.message || "Erreur lors du swipe");
+      }
       setCurrentIndex(prev => Math.max(0, prev - 1));
     },
   });
 
+  const bypass = user?.role === 'admin' || user?.bypassPaymentLimits || (user?.swipeLimitUntil && new Date(user.swipeLimitUntil) > new Date());
+  const swipesToday = dailySwipeCount ?? 0;
+  const favoritesToday = favoritesTodayCount ?? 0;
+  const superLikeCredits = user?.superLikeCredits ?? 0;
+
+  const isSwipeLimitReached = swipesToday >= 20;
+  const isFavoriteLimitReached = favoritesToday >= 2 && superLikeCredits <= 0;
+  const isDiscoveryLocked = !bypass && isSwipeLimitReached && isFavoriteLimitReached;
+
   const handleSwipe = (liked: boolean) => {
     if (!duos || !duos[currentIndex] || swipeDirection) return;
+
+    if (!bypass && isSwipeLimitReached) {
+      setIsPaymentModalOpen(true);
+      return;
+    }
 
     if (navigator.vibrate) navigator.vibrate(15);
     liked ? sounds.playLike() : sounds.playPass();
@@ -107,6 +163,7 @@ export default function DiscoveryPage() {
       swipeMutation.mutate({
         targetUserId,
         liked,
+        isFavorite: false,
       });
       setCurrentIndex(prev => prev + 1);
       setSwipeDirection(null);
@@ -118,10 +175,29 @@ export default function DiscoveryPage() {
 
   const handleFavorite = () => {
     if (!duos || !(duos as any[])[currentIndex] || swipeDirection) return;
+
+    if (!bypass && isFavoriteLimitReached) {
+      setIsPaymentModalOpen(true);
+      return;
+    }
+
     const targetUserId = ((duos as any[])[currentIndex] as any).user.id;
     sounds.playFavorite();
+    
+    setSwipeDirection('right');
+    dragX.set(0);
+
     favoriteMutation.mutate({ targetUserId });
-    handleSwipe(true);
+
+    setTimeout(() => {
+      swipeMutation.mutate({
+        targetUserId,
+        liked: true,
+        isFavorite: true,
+      });
+      setCurrentIndex(prev => prev + 1);
+      setSwipeDirection(null);
+    }, 250);
   };
 
   const parseJsonField = (field: any) => {
@@ -257,7 +333,32 @@ export default function DiscoveryPage() {
         {/* Card Stack Area */}
         <div className="relative flex-1 min-h-[480px] w-full flex items-center justify-center">
           <AnimatePresence mode="popLayout">
-            {!isFinished && currentDuo && currentDog && targetUser ? (
+            {isDiscoveryLocked ? (
+              <div className="w-full max-w-sm aspect-[3/4.5] flex flex-col justify-center items-center p-8 bg-white/40 backdrop-blur-md border-3 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-2xl text-center relative overflow-hidden group">
+                {/* Background Memphis shapes */}
+                <div className="absolute top-[-20px] left-[-20px] w-24 h-24 rounded-full bg-peach/25 border border-black/10 z-0" />
+                <div className="absolute bottom-[-30px] right-[-30px] w-36 h-36 bg-accent/25 border border-black/10 rotate-45 z-0" />
+                
+                <div className="z-10 flex flex-col items-center">
+                  <div className="w-20 h-20 rounded-full bg-yellow-400 border-3 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-6 animate-bounce">
+                    <Sparkles className="w-10 h-10 text-black fill-black" />
+                  </div>
+                  <h2 className="text-2xl font-black uppercase text-foreground leading-tight tracking-tight mb-3">
+                    Limite quotidienne atteinte 🐾
+                  </h2>
+                  <p className="text-xs text-muted-foreground font-semibold leading-relaxed mb-8 max-w-xs">
+                    Vous avez utilisé vos 20 swipes et 2 favoris gratuits pour aujourd'hui. Achetez des crédits ou passez Premium pour continuer à matcher !
+                  </p>
+                  <Button
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-black border-3 border-black font-black uppercase tracking-wider text-xs py-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Acheter des Crédits
+                  </Button>
+                </div>
+              </div>
+            ) : !isFinished && currentDuo && currentDog && targetUser ? (
               <div className="w-full relative h-full flex flex-col justify-between">
                 
                 {/* 1. Behind card preview */}
@@ -485,7 +586,7 @@ export default function DiscoveryPage() {
         </div>
 
         {/* 3. Action Buttons below card */}
-        {!isFinished && currentDuo && (
+        {!isFinished && currentDuo && !isDiscoveryLocked && (
           <div className="flex flex-col items-center gap-3 py-4">
             <div className="flex gap-5 justify-center items-center">
               <motion.button
@@ -528,6 +629,232 @@ export default function DiscoveryPage() {
         )}
 
       </div>
+
+      {/* Payment Checkout Modal */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={(open) => {
+        if (!isProcessingPayment) {
+          setIsPaymentModalOpen(open);
+          if (!open) {
+            setPaymentSuccess(false);
+            setCardNumber('');
+            setCardExpiry('');
+            setCardCvc('');
+          }
+        }
+      }}>
+        <DialogContent className="max-w-md border-3 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-2xl p-6 font-sans">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black uppercase text-foreground tracking-wider flex items-center gap-2">
+              <span>💎 Doggle Premium</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase text-muted-foreground">
+              Débloquez des swipes ou achetez des favoris
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentSuccess ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center animate-stamp-pop">
+              <div className="w-16 h-16 rounded-full bg-emerald-400 border-3 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4">
+                <CheckCircle className="w-10 h-10 text-black" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight text-emerald-600 mb-2">Paiement Réussi !</h3>
+              <p className="text-xs text-muted-foreground font-semibold max-w-xs mb-6">
+                Vos crédits ont été ajoutés à votre compte. Vous pouvez à présent recommencer à swiper et matcher !
+              </p>
+              <Button
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="w-full bg-black text-white hover:bg-neutral-800 border-2 border-black font-black uppercase text-xs shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] shadow-none active:translate-y-0.5"
+              >
+                Super, merci !
+              </Button>
+            </div>
+          ) : isProcessingPayment ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Spinner className="w-12 h-12 mb-6" />
+              <h4 className="text-sm font-black uppercase tracking-wider text-foreground animate-pulse">{processingStep}</h4>
+              <p className="text-[11px] text-muted-foreground font-semibold mt-1">Transaction sécurisée SSL 256 bits</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Packages selection */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase text-foreground">Choisissez votre formule :</label>
+                <div className="grid grid-cols-1 gap-2.5">
+                  <button
+                    onClick={() => setSelectedPackage('extra_favorites')}
+                    className={`flex items-center justify-between p-3.5 border-2 rounded-xl text-left transition-all ${
+                      selectedPackage === 'extra_favorites'
+                        ? 'border-yellow-400 bg-yellow-50/70 shadow-[2px_2px_0px_0px_rgba(250,204,21,1)]'
+                        : 'border-black hover:bg-neutral-50'
+                    }`}
+                  >
+                    <div>
+                      <h4 className="text-sm font-black uppercase flex items-center gap-1.5">
+                        ⭐ Pack 5 Favoris
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Pour se faire remarquer immédiatement</p>
+                    </div>
+                    <span className="text-sm font-black bg-white border-2 border-black px-2.5 py-1 rounded-lg">1,99 €</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedPackage('unlimited_swipes')}
+                    className={`flex items-center justify-between p-3.5 border-2 rounded-xl text-left transition-all ${
+                      selectedPackage === 'unlimited_swipes'
+                        ? 'border-accent bg-accent/10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                        : 'border-black hover:bg-neutral-50'
+                    }`}
+                  >
+                    <div>
+                      <h4 className="text-sm font-black uppercase flex items-center gap-1.5">
+                        🚀 Swipes Illimités 24h
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Swipez sans aucune limite pendant 24h</p>
+                    </div>
+                    <span className="text-sm font-black bg-white border-2 border-black px-2.5 py-1 rounded-lg">4,99 €</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedPackage('premium_pass')}
+                    className={`flex items-center justify-between p-3.5 border-3 rounded-xl text-left transition-all relative overflow-hidden ${
+                      selectedPackage === 'premium_pass'
+                        ? 'border-black bg-peach/10 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
+                        : 'border-black hover:bg-neutral-50'
+                    }`}
+                  >
+                    <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[8px] font-black uppercase px-2 py-0.5 border-b-2 border-l-2 border-black">Recommandé</div>
+                    <div>
+                      <h4 className="text-sm font-black uppercase flex items-center gap-1.5 text-accent-foreground">
+                        💎 Passe Premium (24h + 10 Favoris)
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Swipes illimités 24h et 10 super likes offerts</p>
+                    </div>
+                    <span className="text-sm font-black bg-white border-2 border-black px-2.5 py-1 rounded-lg">9,99 €</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Payment Method Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-foreground">Moyen de paiement :</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                    onClick={() => setPaymentMethod('card')}
+                    className={`border-2 border-black text-xs font-black uppercase ${paymentMethod === 'card' ? 'bg-black text-white hover:bg-black/90' : 'bg-white text-black hover:bg-neutral-50'}`}
+                  >
+                    Carte
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={paymentMethod === 'google_pay' ? 'default' : 'outline'}
+                    onClick={() => setPaymentMethod('google_pay')}
+                    className={`border-2 border-black text-xs font-black uppercase ${paymentMethod === 'google_pay' ? 'bg-[#4285F4] text-white hover:bg-[#357AE8]' : 'bg-white text-black hover:bg-neutral-50'}`}
+                  >
+                    Google Pay
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={paymentMethod === 'apple_pay' ? 'default' : 'outline'}
+                    onClick={() => setPaymentMethod('apple_pay')}
+                    className={`border-2 border-black text-xs font-black uppercase ${paymentMethod === 'apple_pay' ? 'bg-black text-white hover:bg-black/90' : 'bg-white text-black hover:bg-neutral-50'}`}
+                  >
+                    Apple Pay
+                  </Button>
+                </div>
+              </div>
+
+              {/* Payment Details Form */}
+              {paymentMethod === 'card' ? (
+                <div className="space-y-3 bg-neutral-50 p-4 border-2 border-black rounded-xl">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground">Numéro de carte</label>
+                    <input
+                      type="text"
+                      placeholder="4242 4242 4242 4242"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').substring(0, 16))}
+                      className="w-full text-xs font-bold p-2.5 border-2 border-black rounded-lg focus:outline-none focus:ring-1 focus:ring-black bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-muted-foreground">Date d'expiration</label>
+                      <input
+                        type="text"
+                        placeholder="MM/AA"
+                        value={cardExpiry}
+                        onChange={(e) => setCardExpiry(e.target.value.substring(0, 5))}
+                        className="w-full text-xs font-bold p-2.5 border-2 border-black rounded-lg focus:outline-none focus:ring-1 focus:ring-black bg-white text-center"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-muted-foreground">CVC</label>
+                      <input
+                        type="password"
+                        placeholder="123"
+                        value={cardCvc}
+                        onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, '').substring(0, 3))}
+                        className="w-full text-xs font-bold p-2.5 border-2 border-black rounded-lg focus:outline-none focus:ring-1 focus:ring-black bg-white text-center"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-neutral-50 p-6 border-2 border-black rounded-xl text-center">
+                  <p className="text-xs font-bold text-muted-foreground">
+                    Cliquez sur le bouton ci-dessous pour confirmer l'achat instantané sécurisé avec votre compte {paymentMethod === 'apple_pay' ? 'Apple' : 'Google'}.
+                  </p>
+                </div>
+              )}
+
+              {/* Checkout CTA */}
+              <Button
+                onClick={async () => {
+                  if (paymentMethod === 'card' && (!cardNumber || !cardExpiry || !cardCvc)) {
+                    toast.error("Veuillez remplir les informations de carte bancaire");
+                    return;
+                  }
+                  setIsProcessingPayment(true);
+                  
+                  // Mock processing steps
+                  const steps = [
+                    "Communication avec la banque...",
+                    "Sécurisation de la transaction...",
+                    "Finalisation du paiement..."
+                  ];
+                  for (let i = 0; i < steps.length; i++) {
+                    setProcessingStep(steps[i]);
+                    await new Promise(r => setTimeout(r, 800));
+                  }
+
+                  try {
+                    await purchasePackageMutation.mutateAsync({
+                      packageType: selectedPackage,
+                      paymentMethod: paymentMethod,
+                    });
+                    sounds.playMatch(); // Celebratory chime
+                    setPaymentSuccess(true);
+                    toast.success("Achat premium effectué avec succès !");
+                  } catch (err: any) {
+                    toast.error("Échec du paiement : " + (err.message || "Erreur inconnue"));
+                  } finally {
+                    setIsProcessingPayment(false);
+                  }
+                }}
+                className={`w-full text-xs font-black uppercase py-6 border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all ${
+                  paymentMethod === 'google_pay' 
+                    ? 'bg-[#4285F4] hover:bg-[#357AE8] text-white' 
+                    : 'bg-black text-white hover:bg-neutral-800'
+                }`}
+              >
+                Confirmer le paiement - {selectedPackage === 'extra_favorites' ? '1,99 €' : selectedPackage === 'unlimited_swipes' ? '4,99 €' : '9,99 €'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

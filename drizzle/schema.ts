@@ -33,6 +33,11 @@ export const users = mysqlTable("users", {
   isShareLocationActive: boolean("isShareLocationActive").default(false).notNull(),
   
   phoneNumber: varchar("phoneNumber", { length: 20 }),
+  
+  // Payment / Monetization Limits
+  bypassPaymentLimits: boolean("bypassPaymentLimits").default(false).notNull(),
+  superLikeCredits: int("superLikeCredits").default(0).notNull(),
+  swipeLimitUntil: timestamp("swipeLimitUntil"),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -240,6 +245,27 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 export const verificationsRelations = relations(verifications, ({ one }) => ({
   user: one(users, {
     fields: [verifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const payments = mysqlTable("payments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("EUR").notNull(),
+  packageType: varchar("packageType", { length: 64 }).notNull(), // 'extra_favorites', 'unlimited_swipes', 'premium_pass'
+  paymentMethod: varchar("paymentMethod", { length: 32 }).notNull(), // 'card', 'google_pay', 'apple_pay'
+  status: varchar("status", { length: 32 }).default("completed").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  user: one(users, {
+    fields: [payments.userId],
     references: [users.id],
   }),
 }));

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
   Users, 
@@ -28,12 +29,13 @@ import {
   Clock, 
   Terminal, 
   Server,
-  Zap
+  Zap,
+  CreditCard
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "logs" | "perf">("kpis");
+  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "payments" | "logs" | "perf" | "db-manager">("kpis");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -49,12 +51,24 @@ export default function AdminDashboardPage() {
   const [logsLines, setLogsLines] = useState<number>(50);
   const [logSearchQuery, setLogSearchQuery] = useState("");
 
+  // DB Manager state
+  const [dbTarget, setDbTarget] = useState<"preprod" | "prod">("preprod");
+  const [selectedTable, setSelectedTable] = useState<string>("users");
+  const [dbEditRow, setDbEditRow] = useState<any | null>(null);
+  const [dbInsertOpen, setDbInsertOpen] = useState(false);
+  const [dbEditOpen, setDbEditOpen] = useState(false);
+  const [dbFormData, setDbFormData] = useState<Record<string, any>>({});
+
   // Queries
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.admin.getDashboardStats.useQuery(undefined, {
     enabled: currentUser?.role === "admin"
   });
 
   const { data: usersList, isLoading: usersLoading, refetch: refetchUsers } = trpc.admin.getUsers.useQuery(undefined, {
+    enabled: currentUser?.role === "admin"
+  });
+
+  const { data: paymentsList, isLoading: paymentsLoading, refetch: refetchPayments } = trpc.admin.getPayments.useQuery(undefined, {
     enabled: currentUser?.role === "admin"
   });
 
@@ -71,7 +85,77 @@ export default function AdminDashboardPage() {
     refetchInterval: 10000 // refresh metrics every 10s
   });
 
+  // DB Manager Queries & Mutations
+  const { data: dbTables, refetch: refetchDbTables } = trpc.admin.listTables.useQuery({
+    target: dbTarget
+  }, {
+    enabled: currentUser?.role === "admin" && activeTab === "db-manager"
+  });
+
+  const { data: dbSchema, refetch: refetchDbSchema } = trpc.admin.getTableSchema.useQuery({
+    target: dbTarget,
+    table: selectedTable
+  }, {
+    enabled: currentUser?.role === "admin" && activeTab === "db-manager" && !!selectedTable
+  });
+
+  const { data: dbRows, refetch: refetchDbRows, isLoading: dbRowsLoading } = trpc.admin.getTableRows.useQuery({
+    target: dbTarget,
+    table: selectedTable
+  }, {
+    enabled: currentUser?.role === "admin" && activeTab === "db-manager" && !!selectedTable
+  });
+
+  const insertRowMutation = trpc.admin.insertTableRow.useMutation({
+    onSuccess: () => {
+      toast.success("Ligne insérée avec succès !");
+      setDbInsertOpen(false);
+      refetchDbRows();
+      refetchStats();
+      refetchUsers();
+    },
+    onError: (err: any) => {
+      toast.error("Erreur lors de l'insertion : " + err.message);
+    }
+  });
+
+  const updateRowMutation = trpc.admin.updateTableRow.useMutation({
+    onSuccess: () => {
+      toast.success("Ligne mise à jour !");
+      setDbEditOpen(false);
+      refetchDbRows();
+      refetchStats();
+      refetchUsers();
+    },
+    onError: (err: any) => {
+      toast.error("Erreur lors de la mise à jour : " + err.message);
+    }
+  });
+
+  const deleteRowCascadeMutation = trpc.admin.deleteTableRowCascade.useMutation({
+    onSuccess: () => {
+      toast.success("Ligne supprimée (cascade active) !");
+      refetchDbRows();
+      refetchStats();
+      refetchUsers();
+    },
+    onError: (err: any) => {
+      toast.error("Erreur lors de la suppression : " + err.message);
+    }
+  });
+
   // Mutations
+  const togglePaymentBypassMutation = trpc.admin.togglePaymentBypass.useMutation({
+    onSuccess: () => {
+      toast.success("Statut de bypass de paiement mis à jour !");
+      refetchUsers();
+      refetchStats();
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Erreur lors du bypass");
+    }
+  });
+
   const updateUserMutation = trpc.admin.updateUser.useMutation({
     onSuccess: () => {
       toast.success("Utilisateur mis à jour avec succès");
@@ -220,6 +304,8 @@ export default function AdminDashboardPage() {
           {[
             { id: "kpis", label: "Vue d'ensemble", icon: Activity, color: "bg-cyan-300" },
             { id: "crm", label: "CRM Utilisateurs", icon: Users, color: "bg-emerald-300" },
+            { id: "payments", label: "Paiements & Ventes", icon: CreditCard, color: "bg-yellow-300" },
+            { id: "db-manager", label: "Bases de Données", icon: Database, color: "bg-amber-300" },
             { id: "logs", label: "Journaux (Logs)", icon: Terminal, color: "bg-purple-300" },
             { id: "perf", label: "Performance & n8n", icon: Server, color: "bg-pink-300" },
           ].map((tab) => {
@@ -271,6 +357,38 @@ export default function AdminDashboardPage() {
                   </Card>
                 );
               })}
+            </div>
+
+            {/* Financial KPIs Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-6 border-4 border-black rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-yellow-200">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-black uppercase text-xs tracking-wider text-black/60">Revenus Cumulés</p>
+                  <CreditCard className="w-5 h-5 text-black" />
+                </div>
+                <p className="text-4xl font-black mb-1">{(stats.totalRevenue ?? 0).toFixed(2)} €</p>
+                <p className="text-[10px] font-bold text-black/80 uppercase">Total encaissé via Stripe/Apple/Google</p>
+              </Card>
+
+              <Card className="p-6 border-4 border-black rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-[#ffc09f]">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-black uppercase text-xs tracking-wider text-black/60">Volume de Transactions</p>
+                  <Activity className="w-5 h-5 text-black" />
+                </div>
+                <p className="text-4xl font-black mb-1">{stats.totalSales ?? 0}</p>
+                <p className="text-[10px] font-bold text-black/80 uppercase">Paiements validés complétés</p>
+              </Card>
+
+              <Card className="p-6 border-4 border-black rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-emerald-200">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-black uppercase text-xs tracking-wider text-black/60">Panier Moyen</p>
+                  <Users className="w-5 h-5 text-black" />
+                </div>
+                <p className="text-4xl font-black mb-1">
+                  {stats.totalSales > 0 ? (stats.totalRevenue / stats.totalSales).toFixed(2) : "0.00"} €
+                </p>
+                <p className="text-[10px] font-bold text-black/80 uppercase">Revenu moyen par transaction</p>
+              </Card>
             </div>
 
             {/* Quick Conversion rates details */}
@@ -379,6 +497,7 @@ export default function AdminDashboardPage() {
                       <th className="p-4 border-r-2 border-black">Email & Tél</th>
                       <th className="p-4 border-r-2 border-black">Vérifié</th>
                       <th className="p-4 border-r-2 border-black">Chiens</th>
+                      <th className="p-4 border-r-2 border-black">Paiements / Crédits</th>
                       <th className="p-4">Actions</th>
                     </tr>
                   </thead>
@@ -427,6 +546,31 @@ export default function AdminDashboardPage() {
                               <span className="text-muted-foreground text-[10px] font-medium">Aucun</span>
                             )}
                           </td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            <div className="flex flex-col gap-1.5 justify-center">
+                              <div className="flex items-center gap-1.5">
+                                <Switch
+                                  checked={!!userObj.bypassPaymentLimits}
+                                  onCheckedChange={(checked) => {
+                                    togglePaymentBypassMutation.mutate({
+                                      userId: userObj.id,
+                                      bypass: checked,
+                                    });
+                                  }}
+                                  disabled={togglePaymentBypassMutation.isPending}
+                                />
+                                <span className="font-bold text-[9px] uppercase">Sans Limites</span>
+                              </div>
+                              <span className="text-[10px] text-neutral-600 font-bold uppercase tracking-wider">
+                                ⭐ {userObj.superLikeCredits ?? 0} Favori{userObj.superLikeCredits !== 1 ? 's' : ''}
+                              </span>
+                              {userObj.swipeLimitUntil && new Date(userObj.swipeLimitUntil) > new Date() && (
+                                <span className="text-[9px] text-amber-600 font-bold uppercase">
+                                  🚀 Premium (24h)
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-4 flex gap-2">
                             <Button
                               size="sm"
@@ -457,6 +601,352 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </Card>
+          </div>
+        )}
+
+        {/* TAB: PAYMENTS & SALES LOGS */}
+        {activeTab === "payments" && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Sales Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="p-6 border-4 border-black bg-white rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+                <h3 className="font-black text-sm uppercase mb-4 tracking-wider">Répartition des Formules Vendues</h3>
+                {stats && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>⭐ Pack 5 Favoris (1,99 €)</span>
+                      <span className="bg-yellow-200 px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.packageStats?.extra_favorites ?? 0} ventes ({((stats.packageStats?.extra_favorites ?? 0) * 1.99).toFixed(2)} €)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>🚀 Swipes Illimités (4,99 €)</span>
+                      <span className="bg-cyan-200 px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.packageStats?.unlimited_swipes ?? 0} ventes ({((stats.packageStats?.unlimited_swipes ?? 0) * 4.99).toFixed(2)} €)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>💎 Passe Premium (9,99 €)</span>
+                      <span className="bg-peach/30 px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.packageStats?.premium_pass ?? 0} ventes ({((stats.packageStats?.premium_pass ?? 0) * 9.99).toFixed(2)} €)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6 border-4 border-black bg-white rounded-lg shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+                <h3 className="font-black text-sm uppercase mb-4 tracking-wider">Méthodes de Paiement</h3>
+                {stats && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>💳 Carte Bancaire (Stripe)</span>
+                      <span className="bg-neutral-100 px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.paymentMethodStats?.card ?? 0} transactions
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span>📱 Google Pay</span>
+                      <span className="bg-[#4285F4]/20 px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.paymentMethodStats?.google_pay ?? 0} transactions
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span> Apple Pay</span>
+                      <span className="bg-black text-white px-2 py-0.5 border-2 border-black rounded font-black">
+                        {stats.paymentMethodStats?.apple_pay ?? 0} transactions
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Payments Table */}
+            <Card className="border-4 border-black rounded-lg bg-white overflow-hidden shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b-2 border-black font-bold text-xs uppercase text-neutral-700">
+                      <th className="p-4 border-r-2 border-black">ID Paiement</th>
+                      <th className="p-4 border-r-2 border-black">Utilisateur</th>
+                      <th className="p-4 border-r-2 border-black">Produit / Formule</th>
+                      <th className="p-4 border-r-2 border-black">Méthode</th>
+                      <th className="p-4 border-r-2 border-black">Montant</th>
+                      <th className="p-4 border-r-2 border-black">Date</th>
+                      <th className="p-4">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-2 divide-neutral-200">
+                    {paymentsList && paymentsList.length > 0 ? (
+                      paymentsList.map((p: any) => (
+                        <tr key={p.id} className="hover:bg-neutral-50 font-medium text-xs text-neutral-800">
+                          <td className="p-4 border-r-2 border-neutral-200 font-mono text-[10px]">#{p.id}</td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            <p className="font-bold">{p.userName}</p>
+                            <p className="text-[10px] text-muted-foreground">{p.userEmail}</p>
+                          </td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            <span className={`inline-block px-2 py-0.5 font-bold border border-black rounded ${
+                              p.packageType === 'premium_pass' ? 'bg-peach/30' : p.packageType === 'unlimited_swipes' ? 'bg-accent/25' : 'bg-yellow-100'
+                            }`}>
+                              {p.packageType === 'premium_pass' ? '💎 Premium Pass' : p.packageType === 'unlimited_swipes' ? '🚀 Swipes Illimités' : '⭐ 5 Favoris'}
+                            </span>
+                          </td>
+                          <td className="p-4 border-r-2 border-neutral-200 uppercase font-bold">{p.paymentMethod}</td>
+                          <td className="p-4 border-r-2 border-neutral-200 font-black text-sm">{parseFloat(p.amount).toFixed(2)} €</td>
+                          <td className="p-4 border-r-2 border-neutral-200">{new Date(p.createdAt).toLocaleString()}</td>
+                          <td className="p-4">
+                            <span className="inline-block px-2 py-0.5 font-black uppercase text-[9px] border border-black rounded bg-green-200 text-green-800">
+                              {p.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground font-bold uppercase text-xs">
+                          Aucune transaction enregistrée
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB: DATABASE MANAGER */}
+        {activeTab === "db-manager" && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Top Toolbar */}
+            <div className="flex flex-wrap gap-4 items-center justify-between bg-neutral-100 p-4 border-3 border-black rounded-lg shadow-[4px_4px_0_0_rgba(0,0,0,1)]">
+              <div className="flex flex-wrap items-center gap-3">
+                <Label className="font-black text-xs uppercase text-neutral-700">Base ciblée :</Label>
+                <div className="flex gap-1.5">
+                  <Button
+                    onClick={() => { setDbTarget("preprod"); setSelectedTable("users"); }}
+                    className={`border-2 border-black font-black uppercase text-[10px] h-9 px-3 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 ${
+                      dbTarget === "preprod" ? "bg-black text-white hover:bg-black/90" : "bg-white text-black hover:bg-neutral-50"
+                    }`}
+                  >
+                    🧪 Préprod (Local DB)
+                  </Button>
+                  <Button
+                    onClick={() => { setDbTarget("prod"); setSelectedTable("users"); }}
+                    className={`border-2 border-black font-black uppercase text-[10px] h-9 px-3 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 ${
+                      dbTarget === "prod" ? "bg-black text-white hover:bg-black/90" : "bg-white text-black hover:bg-neutral-50"
+                    }`}
+                  >
+                    🌍 Prod (VPS Production)
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2 ml-4">
+                  <Label htmlFor="tableSelect" className="font-black text-xs uppercase text-neutral-700">Table :</Label>
+                  <select
+                    id="tableSelect"
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
+                    className="bg-white border-2 border-black text-xs font-bold p-1.5 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                  >
+                    {dbTables?.map(tabName => (
+                      <option key={tabName} value={tabName}>{tabName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <Button
+                  onClick={() => {
+                    setDbFormData({});
+                    setDbInsertOpen(true);
+                  }}
+                  className="bg-yellow-300 hover:bg-yellow-400 border-2 border-black text-black font-black uppercase text-[10px] h-9 shadow-[2px_2px_0_0_rgba(0,0,0,1)] flex items-center gap-1.5"
+                >
+                  Ajouter une ligne
+                </Button>
+              </div>
+            </div>
+
+            {/* Main DB Table View */}
+            {dbRowsLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white border-4 border-black rounded-lg">
+                <Spinner className="w-10 h-10 mb-4" />
+                <p className="font-bold text-xs uppercase text-muted-foreground">Requête SQL en cours...</p>
+              </div>
+            ) : (
+              <Card className="border-4 border-black rounded-lg bg-white overflow-hidden shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+                <div className="overflow-x-auto max-h-[500px]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b-2 border-black font-bold text-xs uppercase text-neutral-700">
+                        {dbSchema?.map((col: any) => (
+                          <th key={col.Field} className="p-3 border-r-2 border-black whitespace-nowrap">
+                            {col.Field}
+                            <span className="block text-[8px] text-muted-foreground font-semibold normal-case font-mono mt-0.5">{col.Type}</span>
+                          </th>
+                        ))}
+                        <th className="p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y-2 divide-neutral-200">
+                      {dbRows && dbRows.length > 0 ? (
+                        dbRows.map((row: any, rIdx: number) => {
+                          const primaryKeyCol = dbSchema?.find((col: any) => col.Key === 'PRI')?.Field || 'id';
+                          const primaryValue = row[primaryKeyCol];
+                          return (
+                            <tr key={rIdx} className="hover:bg-neutral-50 font-medium text-[10px] text-neutral-800 font-mono">
+                              {dbSchema?.map((col: any) => {
+                                const val = row[col.Field];
+                                return (
+                                  <td key={col.Field} className="p-3 border-r-2 border-neutral-200 max-w-[250px] truncate select-all">
+                                    {val === null ? (
+                                      <span className="text-neutral-300 italic">null</span>
+                                    ) : typeof val === 'object' ? (
+                                      JSON.stringify(val)
+                                    ) : (
+                                      String(val)
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className="p-3 flex gap-1.5 items-center">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setDbEditRow(row);
+                                    setDbFormData({ ...row });
+                                    setDbEditOpen(true);
+                                  }}
+                                  className="bg-cyan-200 hover:bg-cyan-300 border border-black text-black font-bold text-[9px] h-7 px-2 uppercase shadow-[1px_1px_0_0_rgba(0,0,0,1)]"
+                                >
+                                  Modifier
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    if (confirm(`Voulez-vous supprimer définitivement la ligne avec ${primaryKeyCol} = ${primaryValue} ?\nSi cette table a des dépendances (ex: users), une suppression en cascade sera exécutée pour éviter les erreurs d'intégrité.`)) {
+                                      deleteRowCascadeMutation.mutate({
+                                        target: dbTarget,
+                                        table: selectedTable,
+                                        primaryKey: primaryKeyCol,
+                                        primaryValue
+                                      });
+                                    }
+                                  }}
+                                  className="border border-black font-bold text-[9px] h-7 px-2 uppercase shadow-[1px_1px_0_0_rgba(0,0,0,1)]"
+                                >
+                                  Supprimer
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={(dbSchema?.length || 0) + 1} className="p-8 text-center text-muted-foreground font-bold uppercase text-xs">
+                            Aucune ligne trouvée dans cette table
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+
+            {/* MODAL: INSERT ROW */}
+            {dbInsertOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <Card className="w-full max-w-lg p-6 border-4 border-black bg-white shadow-[8px_8px_0_0_rgba(0,0,0,1)] max-h-[90vh] overflow-y-auto">
+                  <h3 className="font-black text-lg uppercase mb-4 border-b-2 border-black pb-2">Insérer dans {selectedTable}</h3>
+                  <div className="space-y-4">
+                    {dbSchema?.map((col: any) => {
+                      if (col.Extra === "auto_increment") return null;
+                      return (
+                        <div key={col.Field}>
+                          <Label className="font-bold text-xs uppercase mb-1">{col.Field} ({col.Type})</Label>
+                          <Input
+                            placeholder={`${col.Null === 'YES' ? 'Facultatif' : 'Requis'} - ${col.Type}`}
+                            value={dbFormData[col.Field] !== undefined ? dbFormData[col.Field] : ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDbFormData(prev => ({ ...prev, [col.Field]: val === "" ? null : val }));
+                            }}
+                            className="border-2 border-black font-semibold text-xs shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 justify-end mt-6 border-t-2 border-black pt-4">
+                    <Button onClick={() => setDbInsertOpen(false)} className="bg-white border-2 border-black text-black font-bold uppercase text-xs">Annuler</Button>
+                    <Button
+                      onClick={() => insertRowMutation.mutate({ target: dbTarget, table: selectedTable, rowData: dbFormData })}
+                      className="bg-yellow-300 border-2 border-black text-black font-black uppercase text-xs"
+                    >
+                      Insérer
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* MODAL: UPDATE ROW */}
+            {dbEditOpen && dbEditRow && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <Card className="w-full max-w-lg p-6 border-4 border-black bg-white shadow-[8px_8px_0_0_rgba(0,0,0,1)] max-h-[90vh] overflow-y-auto">
+                  <h3 className="font-black text-lg uppercase mb-4 border-b-2 border-black pb-2">Modifier dans {selectedTable}</h3>
+                  <div className="space-y-4">
+                    {dbSchema?.map((col: any) => {
+                      const isPrimaryKey = col.Key === 'PRI';
+                      return (
+                        <div key={col.Field}>
+                          <Label className="font-bold text-xs uppercase mb-1">{col.Field} ({col.Type})</Label>
+                          <Input
+                            disabled={isPrimaryKey || col.Extra === "auto_increment"}
+                            value={dbFormData[col.Field] !== null && dbFormData[col.Field] !== undefined ? String(dbFormData[col.Field]) : ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDbFormData(prev => ({ ...prev, [col.Field]: val === "" ? null : val }));
+                            }}
+                            className="border-2 border-black font-semibold text-xs shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 justify-end mt-6 border-t-2 border-black pt-4">
+                    <Button onClick={() => setDbEditOpen(false)} className="bg-white border-2 border-black text-black font-bold uppercase text-xs">Annuler</Button>
+                    <Button
+                      onClick={() => {
+                        const primaryKeyCol = dbSchema?.find((col: any) => col.Key === 'PRI')?.Field || 'id';
+                        const primaryValue = dbEditRow[primaryKeyCol];
+                        
+                        // Exclude primary key from update payload to avoid update errors
+                        const payload = { ...dbFormData };
+                        delete payload[primaryKeyCol];
+
+                        updateRowMutation.mutate({
+                          target: dbTarget,
+                          table: selectedTable,
+                          primaryKey: primaryKeyCol,
+                          primaryValue,
+                          rowData: payload
+                        });
+                      }}
+                      className="bg-yellow-300 border-2 border-black text-black font-black uppercase text-xs"
+                    >
+                      Enregistrer
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            )}
           </div>
         )}
 

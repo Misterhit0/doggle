@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { Heart, MessageCircle, Users } from "lucide-react";
+import { Heart, MessageCircle, Users, Star } from "lucide-react";
 import { CompatibilityScore } from "@/components/CompatibilityScore";
 import DogAvatarFallback from "@/components/DogAvatarFallback";
 import { motion } from "framer-motion";
@@ -72,7 +72,11 @@ export default function MatchesPage() {
                 >
                 <Card
                   key={match.id} 
-                  className="relative overflow-hidden h-[450px] border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all group"
+                  className={`relative overflow-hidden h-[450px] border-2 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all group ${
+                    match.isFavorite 
+                      ? 'border-yellow-400 border-[3px] shadow-[0_0_15px_rgba(250,204,21,0.5),6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[0_0_20px_rgba(250,204,21,0.7),8px_8px_0px_0px_rgba(0,0,0,1)]' 
+                      : 'border-black hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]'
+                  }`}
                 >
                   {/* Background Image / Placeholder */}
                   {dogPhoto ? (
@@ -94,6 +98,14 @@ export default function MatchesPage() {
                   <div className="absolute top-4 left-4 z-10">
                     <CompatibilityScore score={match.compatibilityScore} compact={true} />
                   </div>
+
+                  {/* Favorite Badge */}
+                  {match.isFavorite && (
+                    <div className="absolute top-4 right-4 z-10 bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] px-3 py-1 rounded-full flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] animate-pulse">
+                      <Star className="w-3 h-3 fill-black" />
+                      Favori
+                    </div>
+                  )}
 
                   {/* Card Content Overlay */}
                   <div className="absolute inset-0 flex flex-col justify-end p-6 text-white z-10">
