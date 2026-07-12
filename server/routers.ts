@@ -277,6 +277,9 @@ export const appRouter = router({
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
           photoUrls: z.array(z.string()).max(3).optional(),
+          sex: z.enum(["male", "female", "unknown"]).optional(),
+          openToBreeding: z.boolean().optional(),
+          breedingInfo: z.string().max(500).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -288,6 +291,9 @@ export const appRouter = router({
           description: input.description,
           personality: input.personality ? (JSON.stringify(input.personality) as any) : undefined,
           photoUrls: input.photoUrls ? (JSON.stringify(input.photoUrls) as any) : undefined,
+          sex: input.sex as any,
+          openToBreeding: input.openToBreeding ?? false,
+          breedingInfo: input.breedingInfo,
         });
         const user = await db.getUserById(ctx.user.id);
         triggerN8nWebhook("dog.created", {
@@ -310,6 +316,10 @@ export const appRouter = router({
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
           photoUrls: z.array(z.string()).max(3).optional(),
+          sex: z.enum(["male", "female", "unknown"]).optional(),
+          openToBreeding: z.boolean().optional(),
+          breedingInfo: z.string().max(500).optional(),
+          availableForBoarding: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -325,6 +335,10 @@ export const appRouter = router({
         if (input.description !== undefined) updateData.description = input.description;
         if (input.personality !== undefined) updateData.personality = JSON.stringify(input.personality) as any;
         if (input.photoUrls !== undefined) updateData.photoUrls = JSON.stringify(input.photoUrls) as any;
+        if (input.sex !== undefined) updateData.sex = input.sex;
+        if (input.openToBreeding !== undefined) updateData.openToBreeding = input.openToBreeding;
+        if (input.breedingInfo !== undefined) updateData.breedingInfo = input.breedingInfo;
+        if (input.availableForBoarding !== undefined) updateData.availableForBoarding = input.availableForBoarding;
 
         await db.updateDog(input.dogId, updateData);
 
@@ -352,6 +366,7 @@ export const appRouter = router({
       .input(
         z.object({
           radiusKm: z.number().min(0.5).max(50).default(5),
+          breedingOnly: z.boolean().optional().default(false),
         })
       )
       .query(async ({ ctx, input }) => {
@@ -482,7 +497,14 @@ export const appRouter = router({
         const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
         const blockedUserIds = await db.getBlockedUserIds(ctx.user.id);
         const excludeUserIds = [...swipedUserIds, ...blockedUserIds];
-        const filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
+        let filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
+
+        // Filter by breeding mode (non-blocking: just filter, doesn't break basic matching)
+        if (input.breedingOnly) {
+          filteredDuos = filteredDuos.filter(d =>
+            d.dogs && d.dogs.some((dog: any) => dog.openToBreeding === true || dog.openToBreeding === 1)
+          );
+        }
 
         // Helper parsers for JSON arrays in mysql
         const parseJsonField = (field: any): string[] => {
@@ -1579,6 +1601,172 @@ export const appRouter = router({
 
         return { success: true };
       }),
+  }),
+
+  // ── Boarding (Dog-Sitter) ──────────────────────────────────────────────────
+  boarding: router({
+    // Register as a dog-sitter (sends notification to admin via webhook)
+    registerAsSitter: protectedProcedure
+      .input(z.object({
+        dogSitterBio: z.string().max(800).optional(),
+        dogSitterRates: z.object({
+          night: z.number().min(0).max(500).optional(),
+          halfDay: z.number().min(0).max(500).optional(),
+          walk: z.number().min(0).max(200).optional(),
+        }).optional(),
+        dogSitterMaxDogs: z.number().int().min(1).max(10).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.registerAsDogSitter(ctx.user.id, {
+          dogSitterBio: input.dogSitterBio,
+          dogSitterRates: input.dogSitterRates,
+          dogSitterMaxDogs: input.dogSitterMaxDogs,
+        });
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Inscription échouée" });
+
+        // Notify admin via webhook
+        const user = await db.getUserById(ctx.user.id);
+        await triggerN8nWebhook("dogsitter.registered", {
+          userId: ctx.user.id,
+          name: user?.name,
+          email: user?.email,
+          phoneNumber: user?.phoneNumber,
+          dogSitterBio: input.dogSitterBio,
+          dogSitterRates: input.dogSitterRates,
+          dogSitterMaxDogs: input.dogSitterMaxDogs,
+        });
+        return { success: true };
+      }),
+
+    // Update sitter profile (bio, rates, availability)
+    updateSitterProfile: protectedProcedure
+      .input(z.object({
+        dogSitterBio: z.string().max(800).optional(),
+        dogSitterRates: z.object({
+          night: z.number().min(0).max(500).optional(),
+          halfDay: z.number().min(0).max(500).optional(),
+          walk: z.number().min(0).max(200).optional(),
+        }).optional(),
+        dogSitterAvailable: z.boolean().optional(),
+        dogSitterMaxDogs: z.number().int().min(1).max(10).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.updateDogSitterProfile(ctx.user.id, input);
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Mise à jour échouée" });
+        return { success: true };
+      }),
+
+    // Toggle a dog as available/unavailable for boarding
+    toggleDogForBoarding: protectedProcedure
+      .input(z.object({ dogId: z.number(), available: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.toggleDogForBoarding(input.dogId, ctx.user.id, input.available);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Chien introuvable" });
+        return { success: true };
+      }),
+
+    // Get all dogs available for boarding (for sitters to browse)
+    getAvailableDogs: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getAvailableDogsForBoarding(ctx.user.id);
+    }),
+
+    // Owner sends a boarding request to a sitter
+    requestBoarding: protectedProcedure
+      .input(z.object({
+        dogId: z.number(),
+        sitterId: z.number(),
+        startDate: z.string(), // ISO string
+        endDate: z.string(),
+        message: z.string().max(500).optional(),
+        totalPrice: z.number().min(0).optional(),
+        ownerPhone: z.string().max(20).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const dog = await db.getDogById(input.dogId);
+        if (!dog || dog.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Chien introuvable" });
+        }
+        const id = await db.createBoardingRequest({
+          dogId: input.dogId,
+          ownerId: ctx.user.id,
+          sitterId: input.sitterId,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          message: input.message,
+          totalPrice: input.totalPrice,
+          ownerPhone: input.ownerPhone,
+        });
+        if (!id) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Demande échouée" });
+
+        // Notify sitter
+        const sitter = await db.getUserById(input.sitterId);
+        const owner = await db.getUserById(ctx.user.id);
+        await triggerN8nWebhook("boarding.requested", {
+          sitterId: input.sitterId,
+          sitterName: sitter?.name,
+          sitterEmail: sitter?.email,
+          ownerName: owner?.name,
+          dogId: input.dogId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        });
+        return { success: true, requestId: id };
+      }),
+
+    // Sitter gets their pending/active requests
+    getSitterRequests: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBoardingRequestsForSitter(ctx.user.id);
+    }),
+
+    // Owner gets their sent requests
+    getOwnerRequests: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBoardingRequestsForOwner(ctx.user.id);
+    }),
+
+    // Sitter responds to a request
+    respondToRequest: protectedProcedure
+      .input(z.object({
+        requestId: z.number(),
+        status: z.enum(["accepted", "rejected"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.respondToBoardingRequest(input.requestId, ctx.user.id, input.status);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Demande introuvable" });
+        return { success: true };
+      }),
+
+    // Get active boardings for sitter
+    getActiveBoardings: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getActiveBoardingsForSitter(ctx.user.id);
+    }),
+
+    // Mark a boarding as completed
+    completeBoardng: protectedProcedure
+      .input(z.object({ requestId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.completeBoardingRequest(input.requestId, ctx.user.id);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Demande introuvable" });
+        return { success: true };
+      }),
+
+    // Admin — approve/reject a dog sitter
+    adminUpdateSitterStatus: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        status: z.enum(["approved", "rejected"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const ok = await db.updateDogSitterStatusAdmin(input.userId, input.status);
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return { success: true };
+      }),
+
+    // Admin — list pending dog sitters
+    adminGetPendingSitters: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return await db.getPendingDogSitters();
+    }),
   }),
 });
 

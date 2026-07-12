@@ -12,7 +12,8 @@ import {
   Home as HomeIcon,
   Calendar,
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Dog,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -127,6 +128,12 @@ export default function AppNav() {
                       </a>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem asChild>
+                    <a href="/dog-sitter" className="cursor-pointer flex items-center font-bold text-blue-700 focus:text-blue-800">
+                      <Dog className="w-4 h-4 mr-2" />
+                      {(user as any).isDogSitter ? 'Dashboard Dog-Sitter' : 'Devenir Dog-Sitter'}
+                    </a>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild className="md:hidden">
                     <a href="/dogs" className="cursor-pointer flex items-center font-bold">
                       <HomeIcon className="w-4 h-4 mr-2" />

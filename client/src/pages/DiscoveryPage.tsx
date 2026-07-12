@@ -18,6 +18,7 @@ export default function DiscoveryPage() {
   const { user, refresh: refreshAuth } = useAuth({ redirectOnUnauthenticated: true });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [radiusKm, setRadiusKm] = useState(5);
+  const [breedingOnly, setBreedingOnly] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -51,6 +52,7 @@ export default function DiscoveryPage() {
   // Fetch nearby duos
   const { data: duos, isLoading, refetch } = trpc.discovery.getNearbyDuos.useQuery({
     radiusKm,
+    breedingOnly,
   }, {
     enabled: !!user,
   });
@@ -328,6 +330,20 @@ export default function DiscoveryPage() {
               />
             </div>
           </div>
+
+          {/* Breeding filter */}
+          <div className="mt-3 pt-2.5 border-t border-black/10 flex items-center justify-between">
+            <label htmlFor="breedingMode" className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm font-black">🌸 Mode Reproduction</span>
+              <span className="text-[10px] text-muted-foreground">Afficher uniquement les chiens ouverts</span>
+            </label>
+            <div
+              className={`w-10 h-5 rounded-full border-2 border-black transition-colors cursor-pointer flex items-center ${breedingOnly ? "bg-pink-400" : "bg-gray-200"}`}
+              onClick={() => { setBreedingOnly(prev => !prev); setCurrentIndex(0); refetch(); }}
+            >
+              <div className={`w-3.5 h-3.5 rounded-full bg-white border-2 border-black transition-transform ${breedingOnly ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+            </div>
+          </div>
         </Card>
 
         {/* Card Stack Area */}
@@ -529,9 +545,15 @@ export default function DiscoveryPage() {
                         <h2 className="text-white text-3xl font-black uppercase leading-tight tracking-tight">
                           {currentDog.name}
                         </h2>
-                        <p className="text-white/75 text-sm font-semibold mt-0.5">
+                        <p className="text-white/75 text-sm font-semibold mt-0.5 flex items-center gap-2">
                           {currentDog.breed || "Race inconnue"}
                           {currentDog.age ? ` • ${currentDog.age} ans` : ""}
+                          {/* Breeding badge */}
+                          {(currentDog.openToBreeding === true || (currentDog as any).openToBreeding === 1) && (
+                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-pink-400 text-white text-[10px] font-black rounded-full border border-white/50">
+                              🌸 Reproduction
+                            </span>
+                          )}
                         </p>
 
                         {/* Affinities */}

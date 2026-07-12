@@ -32,6 +32,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import CookiesPage from "./pages/CookiesPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import DogSitterDashboardPage from "./pages/DogSitterDashboardPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -67,6 +68,7 @@ function Router() {
           <Route path="/terms" component={TermsPage} />
           <Route path="/cookies" component={CookiesPage} />
           <Route path="/admin" component={AdminDashboardPage} />
+          <Route path="/dog-sitter" component={DogSitterDashboardPage} />
           <Route path="/404" component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

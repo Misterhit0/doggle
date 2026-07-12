@@ -33,7 +33,15 @@ export const users = mysqlTable("users", {
   isShareLocationActive: boolean("isShareLocationActive").default(false).notNull(),
   
   phoneNumber: varchar("phoneNumber", { length: 20 }),
-  
+
+  // Dog Sitter Profile
+  isDogSitter: boolean("isDogSitter").default(false).notNull(),
+  dogSitterBio: text("dogSitterBio"),
+  dogSitterRates: json("dogSitterRates").$type<{ night?: number; halfDay?: number; walk?: number }>(),
+  dogSitterAvailable: boolean("dogSitterAvailable").default(false).notNull(),
+  dogSitterMaxDogs: int("dogSitterMaxDogs").default(1),
+  dogSitterStatus: mysqlEnum("dogSitterStatus", ["pending", "approved", "rejected"]).default("pending"),
+
   // Payment / Monetization Limits
   plan: varchar("plan", { length: 32 }).default("free").notNull(),
   bypassPaymentLimits: boolean("bypassPaymentLimits").default(false).notNull(),
@@ -60,6 +68,15 @@ export const dogs = mysqlTable("dogs", {
   description: text("description"),
   personality: json("personality").$type<string[]>(), // e.g., "playful", "calm", "energetic"
   photoUrls: json("photoUrls").$type<string[]>(),
+
+  // Boarding
+  availableForBoarding: boolean("availableForBoarding").default(false).notNull(),
+
+  // Breeding
+  sex: mysqlEnum("sex", ["male", "female", "unknown"]).default("unknown"),
+  openToBreeding: boolean("openToBreeding").default(false).notNull(),
+  breedingInfo: text("breedingInfo"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -314,3 +331,30 @@ export const planSettings = mysqlTable("plan_settings", {
 
 export type PlanSetting = typeof planSettings.$inferSelect;
 export type InsertPlanSetting = typeof planSettings.$inferInsert;
+
+/**
+ * Boarding requests — dog-sitter system
+ */
+export const boardingRequests = mysqlTable("boarding_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),         // chien à garder
+  ownerId: int("ownerId").notNull(),     // propriétaire du chien
+  sitterId: int("sitterId").notNull(),   // dog-sitter
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  message: text("message"),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected", "completed"]).default("pending").notNull(),
+  totalPrice: decimal("totalPrice", { precision: 10, scale: 2 }),
+  ownerPhone: varchar("ownerPhone", { length: 20 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BoardingRequest = typeof boardingRequests.$inferSelect;
+export type InsertBoardingRequest = typeof boardingRequests.$inferInsert;
+
+export const boardingRequestsRelations = relations(boardingRequests, ({ one }) => ({
+  dog: one(dogs, { fields: [boardingRequests.dogId], references: [dogs.id] }),
+  owner: one(users, { fields: [boardingRequests.ownerId], references: [users.id] }),
+  sitter: one(users, { fields: [boardingRequests.sitterId], references: [users.id] }),
+}));

@@ -283,9 +283,222 @@ export default function LostDogsPage() {
   const [listMap, setListMap] = useState<maplibregl.Map | null>(null);
   const listMarkersRef = useRef<maplibregl.Marker[]>([]);
 
+  // Vets & Spas from Overpass API
+  const vetMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const spaMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const [showVets, setShowVets] = useState(true);
+  const [showSpas, setShowSpas] = useState(true);
+  const [poiLoading, setPoiLoading] = useState(false);
+  const showVetsRef = useRef(true);
+  const showSpasRef = useRef(true);
+  showVetsRef.current = showVets;
+  showSpasRef.current = showSpas;
+
+  // PetAlert RSS markers
+  const petAlertMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const [showPetAlert, setShowPetAlert] = useState(true);
+  const [petAlertLoading, setPetAlertLoading] = useState(false);
+  const [petAlertCount, setPetAlertCount] = useState(0);
+  const [petAlertFallback, setPetAlertFallback] = useState(false); // true = fallback mode (Option B)
+
   const reportLostDogMutation = trpc.lostDogs.reportLostDog.useMutation();
   const reportSightingMutation = trpc.lostDogs.reportSighting.useMutation();
   const { data: userDogs } = trpc.dog.getMyDogs.useQuery(undefined);
+
+  // ── Fetch vets & spas from Overpass OSM ────────────────────────────────────
+  const fetchVetsAndSpas = useCallback(async (mapInstance: maplibregl.Map) => {
+    setPoiLoading(true);
+    const bounds = mapInstance.getBounds();
+    const south = bounds.getSouth().toFixed(4);
+    const west  = bounds.getWest().toFixed(4);
+    const north = bounds.getNorth().toFixed(4);
+    const east  = bounds.getEast().toFixed(4);
+    const bbox  = `${south},${west},${north},${east}`;
+    const query = `[out:json][timeout:10];(
+      node["amenity"="veterinary"](${bbox});
+      way["amenity"="veterinary"](${bbox});
+      node["shop"="pet_grooming"](${bbox});
+      way["shop"="pet_grooming"](${bbox});
+    );out center;`;
+    try {
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: `data=${encodeURIComponent(query)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const json = await res.json();
+
+      // Remove old POI markers
+      vetMarkersRef.current.forEach(m => m.remove());
+      vetMarkersRef.current = [];
+      spaMarkersRef.current.forEach(m => m.remove());
+      spaMarkersRef.current = [];
+
+      json.elements?.forEach((el: any) => {
+        const lat = el.lat ?? el.center?.lat;
+        const lng = el.lon ?? el.center?.lon;
+        if (!lat || !lng) return;
+
+        const isVet = el.tags?.amenity === "veterinary";
+        const name = el.tags?.name || (isVet ? "Vétérinaire" : "Spa / Toilettage");
+        const phone = el.tags?.phone || el.tags?.["contact:phone"] || "";
+        const addr = [el.tags?.["addr:housenumber"], el.tags?.["addr:street"], el.tags?.["addr:city"]].filter(Boolean).join(" ");
+        const openingHours = el.tags?.opening_hours || "";
+
+        const markerEl = document.createElement("div");
+        if (isVet) {
+          markerEl.innerHTML = `<div style="width:32px;height:32px;background:#16a34a;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:transform .15s" title="${name}">🏥</div>`;
+        } else {
+          markerEl.innerHTML = `<div style="width:32px;height:32px;background:#7c3aed;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:transform .15s" title="${name}">✂️</div>`;
+        }
+        const innerEl = markerEl.firstElementChild as HTMLElement;
+        innerEl.onmouseenter = () => { innerEl.style.transform = "scale(1.2)"; };
+        innerEl.onmouseleave = () => { innerEl.style.transform = "scale(1)"; };
+
+        const popup = new maplibregl.Popup({ offset: 20, closeButton: false }).setHTML(`
+          <div style="font-family:sans-serif;max-width:210px;padding:6px">
+            <h3 style="font-weight:900;font-size:13px;color:${isVet ? '#16a34a' : '#7c3aed'};margin:0 0 3px">${isVet ? '🏥' : '✂️'} ${name}</h3>
+            ${addr ? `<p style="font-size:11px;color:#555;margin:0 0 3px">📍 ${addr}</p>` : ""}
+            ${phone ? `<p style="font-size:11px;margin:0 0 3px"><a href="tel:${phone}" style="color:#2563eb;font-weight:700">📞 ${phone}</a></p>` : ""}
+            ${openingHours ? `<p style="font-size:10px;color:#666;margin:0">🕐 ${openingHours}</p>` : ""}
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: innerEl })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(mapInstance);
+
+        if (isVet) {
+          vetMarkersRef.current.push(marker);
+        } else {
+          spaMarkersRef.current.push(marker);
+        }
+      });
+    } catch (err) {
+      console.error("[Overpass] Failed to fetch vets/spas:", err);
+    } finally {
+      setPoiLoading(false);
+    }
+  }, []);
+
+  // ── Fetch PetAlert RSS via rss2json proxy (Option C) + fallback (Option B) ──
+  const fetchPetAlertRSS = useCallback(async (mapInstance: maplibregl.Map, lat: number | null, lng: number | null) => {
+    setPetAlertLoading(true);
+    setPetAlertFallback(false);
+
+    // Build department list from user location (approximate)
+    // PetAlert RSS: https://www.petalert.fr/fr/alerts/rss?type=lost&radius=20&lat=LAT&lon=LNG
+    const center = lat && lng
+      ? { lat, lng }
+      : { lat: 46.603354, lng: 1.888334 };
+
+    // We use rss2json.com as CORS proxy — free tier, no key required for public feeds
+    const petAlertRssUrl = `https://www.petalert.fr/fr/alerts/rss?type=lost&lat=${center.lat}&lon=${center.lng}&radius=50`;
+    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(petAlertRssUrl)}`;
+
+    try {
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      const json = await res.json();
+
+      if (json.status !== "ok" || !json.items?.length) {
+        // Option C returned 0 results → activate Option B fallback
+        setPetAlertFallback(true);
+        setPetAlertCount(0);
+        return;
+      }
+
+      // Clear old PetAlert markers
+      petAlertMarkersRef.current.forEach(m => m.remove());
+      petAlertMarkersRef.current = [];
+
+      let placed = 0;
+      json.items.forEach((item: any) => {
+        // Extract coords from content or enclosure (PetAlert embeds lat/lng in description)
+        const latMatch = item.content?.match(/data-lat=["']([-\d.]+)["']/) ||
+                         item.description?.match(/lat=([-\d.]+)/);
+        const lngMatch = item.content?.match(/data-lng=["']([-\d.]+)["']/) ||
+                         item.description?.match(/lon=([-\d.]+)/);
+
+        // Fallback: parse geo from <geo:lat> / <geo:long> which rss2json sometimes exposes
+        const itemLat = parseFloat(item.lat ?? latMatch?.[1] ?? "");
+        const itemLng = parseFloat(item.long ?? lngMatch?.[1] ?? "");
+
+        if (isNaN(itemLat) || isNaN(itemLng)) return;
+        if (itemLat < 41 || itemLat > 52 || itemLng < -5 || itemLng > 10) return; // France bbox
+
+        const title = item.title ?? "Chien perdu";
+        const pubDate = item.pubDate
+          ? new Date(item.pubDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+          : "";
+        const description = item.description?.replace(/<[^>]+>/g, "").slice(0, 120) ?? "";
+        const link = item.link ?? `https://www.petalert.fr/fr`;
+        const thumbnail = item.thumbnail ?? item.enclosure?.link ?? "";
+
+        const markerEl = document.createElement("div");
+        markerEl.innerHTML = `<div style="width:34px;height:34px;background:#f97316;border-radius:50%;border:2.5px solid #000;box-shadow:2px 2px 0 #000;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:transform .15s" title="${title.replace(/"/g, "'")}">🔶</div>`;
+        const innerEl = markerEl.firstElementChild as HTMLElement;
+        innerEl.onmouseenter = () => { innerEl.style.transform = "scale(1.2)"; };
+        innerEl.onmouseleave = () => { innerEl.style.transform = "scale(1)"; };
+
+        const popup = new maplibregl.Popup({ offset: 20, closeButton: false, maxWidth: "230px" }).setHTML(`
+          <div style="font-family:sans-serif;padding:6px">
+            ${thumbnail ? `<img src="${thumbnail}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;border:1px solid #eee" onerror="this.style.display='none'" />` : ""}
+            <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+              <img src="https://www.petalert.fr/favicon.ico" style="width:14px;height:14px" onerror="this.style.display='none'" />
+              <span style="font-size:10px;color:#f97316;font-weight:900;text-transform:uppercase">PetAlert</span>
+            </div>
+            <h3 style="font-weight:900;font-size:13px;color:#dc2626;margin:0 0 3px">${title}</h3>
+            ${pubDate ? `<p style="font-size:10px;color:#888;margin:0 0 3px">📅 ${pubDate}</p>` : ""}
+            ${description ? `<p style="font-size:11px;color:#444;margin:0 0 6px;line-height:1.4">${description}…</p>` : ""}
+            <a href="${link}" target="_blank" rel="noopener" style="display:inline-block;background:#f97316;color:white;font-weight:900;font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid #000;text-decoration:none">Voir sur PetAlert →</a>
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: innerEl })
+          .setLngLat([itemLng, itemLat])
+          .setPopup(popup)
+          .addTo(mapInstance);
+
+        petAlertMarkersRef.current.push(marker);
+        placed++;
+      });
+
+      setPetAlertCount(placed);
+      if (placed === 0) {
+        setPetAlertFallback(true); // No coords parseable → Option B
+      }
+    } catch (err) {
+      console.warn("[PetAlert RSS] Fetch failed, activating Option B fallback:", err);
+      setPetAlertFallback(true);
+      setPetAlertCount(0);
+    } finally {
+      setPetAlertLoading(false);
+    }
+  }, []);
+
+  // Toggle PetAlert markers visibility
+  useEffect(() => {
+    petAlertMarkersRef.current.forEach(m => {
+      const el = m.getElement();
+      if (el) el.style.display = showPetAlert ? "" : "none";
+    });
+  }, [showPetAlert]);
+
+  // Toggle visibility of vet/spa markers
+  useEffect(() => {
+    vetMarkersRef.current.forEach(m => {
+      const el = m.getElement();
+      if (el) el.style.display = showVets ? "" : "none";
+    });
+  }, [showVets]);
+  useEffect(() => {
+    spaMarkersRef.current.forEach(m => {
+      const el = m.getElement();
+      if (el) el.style.display = showSpas ? "" : "none";
+    });
+  }, [showSpas]);
+
   // Always load lost dogs — use large radius (500km = France-wide) if no geoloc yet
   const { data: nearbyLostDogs, refetch: refetchLostDogs } = trpc.lostDogs.getNearbyLostDogs.useQuery(
     latitude && longitude
@@ -301,7 +514,7 @@ export default function LostDogsPage() {
   // Helper: place all lost-dog markers on a given map instance
   const placeMarkersOnMap = useCallback((mapInstance: maplibregl.Map, dogs: any[]) => {
     // Remove old markers
-    listMarkersRef.current.forEach(m => m.remove());
+    listMarkersRef.current?.forEach(m => m.remove());
     listMarkersRef.current = [];
 
     if (!Array.isArray(dogs) || dogs.length === 0) return;
@@ -442,6 +655,11 @@ export default function LostDogsPage() {
     const daysSinceLost = (Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceLost > 7;
   }) || [];
+
+  // Pre-compute PetAlert fallback URL (avoids nested template literals in JSX which break Babel)
+  const petAlertFallbackUrl = latitude && longitude
+    ? "https://www.petalert.fr/fr/alerts?type=lost&lat=" + latitude.toFixed(4) + "&lon=" + longitude.toFixed(4) + "&radius=20"
+    : "https://www.petalert.fr/fr/alerts?type=lost";
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -621,7 +839,6 @@ export default function LostDogsPage() {
               <span className="ml-auto text-white/80 text-xs font-semibold">
                 {Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0} signalement{(Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0) > 1 ? "s" : ""} • rayon {latitude && longitude ? "100" : "500"} km
               </span>
-            </div>
             <MapView
               onMapReady={(mapInstance) => {
                 // Sync both ref (for markers) and state (to trigger useEffect)
@@ -635,10 +852,18 @@ export default function LostDogsPage() {
                   mapInstance.setCenter([2.3522, 46.6]);
                   mapInstance.setZoom(5);
                 }
-                // Place markers immediately if data already loaded
+                // Place Doggle markers immediately if data already loaded
                 if (nearbyLostDogs && Array.isArray(nearbyLostDogs)) {
                   placeMarkersOnMap(mapInstance, nearbyLostDogs as any[]);
                 }
+                // Fetch vets & spas from Overpass
+                fetchVetsAndSpas(mapInstance);
+                // Re-fetch OSM POI on map move (only when zoomed in enough)
+                mapInstance.on("moveend", () => {
+                  if (mapInstance.getZoom() >= 11) fetchVetsAndSpas(mapInstance);
+                });
+                // Fetch PetAlert RSS (Option C) with fallback to Option B
+                fetchPetAlertRSS(mapInstance, latitude, longitude);
               }}
               initialCenter={
                 latitude && longitude
@@ -649,6 +874,85 @@ export default function LostDogsPage() {
               className="w-full h-[360px]"
             />
           </div>
+        </div>
+
+          {/* Legend + Filters */}
+          <div className="flex flex-wrap gap-3 items-center px-1 py-2 mb-2">
+            <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Afficher :</span>
+
+            {/* Doggle lost dogs */}
+            <span className="flex items-center gap-1 text-sm font-bold">
+              <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center border border-black">🐕</span>
+              Doggle
+            </span>
+
+            {/* PetAlert toggle */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showPetAlert}
+                onChange={e => setShowPetAlert(e.target.checked)}
+                className="accent-orange-500 w-3.5 h-3.5"
+                disabled={petAlertFallback || petAlertLoading}
+              />
+              <span className="flex items-center gap-1 text-sm font-bold">
+                <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] flex items-center justify-center border border-black">🔶</span>
+                PetAlert
+                {petAlertLoading && <span className="text-[9px] text-muted-foreground italic ml-0.5">…</span>}
+                {!petAlertLoading && !petAlertFallback && petAlertCount > 0 && (
+                  <span className="text-[9px] bg-orange-100 text-orange-700 border border-orange-300 px-1 rounded-full font-black">{petAlertCount}</span>
+                )}
+              </span>
+            </label>
+
+            {/* Vétérinaires */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input type="checkbox" checked={showVets} onChange={e => setShowVets(e.target.checked)} className="accent-green-600 w-3.5 h-3.5" />
+              <span className="flex items-center gap-1 text-sm font-bold">
+                <span className="w-5 h-5 rounded-full bg-green-600 text-white text-[10px] flex items-center justify-center border border-black">🏥</span>
+                Vétos
+              </span>
+            </label>
+
+            {/* Spas */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input type="checkbox" checked={showSpas} onChange={e => setShowSpas(e.target.checked)} className="accent-purple-600 w-3.5 h-3.5" />
+              <span className="flex items-center gap-1 text-sm font-bold">
+                <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center border border-black">✂️</span>
+                Spas
+              </span>
+            </label>
+
+            {(poiLoading) && <span className="text-xs text-muted-foreground italic">Chargement POIs…</span>}
+            <span className="ml-auto text-xs text-muted-foreground">OSM · PetAlert</span>
+          </div>
+
+          {/* Option B fallback banner — shown when PetAlert RSS returned 0 results */}
+          {/* Option B fallback banner — shown when PetAlert RSS returned 0 results */}
+          {petAlertFallback && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-orange-50 border-2 border-orange-400 rounded-xl shadow-[3px_3px_0px_0px_rgba(249,115,22,0.4)]">
+              <img
+                src="https://www.petalert.fr/favicon.ico"
+                alt="PetAlert"
+                className="w-7 h-7 rounded"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-orange-800">🔶 Voir les chiens perdus sur PetAlert.fr</p>
+                <p className="text-xs text-orange-600">
+                  Les données PetAlert ne sont pas disponibles en temps réel — consultez directement le site
+                </p>
+              </div>
+              <a
+                href={petAlertFallbackUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-lg border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px"
+              >
+                Ouvrir PetAlert →
+              </a>
+            </div>
+          )}
 
 
           {/* Urgent Dogs Section */}

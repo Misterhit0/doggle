@@ -1952,3 +1952,241 @@ export async function getPlanConfig(plan: string): Promise<any> {
   }
   return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
 }
+
+// ============ BOARDING (DOG-SITTER) HELPERS ============
+
+export async function registerAsDogSitter(userId: number, data: {
+  dogSitterBio?: string;
+  dogSitterRates?: { night?: number; halfDay?: number; walk?: number };
+  dogSitterMaxDogs?: number;
+}) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE users SET isDogSitter = TRUE, dogSitterBio = ?, dogSitterRates = ?, dogSitterMaxDogs = ?, dogSitterStatus = 'pending' WHERE id = ?`,
+      [
+        data.dogSitterBio ?? null,
+        data.dogSitterRates ? JSON.stringify(data.dogSitterRates) : null,
+        data.dogSitterMaxDogs ?? 1,
+        userId,
+      ]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to register as dog sitter:", error);
+    return false;
+  }
+}
+
+export async function updateDogSitterProfile(userId: number, data: {
+  dogSitterBio?: string;
+  dogSitterRates?: { night?: number; halfDay?: number; walk?: number };
+  dogSitterAvailable?: boolean;
+  dogSitterMaxDogs?: number;
+}) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    const sets: string[] = [];
+    const params: any[] = [];
+    if (data.dogSitterBio !== undefined) { sets.push("dogSitterBio = ?"); params.push(data.dogSitterBio); }
+    if (data.dogSitterRates !== undefined) { sets.push("dogSitterRates = ?"); params.push(JSON.stringify(data.dogSitterRates)); }
+    if (data.dogSitterAvailable !== undefined) { sets.push("dogSitterAvailable = ?"); params.push(data.dogSitterAvailable ? 1 : 0); }
+    if (data.dogSitterMaxDogs !== undefined) { sets.push("dogSitterMaxDogs = ?"); params.push(data.dogSitterMaxDogs); }
+    if (sets.length === 0) return true;
+    params.push(userId);
+    await pool.execute(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, params);
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update dog sitter profile:", error);
+    return false;
+  }
+}
+
+export async function toggleDogForBoarding(dogId: number, userId: number, available: boolean) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE dogs SET availableForBoarding = ? WHERE id = ? AND userId = ?`,
+      [available ? 1 : 0, dogId, userId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to toggle dog for boarding:", error);
+    return false;
+  }
+}
+
+export async function getAvailableDogsForBoarding(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    // Dogs marked as available, owned by someone who is NOT the sitter
+    const [rows] = await pool.execute(
+      `SELECT d.*, u.name as ownerName, u.profilePhotoUrl as ownerPhoto, u.phoneNumber as ownerPhone,
+              u.latitude as ownerLat, u.longitude as ownerLng, u.bio as ownerBio
+       FROM dogs d
+       JOIN users u ON d.userId = u.id
+       WHERE d.availableForBoarding = TRUE AND d.userId != ?
+       ORDER BY d.updatedAt DESC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get available dogs for boarding:", error);
+    return [];
+  }
+}
+
+export async function createBoardingRequest(data: {
+  dogId: number;
+  ownerId: number;
+  sitterId: number;
+  startDate: Date;
+  endDate: Date;
+  message?: string;
+  totalPrice?: number;
+  ownerPhone?: string;
+}) {
+  const pool = getPool();
+  if (!pool) return null;
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO boarding_requests (dogId, ownerId, sitterId, startDate, endDate, message, totalPrice, ownerPhone, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [data.dogId, data.ownerId, data.sitterId, data.startDate, data.endDate, data.message ?? null, data.totalPrice ?? null, data.ownerPhone ?? null]
+    );
+    return (result as any).insertId as number;
+  } catch (error) {
+    console.error("[Database] Failed to create boarding request:", error);
+    return null;
+  }
+}
+
+export async function getBoardingRequestsForSitter(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.age as dogAge, d.photoUrls as dogPhotoUrls,
+              u.name as ownerName, u.profilePhotoUrl as ownerPhoto, u.phoneNumber as ownerPhone
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.ownerId = u.id
+       WHERE br.sitterId = ?
+       ORDER BY br.createdAt DESC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get boarding requests for sitter:", error);
+    return [];
+  }
+}
+
+export async function getBoardingRequestsForOwner(ownerId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.photoUrls as dogPhotoUrls,
+              u.name as sitterName, u.profilePhotoUrl as sitterPhoto, u.phoneNumber as sitterPhone,
+              u.dogSitterRates as sitterRates, u.dogSitterBio as sitterBio
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.sitterId = u.id
+       WHERE br.ownerId = ?
+       ORDER BY br.createdAt DESC`,
+      [ownerId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get boarding requests for owner:", error);
+    return [];
+  }
+}
+
+export async function respondToBoardingRequest(requestId: number, sitterId: number, status: 'accepted' | 'rejected') {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE boarding_requests SET status = ? WHERE id = ? AND sitterId = ?`,
+      [status, requestId, sitterId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to respond to boarding request:", error);
+    return false;
+  }
+}
+
+export async function completeBoardingRequest(requestId: number, sitterId: number) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE boarding_requests SET status = 'completed' WHERE id = ? AND sitterId = ?`,
+      [requestId, sitterId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to complete boarding request:", error);
+    return false;
+  }
+}
+
+export async function getActiveBoardingsForSitter(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.age as dogAge, d.photoUrls as dogPhotoUrls,
+              u.name as ownerName, u.phoneNumber as ownerPhone, u.profilePhotoUrl as ownerPhoto
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.ownerId = u.id
+       WHERE br.sitterId = ? AND br.status = 'accepted' AND br.endDate >= NOW()
+       ORDER BY br.startDate ASC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get active boardings:", error);
+    return [];
+  }
+}
+
+export async function updateDogSitterStatusAdmin(userId: number, status: 'approved' | 'rejected') {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE users SET dogSitterStatus = ? WHERE id = ?`,
+      [status, userId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update dog sitter status:", error);
+    return false;
+  }
+}
+
+export async function getPendingDogSitters() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, email, phoneNumber, dogSitterBio, dogSitterRates, dogSitterMaxDogs, dogSitterStatus, createdAt
+       FROM users WHERE isDogSitter = TRUE AND dogSitterStatus = 'pending'
+       ORDER BY createdAt DESC`
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get pending dog sitters:", error);
+    return [];
+  }
+}
+

@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Star, Dog, Camera } from "lucide-react";
+import { Plus, Edit2, Trash2, Star, Dog, Camera, Home, Heart } from "lucide-react";
 
 // Helper to safely parse JSON fields
 function parsePhotoUrls(raw: any): string[] {
@@ -36,7 +36,7 @@ export default function DogsPage() {
     onSuccess: () => {
       toast.success("Chien créé avec succès!");
       setIsCreating(false);
-      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
+      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [], sex: "unknown", openToBreeding: false, breedingInfo: "", availableForBoarding: false });
       refetch();
     },
     onError: (error) => {
@@ -49,7 +49,7 @@ export default function DogsPage() {
     onSuccess: () => {
       toast.success("Chien mis à jour avec succès!");
       setEditingDogId(null);
-      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
+      setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [], sex: "unknown", openToBreeding: false, breedingInfo: "", availableForBoarding: false });
       refetch();
     },
     onError: (error) => {
@@ -65,6 +65,10 @@ export default function DogsPage() {
     description: "",
     personality: [] as string[],
     photoUrls: [] as string[],
+    sex: "unknown" as "male" | "female" | "unknown",
+    openToBreeding: false,
+    breedingInfo: "",
+    availableForBoarding: false,
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -129,6 +133,10 @@ export default function DogsPage() {
       description: formData.description || undefined,
       personality: formData.personality.length > 0 ? formData.personality : undefined,
       photoUrls: formData.photoUrls.filter(url => url.trim()).length > 0 ? formData.photoUrls.filter(url => url.trim()) : undefined,
+      sex: formData.sex,
+      openToBreeding: formData.openToBreeding,
+      breedingInfo: formData.breedingInfo || undefined,
+      availableForBoarding: formData.availableForBoarding,
     };
     if (editingDogId) {
       await updateDogMutation.mutateAsync({ dogId: editingDogId, ...payload });
@@ -146,13 +154,17 @@ export default function DogsPage() {
       description: dog.description || "",
       personality: parsePersonality(dog.personality),
       photoUrls: parsePhotoUrls(dog.photoUrls),
+      sex: dog.sex || "unknown",
+      openToBreeding: !!dog.openToBreeding,
+      breedingInfo: dog.breedingInfo || "",
+      availableForBoarding: !!dog.availableForBoarding,
     });
   };
 
   const cancelEdit = () => {
     setEditingDogId(null);
     setIsCreating(false);
-    setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [] });
+    setFormData({ name: "", breed: "", age: "", description: "", personality: [], photoUrls: [], sex: "unknown", openToBreeding: false, breedingInfo: "", availableForBoarding: false });
   };
 
   if (isLoading) {
@@ -226,6 +238,68 @@ export default function DogsPage() {
                       <label htmlFor={`trait-${trait}`} className="text-sm cursor-pointer">{trait}</label>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Sexe */}
+              <div>
+                <Label className="mb-2 block">Sexe</Label>
+                <div className="flex gap-3">
+                  {(["male", "female", "unknown"] as const).map(s => (
+                    <label key={s} className={`flex items-center gap-2 px-3 py-2 border-2 rounded-lg cursor-pointer transition-all ${
+                      formData.sex === s ? "border-black bg-amber-100" : "border-gray-200 hover:border-gray-400"
+                    }`}>
+                      <input type="radio" name="sex" value={s} checked={formData.sex === s}
+                        onChange={() => setFormData(prev => ({ ...prev, sex: s }))} className="hidden" />
+                      <span className="text-sm font-semibold">
+                        {s === "male" ? "♂ Mâle" : s === "female" ? "♀ Femelle" : "? Non précisé"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reproduction */}
+              <div className="border-2 border-dashed border-pink-300 rounded-xl p-4 bg-pink-50/40">
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-pink-800 font-bold">🌸 Reproduction</Label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.openToBreeding}
+                      onChange={e => setFormData(prev => ({ ...prev, openToBreeding: e.target.checked }))}
+                      className="w-4 h-4 accent-pink-500"
+                    />
+                    <span className="text-sm font-semibold text-pink-700">Ouvert à la reproduction</span>
+                  </label>
+                </div>
+                {formData.openToBreeding && (
+                  <Textarea
+                    placeholder="Infos reproduction (tests génétiques, conditions, race ciblée...)"
+                    value={formData.breedingInfo}
+                    onChange={e => setFormData(prev => ({ ...prev, breedingInfo: e.target.value }))}
+                    className="min-h-20 border-pink-300 focus:border-pink-500"
+                    maxLength={500}
+                  />
+                )}
+              </div>
+
+              {/* Gardiennage */}
+              <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 bg-blue-50/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-blue-800 font-bold">🏠 Gardiennage</Label>
+                    <p className="text-xs text-blue-600 mt-0.5">Ce chien peut-il être gardé par un dog-sitter ?</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.availableForBoarding}
+                      onChange={e => setFormData(prev => ({ ...prev, availableForBoarding: e.target.checked }))}
+                      className="w-4 h-4 accent-blue-500"
+                    />
+                    <span className="text-sm font-semibold text-blue-700">Disponible pour gardiennage</span>
+                  </label>
                 </div>
               </div>
 
@@ -386,6 +460,20 @@ export default function DogsPage() {
                         Photo favorite
                       </div>
                     )}
+
+                    {/* Boarding badge */}
+                    {dog.availableForBoarding && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1 bg-blue-400 text-white text-xs font-black px-2 py-1 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏠 Gardiennage
+                      </div>
+                    )}
+
+                    {/* Breeding badge */}
+                    {dog.openToBreeding && (
+                      <div className={`absolute ${dog.availableForBoarding ? 'top-11' : 'top-3'} right-3 flex items-center gap-1 bg-pink-400 text-white text-xs font-black px-2 py-1 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}>
+                        🌸 Reproduction
+                      </div>
+                    )}  
 
                     {/* Photos count badge */}
                     {photos.length > 1 && (
