@@ -5,6 +5,7 @@ import { publicProcedure, router, protectedProcedure, authRateLimitedProcedure }
 import { z } from "zod";
 import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
+import * as forumDb from "./forumDb";
 import { TRPCError } from "@trpc/server";
 import { calculateCompatibility, getAffinities } from "@shared/compatibilityEngine";
 import bcrypt from "bcryptjs";
@@ -17,7 +18,7 @@ import crypto from "crypto";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 
-export const appRouter = router({
+export const _appRouterBase = router({
   system: systemRouter,
   storage: router({
     uploadPhoto: protectedProcedure
@@ -1770,7 +1771,6 @@ export const appRouter = router({
   }),
 });
 
-export type AppRouter = typeof appRouter;
 
 export async function triggerN8nWebhook(event: string, data: any) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
@@ -1789,3 +1789,284 @@ export async function triggerN8nWebhook(event: string, data: any) {
     console.error(`[Webhook] Failed to send ${event} to n8n:`, error.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FORUM ROUTER (intégré dans appRouter via forum: forumRouter)
+// Voir routers.ts — l'export est fait directement via appRouter ci-dessous.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const forumRouter = router({
+  // ─── Public ───────────────────────────────────────────────────────────────
+
+  /** Toutes les catégories du forum */
+  getCategories: publicProcedure.query(async () => {
+    return await forumDb.forumGetCategories();
+  }),
+
+  /** Liste paginable de posts avec filtres */
+  getPosts: publicProcedure
+    .input(z.object({
+      categorySlug: z.string().optional(),
+      sort: z.enum(["recent", "popular", "unanswered", "trending"]).optional().default("recent"),
+      tag: z.string().optional(),
+      page: z.number().int().positive().optional().default(1),
+      limit: z.number().int().min(1).max(50).optional().default(20),
+    }))
+    .query(async ({ input }) => {
+      return await forumDb.forumGetPosts(input);
+    }),
+
+  /** Un post complet avec ses réponses */
+  getPost: publicProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number | undefined;
+      const post = await forumDb.forumGetPost(input.postId, userId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      return post;
+    }),
+
+  /** Recherche full-text */
+  search: publicProcedure
+    .input(z.object({ query: z.string().min(2), limit: z.number().optional().default(20) }))
+    .query(async ({ input }) => {
+      return await forumDb.forumSearch(input.query, input.limit);
+    }),
+
+  // ─── Protégé (utilisateur connecté) ────────────────────────────────────────
+
+  /** Créer un post */
+  createPost: protectedProcedure
+    .input(z.object({
+      categoryId: z.number().int().positive(),
+      title: z.string().min(5).max(300),
+      body: z.string().min(10).max(50000),
+      tags: z.array(z.string().max(30)).max(5).optional().default([]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await forumDb.forumCreatePost({
+        ...input,
+        authorId: (ctx as any).userId,
+      });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de créer le post" });
+      return result;
+    }),
+
+  /** Modifier un post (auteur seulement) */
+  updatePost: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      title: z.string().min(5).max(300).optional(),
+      body: z.string().min(10).max(50000).optional(),
+      tags: z.array(z.string().max(30)).max(5).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Non autorisé" });
+      const { postId, ...data } = input;
+      await forumDb.forumUpdatePost(postId, data);
+      return { success: true };
+    }),
+
+  /** Supprimer un post (auteur ou admin) */
+  deletePost: protectedProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const userRole = (ctx as any).userRole as string;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.authorId !== userId && userRole !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Non autorisé" });
+      }
+      await forumDb.forumSoftDeletePost(input.postId);
+      return { success: true };
+    }),
+
+  /** Répondre à un post */
+  createReply: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      body: z.string().min(2).max(20000),
+      parentReplyId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      // Vérifier que le post n'est pas verrouillé
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.isLocked) throw new TRPCError({ code: "FORBIDDEN", message: "Ce post est verrouillé" });
+      const result = await forumDb.forumCreateReply({ ...input, authorId: userId });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de créer la réponse" });
+      return result;
+    }),
+
+  /** Modifier une réponse (auteur seulement) */
+  updateReply: protectedProcedure
+    .input(z.object({
+      replyId: z.number().int().positive(),
+      body: z.string().min(2).max(20000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const pool = db.getPool();
+      if (pool) {
+        const [[reply]] = await pool.execute(
+          `SELECT authorId FROM forum_replies WHERE id = ? AND deletedAt IS NULL`, [input.replyId]
+        ) as any;
+        if (!reply) throw new TRPCError({ code: "NOT_FOUND" });
+        if (reply.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await forumDb.forumUpdateReply(input.replyId, input.body);
+      return { success: true };
+    }),
+
+  /** Supprimer une réponse */
+  deleteReply: protectedProcedure
+    .input(z.object({ replyId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const userRole = (ctx as any).userRole as string;
+      const pool = db.getPool();
+      if (pool) {
+        const [[reply]] = await pool.execute(
+          `SELECT authorId FROM forum_replies WHERE id = ? AND deletedAt IS NULL`, [input.replyId]
+        ) as any;
+        if (!reply) throw new TRPCError({ code: "NOT_FOUND" });
+        if (reply.authorId !== userId && userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await forumDb.forumSoftDeleteReply(input.replyId);
+      return { success: true };
+    }),
+
+  /** Vote sur un post ou une réponse (+1/-1) */
+  vote: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      value: z.union([z.literal(1), z.literal(-1)]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const result = await forumDb.forumVote(userId, input.targetType, input.targetId, input.value);
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Vote échoué" });
+      return result;
+    }),
+
+  /** Toggle réaction emoji */
+  react: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      emoji: z.enum(["heart", "laugh", "celebrate", "eyes", "paw"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      return await forumDb.forumToggleReaction(userId, input.targetType, input.targetId, input.emoji);
+    }),
+
+  /** Toggle bookmark */
+  bookmark: protectedProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      return await forumDb.forumToggleBookmark(userId, input.postId);
+    }),
+
+  /** Marquer une réponse comme meilleure réponse (auteur du post seulement) */
+  acceptAnswer: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      replyId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+      if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Seul l'auteur peut accepter une réponse" });
+      await forumDb.forumAcceptAnswer(input.postId, input.replyId);
+      return { success: true };
+    }),
+
+  /** Signaler un post ou une réponse */
+  report: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      reason: z.enum(["spam", "inappropriate", "harassment", "misinformation", "other"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).userId as number;
+      await forumDb.forumReport({ reporterId: userId, ...input });
+      return { success: true };
+    }),
+
+  /** Mes bookmarks */
+  getMyBookmarks: protectedProcedure.query(async ({ ctx }) => {
+    const userId = (ctx as any).userId as number;
+    return await forumDb.forumGetMyBookmarks(userId);
+  }),
+
+  /** Mes posts */
+  getMyPosts: protectedProcedure.query(async ({ ctx }) => {
+    const userId = (ctx as any).userId as number;
+    return await forumDb.forumGetMyPosts(userId);
+  }),
+
+  /** Mon karma */
+  getMyKarma: protectedProcedure.query(async ({ ctx }) => {
+    const userId = (ctx as any).userId as number;
+    return { karma: await forumDb.forumGetUserKarma(userId) };
+  }),
+
+  // ─── Modération (admin seulement) ──────────────────────────────────────────
+
+  pinPost: protectedProcedure
+    .input(z.object({ postId: z.number(), isPinned: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumPinPost(input.postId, input.isPinned);
+      return { success: true };
+    }),
+
+  lockPost: protectedProcedure
+    .input(z.object({ postId: z.number(), isLocked: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumLockPost(input.postId, input.isLocked);
+      return { success: true };
+    }),
+
+  setPostStatus: protectedProcedure
+    .input(z.object({ postId: z.number(), status: z.enum(["open", "solved", "closed"]) }))
+    .mutation(async ({ input, ctx }) => {
+      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumSetPostStatus(input.postId, input.status);
+      return { success: true };
+    }),
+
+  getPendingReports: protectedProcedure.query(async ({ ctx }) => {
+    if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    return await forumDb.forumGetPendingReports();
+  }),
+
+  reviewReport: protectedProcedure
+    .input(z.object({ reportId: z.number(), status: z.enum(["reviewed", "dismissed"]) }))
+    .mutation(async ({ input, ctx }) => {
+      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumReviewReport(input.reportId, input.status);
+      return { success: true };
+    }),
+});
+
+// ─── Export final appRouter ────────────────────────────────────────────────
+// forumRouter déclaré ici (après _appRouterBase) pour éviter l'erreur
+// "Cannot access before initialization" en Vitest ESM.
+// On reconstruit appRouter en incluant forum via router() standard.
+export const appRouter = router({
+  ..._appRouterBase._def.procedures,
+  forum: forumRouter,
+});
+export type AppRouter = typeof appRouter;

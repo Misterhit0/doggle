@@ -33,6 +33,10 @@ import TermsPage from "./pages/TermsPage";
 import CookiesPage from "./pages/CookiesPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import DogSitterDashboardPage from "./pages/DogSitterDashboardPage";
+import ForumHomePage from "./pages/ForumHomePage";
+import ForumCategoryPage from "./pages/ForumCategoryPage";
+import ForumPostPage from "./pages/ForumPostPage";
+import ForumNewPostPage from "./pages/ForumNewPostPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -69,6 +73,11 @@ function Router() {
           <Route path="/cookies" component={CookiesPage} />
           <Route path="/admin" component={AdminDashboardPage} />
           <Route path="/dog-sitter" component={DogSitterDashboardPage} />
+          {/* Forum — l'ordre compte : /forum/new et /forum/post/:id avant /forum/:slug */}
+          <Route path="/forum" component={ForumHomePage} />
+          <Route path="/forum/new" component={ForumNewPostPage} />
+          <Route path="/forum/post/:id" component={ForumPostPage} />
+          <Route path="/forum/:slug" component={ForumCategoryPage} />
           <Route path="/404" component={NotFound} />
           {/* Final fallback route */}
           <Route component={NotFound} />

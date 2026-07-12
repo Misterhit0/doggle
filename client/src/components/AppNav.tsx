@@ -14,6 +14,7 @@ import {
   AlertCircle,
   ShieldAlert,
   Dog,
+  MessageSquare,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { label: 'Événements', href: '/events', icon: Calendar },
   { label: 'Chiens perdus', href: '/lost-dogs', icon: AlertCircle },
   { label: 'Carte de balade', href: '/walking-map', icon: Map },
+  { label: 'Forum', href: '/forum', icon: MessageSquare },
   { label: 'Favoris', href: '/favorites', icon: Heart },
   { label: 'Historique', href: '/history', icon: History },
 ];
@@ -40,6 +42,7 @@ const BOTTOM_ITEMS = [
   { label: 'Découvrir', href: '/discovery', icon: Compass },
   { label: 'Balades', href: '/walking-map', icon: Map },
   { label: 'Matchs', href: '/matches', icon: Heart },
+  { label: 'Forum', href: '/forum', icon: MessageSquare },
   { label: 'Profil', href: '/profile', icon: User },
 ];
 
