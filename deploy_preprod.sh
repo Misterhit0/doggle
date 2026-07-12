@@ -77,6 +77,9 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
         set -e
         cd $VPS_PREPROD_DIR
 
+        echo '🧹 Cleaning untracked files...'
+        git clean -fd
+
         echo '📦 Git pull...'
         git pull origin preprod
 
