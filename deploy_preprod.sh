@@ -72,16 +72,32 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     git merge "$CURRENT_BRANCH"
     git push origin preprod
 
-    echo -e "\n${BLUE}5. Déploiement sur le VPS preprod via git pull...${NC}"
+    echo -e "\n${BLUE}5. Déploiement sur le VPS preprod...${NC}"
     ssh "$VPS_HOST" "
         set -e
         cd $VPS_PREPROD_DIR
+
+        echo '📦 Git pull...'
         git pull origin preprod
+
+        echo '📦 Install dependencies...'
         pnpm install --frozen-lockfile
+
+        echo '🗃️  Running database migrations...'
+        pnpm db:migrate
+
+        echo '🏗️  Building application...'
         pnpm build
+
+        echo '🔄 Restarting PM2...'
         pm2 restart $PM2_APP_NAME
+
         echo '✅ VPS preprod redémarré avec succès'
-    " && echo -e "${GREEN}✓ Déploiement VPS preprod réussi !${NC}" || echo -e "${RED}❌ Erreur lors du déploiement VPS — vérifiez manuellement.${NC}"
+    " && echo -e "${GREEN}✓ Déploiement VPS preprod réussi !${NC}" || {
+        echo -e "${RED}❌ Erreur lors du déploiement VPS — vérifiez manuellement.${NC}"
+        git checkout "$CURRENT_BRANCH"
+        exit 1
+    }
 
     # Switch back to working branch
     git checkout "$CURRENT_BRANCH"

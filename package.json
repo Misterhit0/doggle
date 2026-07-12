@@ -11,7 +11,10 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "db:seed": "tsx server/seed.ts"
+    "db:seed": "tsx server/seed.ts",
+    "db:migrate": "tsx server/migrate.ts",
+    "db:migrate:no-admin": "tsx server/migrate.ts --no-admin",
+    "db:admin": "tsx server/migrate.ts --admin-only"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
