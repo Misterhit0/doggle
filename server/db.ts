@@ -1333,10 +1333,14 @@ export async function migrateDatabase() {
 
     // Seed default plans
     await pool.execute(`
-      INSERT IGNORE INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
+      INSERT INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
       ('free', 10, 1, 0.00),
-      ('premium', 20, 2, 4.99),
-      ('vip', -1, 5, 9.99)
+      ('premium', -1, 999, 4.99),
+      ('vip', -1, 999, 19.99)
+      ON DUPLICATE KEY UPDATE 
+        maxSwipesPerDay = VALUES(maxSwipesPerDay), 
+        maxFavoritesPerDay = VALUES(maxFavoritesPerDay), 
+        price = VALUES(price)
     `);
     console.log("[Database] Default plan settings seeded.");
 
@@ -1507,6 +1511,23 @@ export async function getDailyFavoriteCount(userId: number): Promise<number> {
   }
 }
 
+export async function getActiveDiscussionsCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const query = `
+      SELECT COUNT(DISTINCT m.id) as count
+      FROM matches m
+      JOIN messages msg ON m.id = msg.matchId
+      WHERE m.userId1 = ? OR m.userId2 = ?
+    `;
+    const [rows] = await pool.execute(query, [userId, userId]);
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get active discussions count:", error);
+    return 0;
+  }
+}
 
 export async function usersAreMatched(userId1: number, userId2: number): Promise<boolean> {
   const match1 = await getMatch(userId1, userId2);

@@ -543,7 +543,7 @@ export default function AdminDashboardPage() {
                                   ? "bg-cyan-200 text-cyan-900" 
                                   : "bg-neutral-100 text-neutral-800"
                               }`}>
-                                {userObj.plan || "free"}
+                                {userObj.plan === "vip" ? "Pro" : userObj.plan === "premium" ? "WoofPass" : "Standard"}
                               </span>
                             </div>
                           </td>
@@ -785,7 +785,7 @@ export default function AdminDashboardPage() {
                           ? "bg-cyan-300" 
                           : "bg-yellow-300"
                       }`}>
-                        Plan {planKey === "free" ? "Gratuit" : planKey === "premium" ? "Premium" : "VIP"}
+                        Plan {planKey === "free" ? "Standard (Gratuit)" : planKey === "premium" ? "WoofPass Premium" : "Pack Visibilité Pro"}
                       </span>
 
                       <form
@@ -1340,9 +1340,9 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditFormData(prev => ({ ...prev, plan: e.target.value as any }))}
                     className="w-full bg-white border-2 border-black font-semibold text-xs p-2 rounded shadow-[2px_2px_0_0_rgba(0,0,0,1)]"
                   >
-                    <option value="free">Gratuit</option>
-                    <option value="premium">Premium</option>
-                    <option value="vip">VIP</option>
+                    <option value="free">Standard (Gratuit)</option>
+                    <option value="premium">WoofPass Premium</option>
+                    <option value="vip">Pack Visibilité Pro</option>
                   </select>
                 </div>
               </div>

@@ -834,12 +834,26 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // TODO: Verify user is part of this match
+        const match = await db.getMatchById(input.matchId);
+        if (!match || (match.userId1 !== ctx.user.id && match.userId2 !== ctx.user.id)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You are not part of this match" });
+        }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const userPlan = freshUser?.plan || "free";
+        if (userPlan === "free") {
+          const messagesInMatch = await db.getMessagesForMatch(input.matchId);
+          if (messagesInMatch.length === 0) {
+            const activeDiscussions = await db.getActiveDiscussionsCount(ctx.user.id);
+            if (activeDiscussions >= 3) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "DISCUSSION_LIMIT_EXCEEDED" });
+            }
+          }
+        }
+
         await db.sendMessage(input.matchId, ctx.user.id, input.content);
         logger.message(input.matchId, ctx.user.id, input.content, "Message sent successfully");
 
-        // Fetch the match details to find the recipient!
-        const match = await db.getMatchById(input.matchId);
         if (match) {
           const recipientId = match.userId1 === ctx.user.id ? match.userId2 : match.userId1;
           const sender = await db.getUserById(ctx.user.id);
