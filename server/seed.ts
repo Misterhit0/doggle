@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 
 const SEED_USERS = [
   {
-    email: "admin@woofyz.fr",
+    email: "contact@woofyz.com",
     name: "Administrateur Woofyz",
     age: 30,
     bio: "Compte d'administration global pour valider les membres et gérer l'application.",

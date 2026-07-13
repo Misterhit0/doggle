@@ -197,7 +197,7 @@ security: correction de faille de sécurité
 
 | Environnement | Email | Mot de passe | Rôle |
 |--------------|-------|--------------|------|
-| Preprod / NewPreprod | admin@woofyz.fr | doggle2026 | admin |
+| Preprod / NewPreprod | contact@woofyz.com | doggle2026 | admin |
 
 ---
 

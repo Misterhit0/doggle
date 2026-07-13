@@ -11,7 +11,7 @@ async function createAdmin() {
     process.exit(1);
   }
 
-  const email = "admin@woofyz.fr";
+  const email = "contact@woofyz.com";
   const name = "Admin Woofyz";
   const hashedPassword = await bcrypt.hash("doggle2026", 10);
   const openId = `email_${email}`;
