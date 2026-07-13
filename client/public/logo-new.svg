@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <!-- Arrière-plan Memphis avec ombrage néo-brutaliste -->
+  <rect x="15" y="15" width="170" height="170" rx="36" fill="#FFFFFF" stroke="#2E1A47" stroke-width="6" />
+  
+  <!-- Forme asymétrique d'accentuation en corail canin (#AF3120 oklch(0.68 0.19 32)) -->
+  <path d="M 40,110 A 50,50 0 0,1 140,110 L 140,130 A 10,10 0 0,1 130,140 L 50,140 A 10,10 0 0,1 40,130 Z" fill="#AF3120" stroke="#2E1A47" stroke-width="5" />
+  
+  <!-- Oreille gauche stylisée -->
+  <path d="M 45,75 L 30,30 L 75,55 Z" fill="#5E2EE1" stroke="#2E1A47" stroke-width="5" stroke-linejoin="round" />
+  
+  <!-- Oreille droite stylisée -->
+  <path d="M 155,75 L 170,30 L 125,55 Z" fill="#5E2EE1" stroke="#2E1A47" stroke-width="5" stroke-linejoin="round" />
+  
+  <!-- Visage principal du chien -->
+  <circle cx="100" cy="100" r="50" fill="#FFFFFF" stroke="#2E1A47" stroke-width="6" />
+  
+  <!-- Accentuation oeil gauche (Cercle Memphis Mint #A9EC48 oklch(0.86 0.18 115)) -->
+  <circle cx="80" cy="90" r="14" fill="#A9EC48" stroke="#2E1A47" stroke-width="4" />
+  <circle cx="80" cy="90" r="5" fill="#2E1A47" />
+  
+  <!-- Oeil droit -->
+  <circle cx="120" cy="90" r="8" fill="#2E1A47" />
+  
+  <!-- Museau stylisé contenant le 'W' de Woofyz -->
+  <path d="M 85,115 C 85,130 115,130 115,115 Z" fill="#AF3120" stroke="#2E1A47" stroke-width="4" />
+  
+  <!-- Dessin de la truffe formant un W asymétrique moderne -->
+  <path d="M 92,112 L 96,118 L 100,112 L 104,118 L 108,112" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Joue rose Memphis -->
+  <circle cx="60" cy="115" r="6" fill="#AF3120" opacity="0.3" />
+  <circle cx="140" cy="115" r="6" fill="#AF3120" opacity="0.3" />
+</svg>

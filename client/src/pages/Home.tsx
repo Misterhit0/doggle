@@ -86,7 +86,7 @@ export default function Home() {
         />
         <div className="container relative flex items-center justify-between py-4">
           <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-            <Dog className="w-8 h-8 text-accent" />
+            <img src="/logo-new.svg" alt="Woofyz Logo" className="w-8 h-8 object-contain" />
             <span className="text-2xl font-bold uppercase text-foreground">Woofyz</span>
           </a>
           <div className="flex items-center gap-4">

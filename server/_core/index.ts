@@ -66,7 +66,15 @@ async function startServer() {
 
   // Custom CORS Configuration
   app.use((req, res, next) => {
-    const allowedOrigins = ["https://doggle.cloud", "https://preprod.doggle.cloud", "http://localhost:3000", "http://localhost:3001"];
+    const allowedOrigins = [
+      "https://doggle.cloud",
+      "https://preprod.doggle.cloud",
+      "https://newpreprod.doggle.cloud",
+      "https://newpreprod.woofyz.com",
+      "http://187.55.227.99:3002",
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ];
     const origin = req.headers.origin;
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);

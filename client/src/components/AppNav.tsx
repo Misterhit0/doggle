@@ -74,10 +74,7 @@ export default function AppNav() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <a href="/discovery" className="flex items-center gap-2 font-black text-xl tracking-tight">
-              {/* Memphis logo bubble */}
-              <div className="w-8 h-8 rounded-full bg-accent border-2 border-black flex items-center justify-center shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]">
-                <span className="text-accent-foreground font-black text-xs">🐾</span>
-              </div>
+              <img src="/logo-new.svg" alt="Woofyz Logo" className="w-8 h-8 object-contain" />
               <span className="text-foreground uppercase font-black tracking-widest text-lg">Woofyz</span>
             </a>
 
