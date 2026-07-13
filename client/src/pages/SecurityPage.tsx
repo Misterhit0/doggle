@@ -10,7 +10,7 @@ export default function SecurityPage() {
     {
       icon: EyeOff,
       title: "Zone de Protection Confidentielle",
-      desc: "Nous ne partageons jamais votre adresse exacte. Doggle applique un brouillage automatique dans un rayon de 200 mètres autour de votre domicile défini. Seule une zone approximative et anonyme apparaît aux autres maîtres en balade sur la carte.",
+      desc: "Nous ne partageons jamais votre adresse exacte. Woofyz applique un brouillage automatique dans un rayon de 200 mètres autour de votre domicile défini. Seule une zone approximative et anonyme apparaît aux autres maîtres en balade sur la carte.",
       color: "bg-blue-50 border-blue-200 text-blue-600",
     },
     {
@@ -51,7 +51,7 @@ export default function SecurityPage() {
               Votre <span className="text-accent">Sécurité</span> est notre Priorité
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-medium">
-              Parce que connecter des personnes dans le monde réel nécessite une confiance absolue, Doggle intègre des dispositifs de sécurité avancés et uniques.
+              Parce que connecter des personnes dans le monde réel nécessite une confiance absolue, Woofyz intègre des dispositifs de sécurité avancés et uniques.
             </p>
           </motion.div>
 

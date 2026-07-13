@@ -226,7 +226,7 @@ export default function AdminDashboardPage() {
           <ShieldAlert className="w-16 h-16 mx-auto mb-4 text-black" />
           <h1 className="text-3xl font-black uppercase text-black mb-2">Accès Refusé</h1>
           <p className="text-black font-bold text-sm mb-6">
-            Cette zone est réservée exclusivement aux administrateurs de la plateforme Doggle.
+            Cette zone est réservée exclusivement aux administrateurs de la plateforme Woofyz.
           </p>
           <Button 
             onClick={() => window.location.href = "/"}
@@ -291,7 +291,7 @@ export default function AdminDashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-8 h-8 text-black" />
-              <h1 className="text-3xl font-black uppercase tracking-tight">Doggle Admin Dashboard</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tight">Woofyz Admin Dashboard</h1>
             </div>
             <p className="text-xs font-bold text-black/80 mt-1 uppercase">
               Gestion de la préproduction & CRM d'administration générale

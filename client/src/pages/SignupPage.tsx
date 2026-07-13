@@ -59,7 +59,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md p-8 border-2 border-primary/20">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-black uppercase text-black mb-2">Inscription</h1>
-          <p className="text-gray-600">Créez votre compte Doggle</p>
+          <p className="text-gray-600">Créez votre compte Woofyz</p>
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">

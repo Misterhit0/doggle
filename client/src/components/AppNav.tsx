@@ -78,7 +78,7 @@ export default function AppNav() {
               <div className="w-8 h-8 rounded-full bg-accent border-2 border-black flex items-center justify-center shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]">
                 <span className="text-accent-foreground font-black text-xs">🐾</span>
               </div>
-              <span className="text-foreground uppercase font-black tracking-widest text-lg">Doggle</span>
+              <span className="text-foreground uppercase font-black tracking-widest text-lg">Woofyz</span>
             </a>
 
             {/* Desktop Navigation (Hidden on Mobile) */}

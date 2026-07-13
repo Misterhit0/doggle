@@ -10,10 +10,10 @@ NC='\033[0m' # No Color
 
 # VPS Config
 VPS_HOST="root@187.55.227.99"
-VPS_PREPROD_DIR="/var/www/doggle-preprod"
-PM2_APP_NAME="doggle-preprod"
+VPS_PREPROD_DIR="/var/www/woofyz-preprod"
+PM2_APP_NAME="woofyz-preprod"
 
-echo -e "${BLUE}=== 🧪 PIPELINE DE DÉPLOIEMENT PRÉPRODUCTION (DOGGLE) ===${NC}"
+echo -e "${BLUE}=== 🧪 PIPELINE DE DÉPLOIEMENT PRÉPRODUCTION (WOOFYZ) ===${NC}"
 
 # Get current branch
 CURRENT_BRANCH=$(git branch --show-current)
@@ -59,7 +59,7 @@ if [ -z "$COMMIT_MSG" ]; then
     COMMIT_MSG="feat: evolution on $CURRENT_BRANCH"
 fi
 
-read -p "Voulez-vous pousser les changements et déployer sur preprod.doggle.cloud ? (y/n) : " CONFIRM
+read -p "Voulez-vous pousser les changements et déployer sur preprod.woofyz.com ? (y/n) : " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "\n${BLUE}3. Commits et push sur GitHub...${NC}"
     git add .
@@ -106,7 +106,7 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     git checkout "$CURRENT_BRANCH"
 
     echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé sur la préproduction.${NC}"
-    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.doggle.cloud${NC}"
+    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.woofyz.com${NC}"
 else
     echo -e "\n${YELLOW}Déploiement annulé.${NC}"
 fi

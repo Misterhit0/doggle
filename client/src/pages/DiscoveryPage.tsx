@@ -667,7 +667,7 @@ export default function DiscoveryPage() {
         <DialogContent className="max-w-md border-3 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-2xl p-6 font-sans">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase text-foreground tracking-wider flex items-center gap-2">
-              <span>💎 Doggle Premium</span>
+              <span>💎 Woofyz Premium</span>
             </DialogTitle>
             <DialogDescription className="text-xs font-bold uppercase text-muted-foreground">
               Débloquez des swipes ou achetez des favoris

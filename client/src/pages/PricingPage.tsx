@@ -9,7 +9,7 @@ const EASE_OUT = [0.16, 1, 0.3, 1];
 export default function PricingPage() {
   const plans = [
     {
-      name: "Doggle Gratuit",
+      name: "Woofyz Gratuit",
       price: "0€",
       period: "à vie",
       desc: "Idéal pour débuter et rencontrer des chiens et maîtres près de chez vous.",
@@ -27,7 +27,7 @@ export default function PricingPage() {
       color: "bg-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
     },
     {
-      name: "Doggle Premium",
+      name: "Woofyz Premium",
       price: "4.99€",
       period: "par mois",
       desc: "Boostez l'efficacité de vos rencontres et gérez plusieurs chiens.",
@@ -45,7 +45,7 @@ export default function PricingPage() {
       color: "bg-cyan-50 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ring-2 ring-cyan-300/30",
     },
     {
-      name: "Doggle VIP",
+      name: "Woofyz VIP",
       price: "9.99€",
       period: "par mois",
       desc: "Swipes illimités et visibilité maximale pour les passionnés.",
@@ -82,7 +82,7 @@ export default function PricingPage() {
               Nos formules & <span className="text-accent">Tarifs</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-medium">
-              Chez Doggle, les fonctionnalités essentielles restent gratuites. Nous proposons un abonnement de soutien pour les maîtres passionnés.
+              Chez Woofyz, les fonctionnalités essentielles restent gratuites. Nous proposons un abonnement de soutien pour les maîtres passionnés.
             </p>
           </motion.div>
 

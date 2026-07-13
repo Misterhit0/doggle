@@ -10,10 +10,10 @@ NC='\033[0m' # No Color
 
 # VPS Config
 VPS_HOST="root@187.55.227.99"
-VPS_PROD_DIR="/var/www/doggle"
-PM2_APP_NAME="doggle"
+VPS_PROD_DIR="/var/www/woofyz"
+PM2_APP_NAME="woofyz"
 
-echo -e "${RED}=== 🚀 PIPELINE DE DÉPLOIEMENT PRODUCTION (DOGGLE) ===${NC}"
+echo -e "${RED}=== 🚀 PIPELINE DE DÉPLOIEMENT PRODUCTION (WOOFYZ) ===${NC}"
 echo -e "${YELLOW}⚠️  ATTENTION : Ce script déploie sur PRODUCTION. Procédez avec précaution.${NC}"
 
 # Safety check: must be on main branch
@@ -82,4 +82,4 @@ ssh "$VPS_HOST" "
 }
 
 echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé en production.${NC}"
-echo -e "Vérifiez les changements sur : ${BLUE}https://doggle.cloud${NC}"
+echo -e "Vérifiez les changements sur : ${BLUE}https://woofyz.com${NC}"

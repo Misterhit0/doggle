@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Migration 0008 — Forum Communautaire Doggle
+-- Migration 0008 — Forum Communautaire Woofyz
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- 1. Catégories du forum
@@ -103,7 +103,7 @@ CREATE TABLE `forum_reports` (
   FOREIGN KEY (`reporterId`) REFERENCES `users`(`id`) ON DELETE CASCADE
 );
 
--- ─── Seed : 11 catégories Doggle ────────────────────────────────────────────
+-- ─── Seed : 11 catégories Woofyz ────────────────────────────────────────────
 
 INSERT INTO `forum_categories` (`slug`, `title`, `description`, `icon`, `color`, `position`, `isOfficial`) VALUES
   ('questions-generales',    'Questions générales',      'Toutes vos questions sur les chiens',                        '❓', '#6366f1', 1, false),
@@ -116,4 +116,4 @@ INSERT INTO `forum_categories` (`slug`, `title`, `description`, `icon`, `color`,
   ('sorties-balades',        'Sorties & Balades',        'Spots dog-friendly, parcs, plages, cafés',                   '🌳', '#22c55e', 8, false),
   ('accessoires-produits',   'Accessoires & Produits',   'Avis et recommandations d\'achat',                           '🛒', '#f97316', 9, false),
   ('photos-videos',          'Photos & Vidéos',          'Partagez vos plus beaux moments avec votre chien',           '📸', '#ec4899', 10, false),
-  ('annonces',               'Annonces Doggle',          'Posts officiels de l\'équipe Doggle',                        '📢', '#64748b', 11, true);
+  ('annonces',               'Annonces Woofyz',          'Posts officiels de l\'équipe Woofyz',                        '📢', '#64748b', 11, true);

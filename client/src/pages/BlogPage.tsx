@@ -28,7 +28,7 @@ export default function BlogPage() {
       desc: "À la recherche d'espaces clos de qualité pour détacher votre chien en toute sécurité ? Voici notre sélection des meilleurs spots de liberté et de jeux pour votre compagnon.",
       image: "https://images.unsplash.com/photo-1596492784531-6e6eb5ea9993?q=80&w=600&auto=format&fit=crop",
       date: "28 Mai 2026",
-      author: "L'équipe Doggle",
+      author: "L'équipe Woofyz",
       category: "Activités",
     },
   ];
@@ -45,7 +45,7 @@ export default function BlogPage() {
           >
             <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full border-2 border-black bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               <BookOpen className="w-5 h-5 text-accent" />
-              <span className="text-xs font-black uppercase tracking-wider text-foreground">Doggle le Mag'</span>
+              <span className="text-xs font-black uppercase tracking-wider text-foreground">Woofyz le Mag'</span>
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase text-foreground leading-[1.1] mb-6">
               Notre <span className="text-accent">Blog</span> Canin

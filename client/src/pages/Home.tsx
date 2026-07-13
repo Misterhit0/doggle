@@ -87,7 +87,7 @@ export default function Home() {
         <div className="container relative flex items-center justify-between py-4">
           <a href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
             <Dog className="w-8 h-8 text-accent" />
-            <span className="text-2xl font-bold uppercase text-foreground">Doggle</span>
+            <span className="text-2xl font-bold uppercase text-foreground">Woofyz</span>
           </a>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
@@ -131,7 +131,7 @@ export default function Home() {
                   className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase active:scale-95 transition-transform"
                   asChild
                 >
-                  <a href={getLoginUrl()}>Rejoindre Doggle</a>
+                  <a href={getLoginUrl()}>Rejoindre Woofyz</a>
                 </Button>
               </div>
 
@@ -283,7 +283,7 @@ export default function Home() {
                   <div>
                     <h3 className="text-lg font-bold uppercase mb-1 text-foreground">Au-delà du matching canin</h3>
                     <p className="text-muted-foreground">
-                      Doggle est une plateforme communautaire qui valorise les connexions humaines authentiques.
+                      Woofyz est une plateforme communautaire qui valorise les connexions humaines authentiques.
                     </p>
                   </div>
                 </div>
@@ -354,14 +354,14 @@ export default function Home() {
                 Prêt à trouver votre prochain ami ?
               </h2>
               <p className="text-lg text-muted-foreground mb-8 max-w-md">
-                Rejoignez la communauté Doggle et découvrez des connexions authentiques pour vous et votre chien.
+                Rejoignez la communauté Woofyz et découvrez des connexions authentiques pour vous et votre chien.
               </p>
               <Button
                 size="lg"
                 className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold uppercase active:scale-95 transition-transform"
                 asChild
               >
-                <a href={getLoginUrl()}>Rejoindre Doggle</a>
+                <a href={getLoginUrl()}>Rejoindre Woofyz</a>
               </Button>
             </Reveal>
 
@@ -389,7 +389,7 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Dog className="w-6 h-6" />
-                <span className="font-bold uppercase">Doggle</span>
+                <span className="font-bold uppercase">Woofyz</span>
               </div>
               <p className="text-sm text-gray-300">Connecter les maîtres, enrichir les vies.</p>
             </div>
@@ -419,7 +419,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-300">
-            <p>&copy; 2026 Doggle. Tous droits réservés.</p>
+            <p>&copy; 2026 Woofyz. Tous droits réservés.</p>
           </div>
         </div>
       </footer>

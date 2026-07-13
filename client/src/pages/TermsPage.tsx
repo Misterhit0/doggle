@@ -10,17 +10,17 @@ export default function TermsPage() {
     {
       icon: HelpingHand,
       title: "1. Comportement et Bienveillance",
-      desc: "Tous les utilisateurs s'engagent à respecter une charte de bienveillance. Doggle est un espace amical d'entraide. Les propos inappropriés, le spam, les comportements agressifs ou discriminatoires envers des maîtres ou des chiens conduiront à la suspension immédiate du compte.",
+      desc: "Tous les utilisateurs s'engagent à respecter une charte de bienveillance. Woofyz est un espace amical d'entraide. Les propos inappropriés, le spam, les comportements agressifs ou discriminatoires envers des maîtres ou des chiens conduiront à la suspension immédiate du compte.",
     },
     {
       icon: ShieldAlert,
       title: "2. Responsabilité Civile des Maîtres",
-      desc: "Vous restez légalement responsable du comportement de vos animaux de compagnie lors des balades réelles organisées via Doggle. Les chiens doivent être vaccinés, identifiés et tenus en laisse/muselés si la législation locale ou leur tempérament l'impose.",
+      desc: "Vous restez légalement responsable du comportement de vos animaux de compagnie lors des balades réelles organisées via Woofyz. Les chiens doivent être vaccinés, identifiés et tenus en laisse/muselés si la législation locale ou leur tempérament l'impose.",
     },
     {
       icon: Award,
       title: "3. Limitation de Responsabilité",
-      desc: "Doggle agit uniquement en tant que plateforme de mise en relation de voisinage. Nous n'assumons aucune responsabilité quant au déroulement physique des promenades, des gardes informelles ou de tout autre événement physique ou incident direct ou indirect.",
+      desc: "Woofyz agit uniquement en tant que plateforme de mise en relation de voisinage. Nous n'assumons aucune responsabilité quant au déroulement physique des promenades, des gardes informelles ou de tout autre événement physique ou incident direct ou indirect.",
     },
   ];
 
@@ -42,13 +42,13 @@ export default function TermsPage() {
               Conditions de <span className="text-accent">Service</span>
             </h1>
             <p className="text-sm font-semibold text-muted-foreground max-w-xl mx-auto">
-              Dernière mise à jour : 10 Juillet 2026. L'utilisation de Doggle implique l'acceptation pleine et entière des conditions d'utilisation suivantes.
+              Dernière mise à jour : 10 Juillet 2026. L'utilisation de Woofyz implique l'acceptation pleine et entière des conditions d'utilisation suivantes.
             </p>
           </motion.div>
 
           <Card className="p-8 border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-12 space-y-6">
             <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-              Bienvenue sur Doggle ! Nos CGU définissent les règles d'utilisation de nos services en ligne de matching et d'alertes communautaires. En accédant à Doggle, vous acceptez de respecter ces règles.
+              Bienvenue sur Woofyz ! Nos CGU définissent les règles d'utilisation de nos services en ligne de matching et d'alertes communautaires. En accédant à Woofyz, vous acceptez de respecter ces règles.
             </p>
 
             <div className="border-t-2 border-black pt-6 space-y-8">
@@ -67,7 +67,7 @@ export default function TermsPage() {
           </Card>
 
           <div className="text-center text-xs text-muted-foreground font-semibold">
-            Pour signaler un manquement à nos CGU, contactez <a href="mailto:support@doggle.cloud" className="text-accent underline">support@doggle.cloud</a>.
+            Pour signaler un manquement à nos CGU, contactez <a href="mailto:support@woofyz.com" className="text-accent underline">support@woofyz.com</a>.
           </div>
         </div>
       </MemphisBackground>

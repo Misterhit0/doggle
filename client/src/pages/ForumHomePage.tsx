@@ -150,7 +150,7 @@ export default function ForumHomePage() {
               <MessageSquare size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight">Forum Doggle</h1>
+              <h1 className="text-3xl font-black tracking-tight">Forum Woofyz</h1>
               <p className="text-indigo-200 text-sm font-medium">
                 Partagez, apprenez, échangez avec la communauté
               </p>

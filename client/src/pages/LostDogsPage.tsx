@@ -852,7 +852,7 @@ export default function LostDogsPage() {
                   mapInstance.setCenter([2.3522, 46.6]);
                   mapInstance.setZoom(5);
                 }
-                // Place Doggle markers immediately if data already loaded
+                // Place Woofyz markers immediately if data already loaded
                 if (nearbyLostDogs && Array.isArray(nearbyLostDogs)) {
                   placeMarkersOnMap(mapInstance, nearbyLostDogs as any[]);
                 }
@@ -880,10 +880,10 @@ export default function LostDogsPage() {
           <div className="flex flex-wrap gap-3 items-center px-1 py-2 mb-2">
             <span className="text-xs font-black uppercase text-muted-foreground tracking-wider">Afficher :</span>
 
-            {/* Doggle lost dogs */}
+            {/* Woofyz lost dogs */}
             <span className="flex items-center gap-1 text-sm font-bold">
               <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center border border-black">🐕</span>
-              Doggle
+              Woofyz
             </span>
 
             {/* PetAlert toggle */}

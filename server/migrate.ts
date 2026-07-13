@@ -144,7 +144,7 @@ async function seedAdmin() {
 
   const pool = await mysql2.createPool({ host, port, user, password, database });
 
-  const email = "admin@doggle.com";
+  const email = "admin@woofyz.com";
   const hash = await bcrypt.hash("doggle2026", 10);
 
   const [rows] = await pool.execute(
@@ -161,7 +161,7 @@ async function seedAdmin() {
   } else {
     await pool.execute(
       `INSERT INTO users (openId, email, name, hashedPassword, loginMethod, role, createdAt, updatedAt, lastSignedIn)
-       VALUES (?, ?, 'Admin Doggle', ?, 'email', 'admin', NOW(), NOW(), NOW())`,
+       VALUES (?, ?, 'Admin Woofyz', ?, 'email', 'admin', NOW(), NOW(), NOW())`,
       [`email_${email}`, email, hash]
     );
     console.log(`👤 Admin user created: ${email}`);
