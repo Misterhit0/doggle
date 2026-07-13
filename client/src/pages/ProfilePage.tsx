@@ -75,6 +75,7 @@ export default function ProfilePage() {
     bio: profile?.bio || "",
     profilePhotoUrl: profile?.profilePhotoUrl || "",
     phoneNumber: (profile as any)?.phoneNumber || "",
+    dogsittingFriendly: !!profile?.dogsittingFriendly,
     sociability: (profile as any)?.sociability || {
       withDogs: false,
       withChildren: false,
@@ -82,7 +83,6 @@ export default function ProfilePage() {
     },
   });
 
-  // Initialize form state and dogs from profile when available
   useEffect(() => {
     if (profile) {
       setFormData({
@@ -94,6 +94,7 @@ export default function ProfilePage() {
         bio: profile.bio || "",
         profilePhotoUrl: profile.profilePhotoUrl || "",
         phoneNumber: (profile as any).phoneNumber || "",
+        dogsittingFriendly: !!profile.dogsittingFriendly,
         sociability: (profile as any).sociability || {
           withDogs: false,
           withChildren: false,
@@ -174,6 +175,7 @@ export default function ProfilePage() {
       bio: formData.bio || undefined,
       profilePhotoUrl: formData.profilePhotoUrl || undefined,
       phoneNumber: formData.phoneNumber || undefined,
+      dogsittingFriendly: formData.dogsittingFriendly,
     } as any);
   };
 
@@ -222,6 +224,13 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm font-semibold text-muted-foreground mb-2">Zone de balade</p>
                   <p className="text-foreground">{(profile as any)?.walkingZone || "Non renseignée"}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Option Garde & Dog-sitting</p>
+                  <p className="text-foreground font-black uppercase text-xs">
+                    {profile?.dogsittingFriendly ? "✅ Option 'dogsitting friendly' activée" : "❌ Option 'dogsitting friendly' désactivée"}
+                  </p>
                 </div>
 
                 <div>
@@ -440,6 +449,23 @@ export default function ProfilePage() {
                       Mon chien s'entend bien avec les étrangers
                     </label>
                   </div>
+                </div>
+              </div>
+
+              {/* Dog-sitting preference */}
+              <div>
+                <h3 className="text-xl font-bold uppercase mb-4 text-foreground">Option Garde & Dog-sitting</h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="dogsittingFriendly"
+                    checked={formData.dogsittingFriendly}
+                    onCheckedChange={(checked) => {
+                      setFormData(prev => ({ ...prev, dogsittingFriendly: !!checked }));
+                    }}
+                  />
+                  <label htmlFor="dogsittingFriendly" className="text-sm font-bold cursor-pointer">
+                    Activer l'option 'dogsitting friendly' (permet d'être visible par les dog-sitters)
+                  </label>
                 </div>
               </div>
 

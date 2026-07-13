@@ -4,12 +4,18 @@
  */
 
 export interface DogProfile {
+  id?: number;
+  name?: string;
   breed?: string;
   age?: number;
   personality?: string[]; // e.g., ["playful", "calm", "energetic"]
+  description?: string;
 }
 
 export interface MasterProfile {
+  id?: number;
+  isDogSitter?: boolean;
+  dogSitterBio?: string;
   age?: number;
   interests?: string[]; // e.g., ["hiking", "parks", "social"]
   walkingHabits?: string[]; // e.g., ["morning", "evening", "frequent"]
@@ -66,6 +72,19 @@ const BREED_COMPATIBILITY: Record<string, Record<string, number>> = {
   "Border Collie": { "Border Collie": 100, "Golden Retriever": 90, "Labrador": 85, "German Shepherd": 85, "Poodle": 80, "Boxer": 80 },
 };
 
+const SMALL_BREEDS = ["chihuahua", "pomeranian", "pug", "beagle", "dachshund", "shih tzu", "yorkshire", "jack russell", "french bulldog"];
+const MEDIUM_BREEDS = ["cocker spaniel", "border collie", "shiba inu", "bulldog", "poodle", "australian shepherd"];
+const LARGE_BREEDS = ["golden retriever", "labrador", "german shepherd", "boxer", "rottweiler", "great dane", "bernese mountain dog", "siberian husky"];
+
+function getBreedSize(breed?: string): "small" | "medium" | "large" | "unknown" {
+  if (!breed) return "unknown";
+  const b = breed.toLowerCase().trim();
+  if (SMALL_BREEDS.some(x => b.includes(x))) return "small";
+  if (MEDIUM_BREEDS.some(x => b.includes(x))) return "medium";
+  if (LARGE_BREEDS.some(x => b.includes(x))) return "large";
+  return "unknown";
+}
+
 /**
  * Matrice de compatibilité entre intérêts
  */
@@ -105,7 +124,7 @@ const WALKING_HABITS_COMPATIBILITY: Record<string, Record<string, number>> = {
  * Les chiens du même âge ou proches en âge sont plus compatibles
  */
 function calculateAgeCompatibility(age1?: number, age2?: number): number {
-  if (!age1 || !age2) return 50; // Pas d'info = score neutre
+  if (age1 === undefined || age2 === undefined) return 50; // Pas d'info = score neutre
 
   const ageDiff = Math.abs(age1 - age2);
 
@@ -170,7 +189,7 @@ function calculateBreedCompatibility(breed1?: string, breed2?: string): number {
   const normalizedBreed1 = breed1.trim();
   const normalizedBreed2 = breed2.trim();
 
-  if (normalizedBreed1 === normalizedBreed2) return 100; // Même race = 100
+  if (normalizedBreed1.toLowerCase() === normalizedBreed2.toLowerCase()) return 100; // Même race = 100
 
   const score = BREED_COMPATIBILITY[normalizedBreed1]?.[normalizedBreed2] ?? 50;
   return score;
@@ -182,10 +201,49 @@ function calculateBreedCompatibility(breed1?: string, breed2?: string): number {
 function calculateDogCompatibility(dog1: DogProfile, dog2: DogProfile): number {
   const personalityScore = calculateDogPersonalityCompatibility(dog1.personality, dog2.personality);
   const ageScore = calculateAgeCompatibility(dog1.age, dog2.age);
-  const breedScore = calculateBreedCompatibility(dog1.breed, dog2.breed);
+  
+  // Breed compatibility base
+  let breedScore = calculateBreedCompatibility(dog1.breed, dog2.breed);
+  
+  // Size adjustments
+  const size1 = getBreedSize(dog1.breed);
+  const size2 = getBreedSize(dog2.breed);
+  
+  if (size1 !== "unknown" && size2 !== "unknown") {
+    if (size1 === size2) {
+      breedScore = Math.min(100, breedScore + 15);
+    } else if ((size1 === "small" && size2 === "large") || (size1 === "large" && size2 === "small")) {
+      const dog1IsGentle = dog1.personality?.some(p => p === "gentle" || p === "friendly" || p === "social");
+      const dog2IsGentle = dog2.personality?.some(p => p === "gentle" || p === "friendly" || p === "social");
+      if (!dog1IsGentle && !dog2IsGentle) {
+        breedScore = Math.max(20, breedScore - 15);
+      }
+    }
+  }
 
-  // Pondération : personnalité (50%), âge (30%), race (20%)
-  return Math.round(personalityScore * 0.5 + ageScore * 0.3 + breedScore * 0.2);
+  // Identical characteristics overlap count
+  let characteristicsScore = 50; // base characteristics similarity
+  
+  // Same breed
+  if (dog1.breed && dog2.breed && dog1.breed.trim().toLowerCase() === dog2.breed.trim().toLowerCase()) {
+    characteristicsScore += 20;
+  }
+  
+  // Overlapping personality traits
+  if (dog1.personality && dog2.personality) {
+    const common = dog1.personality.filter(p => dog2.personality?.includes(p));
+    characteristicsScore += common.length * 10;
+  }
+
+  // Same age
+  if (dog1.age !== undefined && dog2.age !== undefined && dog1.age === dog2.age) {
+    characteristicsScore += 10;
+  }
+
+  characteristicsScore = Math.min(100, Math.max(10, characteristicsScore));
+
+  // Pondération : personnalité (40%), race (30%), âge (15%), caractéristiques identiques (15%)
+  return Math.round(personalityScore * 0.4 + breedScore * 0.3 + ageScore * 0.15 + characteristicsScore * 0.15);
 }
 
 /**
@@ -255,6 +313,83 @@ function calculateMasterCompatibility(master1: MasterProfile, master2: MasterPro
 }
 
 /**
+ * Calcule la compatibilité spécifique d'un dog sitter avec le chien d'un propriétaire
+ * Basé uniquement sur les mots-clés correspondants
+ */
+function calculateSitterDogCompatibility(
+  sitterMaster: MasterProfile,
+  ownerDog: DogProfile,
+  ownerMaster: MasterProfile
+): CompatibilityScore {
+  const sitterKeywords = new Set<string>();
+
+  // 1. Gather keywords from sitter interests
+  if (sitterMaster.interests && Array.isArray(sitterMaster.interests)) {
+    sitterMaster.interests.forEach(i => sitterKeywords.add(i.toLowerCase().trim()));
+  }
+
+  // 2. Gather keywords from sitter bio
+  if (sitterMaster.dogSitterBio) {
+    const words = sitterMaster.dogSitterBio
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "")
+      .split(/\s+/);
+    words.forEach(w => {
+      if (w.length >= 4) sitterKeywords.add(w.trim());
+    });
+  }
+
+  // 3. Gather dog characteristics
+  const dogKeywords = new Set<string>();
+  if (ownerDog.personality && Array.isArray(ownerDog.personality)) {
+    ownerDog.personality.forEach(p => dogKeywords.add(p.toLowerCase().trim()));
+  }
+  if (ownerDog.breed) {
+    const breedWords = ownerDog.breed.toLowerCase().split(/[\s-]+/);
+    breedWords.forEach(w => {
+      if (w.length >= 3) dogKeywords.add(w.trim());
+    });
+  }
+  if (ownerDog.description) {
+    const words = ownerDog.description
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "")
+      .split(/\s+/);
+    words.forEach(w => {
+      if (w.length >= 4) dogKeywords.add(w.trim());
+    });
+  }
+
+  // 4. Count matches
+  let matchCount = 0;
+  const matchedWords: string[] = [];
+  dogKeywords.forEach(word => {
+    if (sitterKeywords.has(word)) {
+      matchCount++;
+      matchedWords.push(word);
+    }
+  });
+
+  // Base score 40, each matching keyword +15%, capped at 100%
+  const overallScore = Math.min(100, 40 + matchCount * 15);
+
+  return {
+    dogCompatibility: overallScore,
+    masterCompatibility: overallScore,
+    overallScore,
+    breakdown: {
+      dogTraits: Math.min(100, matchCount * 20),
+      ageAlignment: 50,
+      personalityMatch: Math.min(100, matchCount * 25),
+      interestAlignment: sitterMaster.interests && ownerMaster.interests 
+        ? calculateInterestCompatibility(sitterMaster.interests, ownerMaster.interests)
+        : 50,
+      seekAlignment: 50,
+    }
+  };
+}
+
+/**
  * Calcule le score de compatibilité global entre deux duos (chien + maître)
  */
 export function calculateCompatibility(
@@ -263,6 +398,15 @@ export function calculateCompatibility(
   dog2: DogProfile,
   master2: MasterProfile
 ): CompatibilityScore {
+  // Check if one of them is a dog sitter
+  if (master1.isDogSitter) {
+    return calculateSitterDogCompatibility(master1, dog2, master2);
+  }
+  if (master2.isDogSitter) {
+    return calculateSitterDogCompatibility(master2, dog1, master1);
+  }
+
+  // Normal dog-to-dog & master-to-master match
   const dogCompatibility = calculateDogCompatibility(dog1, dog2);
   const masterCompatibility = calculateMasterCompatibility(master1, master2);
 
@@ -343,6 +487,60 @@ export function getAffinities(
 ): string[] {
   const affinities: string[] = [];
 
+  // Check if it is a dog-sitter match
+  const isSitterMatch = master1.isDogSitter || master2.isDogSitter;
+  if (isSitterMatch) {
+    const sitter = master1.isDogSitter ? master1 : master2;
+    const dog = master1.isDogSitter ? dog2 : dog1;
+    const sitterMasterObj = master1.isDogSitter ? master1 : master2;
+    const ownerMasterObj = master1.isDogSitter ? master2 : master1;
+
+    // Extract keywords from sitter
+    const sitterKeywords = new Set<string>();
+    if (sitter.interests && Array.isArray(sitter.interests)) {
+      sitter.interests.forEach(i => sitterKeywords.add(i.toLowerCase().trim()));
+    }
+    if (sitter.dogSitterBio) {
+      sitter.dogSitterBio.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").split(/\s+/).forEach(w => {
+        if (w.length >= 4) sitterKeywords.add(w.trim());
+      });
+    }
+
+    // Extract keywords from dog
+    const dogKeywords = new Set<string>();
+    if (dog.personality && Array.isArray(dog.personality)) {
+      dog.personality.forEach(p => dogKeywords.add(p.toLowerCase().trim()));
+    }
+    if (dog.breed) {
+      dog.breed.toLowerCase().split(/[\s-]+/).forEach(w => {
+        if (w.length >= 3) dogKeywords.add(w.trim());
+      });
+    }
+    if (dog.description) {
+      dog.description.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "").split(/\s+/).forEach(w => {
+        if (w.length >= 4) dogKeywords.add(w.trim());
+      });
+    }
+
+    // Find intersection
+    const matched: string[] = [];
+    dogKeywords.forEach(w => {
+      if (sitterKeywords.has(w)) {
+        matched.push(w);
+      }
+    });
+
+    matched.slice(0, 3).forEach(word => {
+      const frenchWord = FRENCH_TRAITS[word] || FRENCH_INTERESTS[word] || word;
+      affinities.push(`✨ Profil : ${frenchWord}`);
+    });
+
+    if (affinities.length === 0) {
+      affinities.push("🏡 Prêt pour garde de confiance");
+    }
+    return affinities;
+  }
+
   // 1. Breed
   if (dog1.breed && dog2.breed) {
     if (dog1.breed.trim().toLowerCase() === dog2.breed.trim().toLowerCase()) {
@@ -394,7 +592,7 @@ export function getAffinities(
     if (commonHabits.length > 0) {
       const habit = commonHabits[0];
       if (habit === "morning") affinities.push("🌅 Balade le matin");
-      else if (habit === "evening") affinities.push("🌃 Balade le soir");
+      else if (habit === "evening") affinities.push("% Balade le soir");
       else if (habit === "weekend") affinities.push("🗓️ Balade week-end");
       else if (habit === "frequent" || habit === "daily") affinities.push("🔄 Balades régulières");
     }

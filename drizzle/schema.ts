@@ -41,6 +41,7 @@ export const users = mysqlTable("users", {
   dogSitterAvailable: boolean("dogSitterAvailable").default(false).notNull(),
   dogSitterMaxDogs: int("dogSitterMaxDogs").default(1),
   dogSitterStatus: mysqlEnum("dogSitterStatus", ["pending", "approved", "rejected"]).default("pending"),
+  dogsittingFriendly: boolean("dogsittingFriendly").default(false).notNull(),
 
   // Payment / Monetization Limits
   plan: varchar("plan", { length: 32 }).default("free").notNull(),

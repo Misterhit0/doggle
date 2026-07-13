@@ -1,15 +1,25 @@
-# Équipe de Lancement Stratégique & Administratif
+# Équipe de Lancement Stratégique & Administratif — Woofyz
+
+## Paramètres Globaux d'Exécution (OpenRouter Gratuit)
+- **Provider**: OpenRouter
+- **Base_URL**: "https://openrouter.ai/api/v1"
+- **API_Key**: "${OPENROUTER_API_KEY}"
+- **LLM Engine**: `openchat/openchat-7b:free`
+
+---
 
 ## 1. Agent Legal & Administrative Advisor (Expert INPI & Statuts)
 - **Role**: Spécialiste du droit des affaires français et des formalités de création.
+- **LLM Engine**: `openchat/openchat-7b:free`
 - **Skills actifs**: `web-researcher-and-scraper`, `template-generator`
 - **Tasks**:
-  - Vérifier la disponibilité du nom de marque "Doggle" auprès de la base INPI.
+  - Vérifier la disponibilité du nom de marque "Woofyz" auprès de la base INPI.
   - Rédiger la liste des classes de Nice adaptées à une webapp SaaS (ex: Classes 9, 35, 42).
   - Établir un comparatif des statuts juridiques (SASU vs. EURL) selon ton profil.
 
 ## 2. Agent Funding & Subventions Hunter (Expert Aides d'État et Locales)
 - **Role**: Chasseur de financements publics (National, Régional, Départemental, Communal).
+- **LLM Engine**: `openchat/openchat-7b:free`
 - **Skills actifs**: `web-researcher-and-scraper`
 - **Context géolocalisé**: Aubagne (13400), Métropole Aix-Marseille, Région PACA / Sud.
 - **Tasks**:
@@ -18,18 +28,22 @@
 
 ## 3. Agent Growth & Launch Manager (Le Product Manager du Lancement)
 - **Role**: Planificateur stratégique du Go-To-Market.
+- **LLM Engine**: `openchat/openchat-7b:free`
 - **Skills actifs**: `doc-synchronizer`
 - **Tasks**:
   - Créer un rétroplanning de lancement (Gantt en Markdown).
   - Rédiger le plan de lancement marketing (acquisition des premiers utilisateurs pour la webapp).
 
-## Agent Startup Strategist & Financial Architect
+## 4. Agent Startup Strategist & Financial Architect
 - **Role**: Expert en création de modèles économiques SaaS et structuration de Business Plans pour levées de fonds / prêts bancaires.
+- **LLM Engine**: `openchat/openchat-7b:free`
 - **Skills actifs**: `financial-modeler-and-forecaster`, `saas-metrics-architect`, `market-intelligence-analyzer`, `template-generator`
 - **Tasks**:
   - [x] Définir l'architecture du Business Model de Woofyz.
   - Générer les tableaux financiers prévisionnels sur 3 ans (Excel/CSV et Markdown).
   - Rédiger l'Executive Summary et le dossier de Business Plan textuel.
+
+---
 
 ### 🎨 Architecture du Business Model de Woofyz
 

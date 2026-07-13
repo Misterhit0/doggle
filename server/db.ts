@@ -390,13 +390,30 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   // Get all users
   const allUsers = await db.select().from(users);
 
+  // Filter candidates based on dogsitting preferences
+  const candidates = allUsers.filter(user => {
+    if (user.id === userId) return false;
+    
+    // If current user is a dog sitter, target must be dogsitting friendly
+    if (currentUser?.isDogSitter && !user.dogsittingFriendly) {
+      return false;
+    }
+    
+    // If target is a dog sitter, current user must be dogsitting friendly
+    if (user.isDogSitter && !currentUser?.dogsittingFriendly) {
+      return false;
+    }
+    
+    return true;
+  });
+
   if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
-    return allUsers.filter(user => user.id !== userId);
+    return candidates;
   }
 
   // Filter by distance
-  const nearby = allUsers.filter(user => {
-    if (user.id === userId || user.latitude === null || user.longitude === null) return false;
+  const nearby = candidates.filter(user => {
+    if (user.latitude === null || user.longitude === null) return false;
     const distance = calculateDistance(
       currentUser.latitude,
       currentUser.longitude,
@@ -407,7 +424,7 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   });
 
   if (nearby.length === 0) {
-    return allUsers.filter(user => user.id !== userId);
+    return candidates;
   }
 
   return nearby;
@@ -1245,6 +1262,15 @@ export async function migrateDatabase() {
     } catch (e: any) {
       if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
         console.warn("[Database] Warning adding swipeLimitUntil:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN dogsittingFriendly BOOLEAN NOT NULL DEFAULT FALSE");
+      console.log("[Database] Added column dogsittingFriendly to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding dogsittingFriendly:", e.message || e);
       }
     }
 

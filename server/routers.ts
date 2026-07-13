@@ -183,6 +183,7 @@ export const _appRouterBase = router({
           bio: z.string().max(500).optional(),
           profilePhotoUrl: z.string().optional(),
           phoneNumber: z.string().optional(),
+          dogsittingFriendly: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -194,6 +195,7 @@ export const _appRouterBase = router({
         if (input.bio !== undefined) updateData.bio = input.bio;
         if (input.profilePhotoUrl !== undefined) updateData.profilePhotoUrl = input.profilePhotoUrl;
         if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
+        if (input.dogsittingFriendly !== undefined) updateData.dogsittingFriendly = input.dogsittingFriendly;
 
         await db.updateUserProfile(ctx.user.id, updateData);
 
@@ -524,16 +526,21 @@ export const _appRouterBase = router({
         const buildDogProfile = (dog: any) => {
           if (!dog) return {};
           return {
+            id: dog.id,
+            name: dog.name,
             breed: dog.breed,
             age: dog.age,
             personality: parseJsonField(dog.personality),
+            description: dog.description,
           };
         };
 
         const buildMasterProfile = (usr: any) => {
           if (!usr) return {};
           return {
-            age: usr.age,
+            id: usr.id,
+            isDogSitter: !!usr.isDogSitter,
+            dogSitterBio: usr.dogSitterBio,
             interests: parseJsonField(usr.interests),
             walkingHabits: usr.walkingHabits ? [usr.walkingHabits] : [],
             whatISeek: parseJsonField(usr.whatISeek),
