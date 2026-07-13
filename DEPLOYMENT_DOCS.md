@@ -1,6 +1,6 @@
-# 🐶 Doggle - Documentation Technique de Déploiement & Architecture
+# 🐾 Woofyz - Documentation Technique de Déploiement & Architecture
 
-Ce document détaille l'infrastructure technique, les configurations d'environnement (Production & Préproduction), l'intégration des webhooks avec n8n pour les notifications WhatsApp, et les pipelines de déploiement automatique (CI/CD) mis en place sur votre VPS Hostinger.
+Ce document détaille l'infrastructure technique, les configurations d'environnement (Production, Préproduction & Nouvelle Préproduction), l'intégration des webhooks avec n8n pour les notifications WhatsApp, et les pipelines de déploiement automatique (CI/CD) mis en place sur votre VPS Hostinger.
 
 ---
 
@@ -11,15 +11,18 @@ Le projet est composé de 4 couches applicatives principales fonctionnant ensemb
 ```mermaid
 graph TD
     Client[📱 Client Mobile / Web App] -->|HTTPS| Nginx{🌐 Reverse Proxy Nginx}
-    Nginx -->|Port 3000| ProdApp[🐶 Doggle App - Production]
-    Nginx -->|Port 3001| PreprodApp[🐶 Doggle App - Préproduction]
+    Nginx -->|Port 3000| ProdApp[🐾 Woofyz App - Production]
+    Nginx -->|Port 3001| PreprodApp[🐾 Woofyz App - Préproduction]
+    Nginx -->|Port 3002| NewPreprodApp[🐾 Woofyz App - New Préproduction (Branding)]
     Nginx -->|Port 5678| n8n[🧠 Automation n8n - Docker]
     
     ProdApp -->|Drizzle ORM| ProdDB[(🐬 MySQL: doggle)]
     PreprodApp -->|Drizzle ORM| PreprodDB[(🐬 MySQL: doggle_preprod)]
+    NewPreprodApp -->|Drizzle ORM| PreprodDB
     
     ProdApp -->|POST Webhook| n8n
     PreprodApp -->|POST Webhook| n8n
+    NewPreprodApp -->|POST Webhook| n8n
     
     n8n -->|API Twilio| WhatsApp((💬 API WhatsApp / Twilio))
 ```
@@ -39,34 +42,48 @@ graph TD
 
 ## 🌐 Environnements de l'Application
 
-L'application Doggle est séparée en deux environnements hermétiques (bases de données et configurations isolées) :
+L'application Woofyz est séparée en trois environnements hermétiques (bases de données et configurations isolées) :
 
 ### 1. Production (Branche `main`)
-*   **URL Publique** : [https://doggle.cloud](https://doggle.cloud) / [https://www.doggle.cloud](https://www.doggle.cloud)
+*   **URL Publique** : [https://woofyz.com](https://woofyz.com) / [https://www.woofyz.com](https://www.woofyz.com)
 *   **Port Local** : `3000`
-*   **Répertoire du Code** : `/var/www/doggle`
-*   **Nom du Processus PM2** : `doggle`
+*   **Répertoire du Code** : `/var/www/woofyz`
+*   **Nom du Processus PM2** : `woofyz`
 *   **Base de Données MySQL** : `doggle`
 *   **Fichier `.env` de production sur le serveur** :
     ```env
     PORT=3000
     DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle?multipleStatements=true
-    JWT_SECRET=doggle-prod-secret-key-9988776655
-    N8N_WEBHOOK_URL=https://n8n.doggle.cloud/webhook/doggle-events
+    JWT_SECRET=woofyz-prod-secret-key-9988776655
+    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook/doggle-events
     ```
 
 ### 2. Préproduction (Branche `preprod`)
-*   **URL Publique** : [https://preprod.doggle.cloud](https://preprod.doggle.cloud)
+*   **URL Publique** : [https://preprod.woofyz.com](https://preprod.woofyz.com) (Accès direct : `http://187.55.227.99:3001`)
 *   **Port Local** : `3001`
-*   **Répertoire du Code** : `/var/www/doggle-preprod`
-*   **Nom du Processus PM2** : `doggle-preprod`
+*   **Répertoire du Code** : `/var/www/woofyz-preprod`
+*   **Nom du Processus PM2** : `woofyz-preprod`
 *   **Base de Données MySQL** : `doggle_preprod`
 *   **Fichier `.env` de préproduction sur le serveur** :
     ```env
     PORT=3001
     DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle_preprod?multipleStatements=true
-    JWT_SECRET=doggle-preprod-secret-key-1122334455
-    N8N_WEBHOOK_URL=https://n8n.doggle.cloud/webhook-test/doggle-events
+    JWT_SECRET=woofyz-preprod-secret-key-1122334455
+    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook-test/doggle-events
+    ```
+
+### 3. Nouvelle Préproduction / Branding Preview (Branche `feature/new-branding-identity`)
+*   **URL Publique** : [https://newpreprod.woofyz.com](https://newpreprod.woofyz.com) (Accès direct : [http://187.55.227.99:3002](http://187.55.227.99:3002))
+*   **Port Local** : `3002`
+*   **Répertoire du Code** : `/var/www/woofyz-newpreprod`
+*   **Nom du Processus PM2** : `woofyz-newpreprod`
+*   **Base de Données MySQL** : `doggle_preprod` (partagée pour test)
+*   **Fichier `.env` sur le serveur** :
+    ```env
+    PORT=3002
+    DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle_preprod?multipleStatements=true
+    JWT_SECRET=woofyz-newpreprod-secret-key-3344556677
+    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook-test/doggle-events
     ```
 
 ---
@@ -97,7 +114,7 @@ pnpm db:push
 
 n8n fonctionne dans un conteneur Docker isolé avec des droits d'écriture persistants configurés.
 
-*   **URL Publique** : [https://n8n.doggle.cloud](https://n8n.doggle.cloud)
+*   **URL Publique** : [https://n8n.woofyz.com](https://n8n.woofyz.com)
 *   **Port Local** : `5678`
 *   **Dossier Persistant (Hôte VPS)** : `/opt/n8n` (Propriétaire UID `1000:1000` pour éviter les erreurs de permission `EACCES`)
 *   **Commande Docker de démarrage** :
@@ -114,7 +131,7 @@ n8n fonctionne dans un conteneur Docker isolé avec des droits d'écriture persi
 
 ## 💬 Intégration Webhooks & WhatsApp (Twilio)
 
-L'application Doggle déclenche des appels HTTP POST vers n8n lors de 4 événements clés.
+L'application Woofyz déclenche des appels HTTP POST vers n8n lors de 4 événements clés.
 
 ### 1. Variables Twilio Utilisées (dans n8n)
 *   **Twilio Account SID** : `VOTRE_ACCOUNT_SID_TWILIO` (Disponible sur Twilio Console)
@@ -133,13 +150,13 @@ Déclenché lorsque deux utilisateurs s'aiment mutuellement.
     "user1": {
       "id": 1,
       "name": "Jean",
-      "email": "jean@doggle.com",
+      "email": "jean@woofyz.com",
       "phoneNumber": "+33611223344"
     },
     "user2": {
       "id": 2,
       "name": "Sophie",
-      "email": "sophie@doggle.com",
+      "email": "sophie@woofyz.com",
       "phoneNumber": "+33655667788"
     },
     "compatibilityScore": 87
@@ -195,7 +212,7 @@ Déclenché lorsqu'un utilisateur modifie les détails de son profil (très prat
   "data": {
     "userId": 1,
     "name": "Jean",
-    "email": "jean@doggle.com",
+    "email": "jean@woofyz.com",
     "phoneNumber": "+33611223344",
     "age": 28,
     "bio": "Propriétaire d'un adorable Labrador."
@@ -207,7 +224,7 @@ Déclenché lorsqu'un utilisateur modifie les détails de son profil (très prat
 
 ## 🚀 Pipeline de CI/CD (GitHub Actions)
 
-*   **Repository GitHub** : `https://github.com/Misterhit0/doggle`
+*   **Repository GitHub** : `https://github.com/Misterhit0/woofyz`
 *   **Secret de Dépôt Requis** : `VPS_SSH_KEY` (Clé privée SSH permettant à GitHub de se connecter au serveur).
 
 ### Workflow `.github/workflows/ci.yml` :
@@ -218,8 +235,8 @@ Déclenché lorsqu'un utilisateur modifie les détails de son profil (très prat
     *   Exécute les tests unitaires (`pnpm test`).
     *   Valide la compilation (`pnpm build`).
 2.  **Déploiement Automatique** (Déclenché uniquement lors d'un `git push`) :
-    *   Si push sur `main` ➔ Déploiement vers `/var/www/doggle` et redémarrage de `pm2 restart doggle`.
-    *   Si push sur `preprod` ➔ Déploiement vers `/var/www/doggle-preprod` et redémarrage de `pm2 restart doggle-preprod`.
+    *   Si push sur `main` ➔ Déploiement vers `/var/www/woofyz` et redémarrage de `pm2 restart woofyz`.
+    *   Si push sur `preprod` ➔ Déploiement vers `/var/www/woofyz-preprod` et redémarrage de `pm2 restart woofyz-preprod`.
 
 ---
 
@@ -230,19 +247,21 @@ Pour exécuter ces commandes, connectez-vous d'abord à votre VPS depuis votre t
 ssh root@187.55.227.99
 ```
 
-### 1. Gérer l'application Doggle (PM2)
+### 1. Gérer l'application Woofyz (PM2)
 ```bash
-# Voir le statut des processus (Production & Préprod)
+# Voir le statut des processus (Production, Préprod & New Préprod)
 pm2 status
 
 # Lire les logs en temps réel
-pm2 logs             # Tous les logs
-pm2 logs doggle      # Uniquement la production
-pm2 logs doggle-preprod # Uniquement la préproduction
+pm2 logs                 # Tous les logs
+pm2 logs woofyz          # Uniquement la production
+pm2 logs woofyz-preprod  # Uniquement la préproduction
+pm2 logs woofyz-newpreprod # Uniquement la nouvelle prévisualisation
 
 # Redémarrer une application
-pm2 restart doggle
-pm2 restart doggle-preprod
+pm2 restart woofyz
+pm2 restart woofyz-preprod
+pm2 restart woofyz-newpreprod
 ```
 
 ### 2. Gérer n8n (Docker)

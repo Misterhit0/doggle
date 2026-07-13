@@ -7,11 +7,12 @@
 
 ## 🎯 Contexte du Projet
 
-**Doggle** est une application de matching pour propriétaires de chiens.
+**Woofyz** est une application de matching pour propriétaires de chiens.
 - **Stack** : TypeScript, Node.js (Express + tRPC), React (Vite), MySQL (DrizzleORM), PM2
-- **Preprod** : https://preprod.doggle.cloud — VPS : `root@187.55.227.99:/var/www/doggle-preprod`
-- **Production** : https://doggle.cloud — VPS : `root@187.55.227.99:/var/www/doggle`
-- **Repo GitHub** : https://github.com/Misterhit0/doggle
+- **Preprod** : https://preprod.woofyz.com (Direct: http://187.55.227.99:3001) — VPS : `root@187.55.227.99:/var/www/woofyz-preprod`
+- **New Preprod (Branding)** : http://187.55.227.99:3002 — VPS : `root@187.55.227.99:/var/www/woofyz-newpreprod`
+- **Production** : https://woofyz.com — VPS : `root@187.55.227.99:/var/www/woofyz`
+- **Repo GitHub** : https://github.com/Misterhit0/woofyz
 
 ---
 
@@ -53,9 +54,9 @@ git push origin preprod
 
 ### Étape 5 — Déployer sur le VPS preprod
 ```bash
-ssh root@187.55.227.99 "cd /var/www/doggle-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz-preprod"
 ```
-**Vérifier manuellement sur https://preprod.doggle.cloud**
+**Vérifier manuellement sur http://187.55.227.99:3001 ou https://preprod.woofyz.com**
 
 ### Étape 6 — PR vers `main` (Production)
 ```bash
@@ -121,32 +122,34 @@ const isUser1 = match.user1Id === user?.id;
 ## 🚀 Déploiement VPS
 
 ### Infrastructure
+### Infrastructure
 - **VPS IP** : `187.55.227.99`
 - **Gestionnaire process** : PM2
-  - `doggle` → production (`/var/www/doggle`, branche `main`)
-  - `doggle-preprod` → preprod (`/var/www/doggle-preprod`, branche `preprod`)
+  - `woofyz` → production (`/var/www/woofyz`, branche `main`)
+  - `woofyz-preprod` → preprod (`/var/www/woofyz-preprod`, branche `preprod`)
+  - `woofyz-newpreprod` → newpreprod (`/var/www/woofyz-newpreprod`, branche `feature/new-branding-identity`, Port 3002)
 - **Reverse proxy** : Nginx
-- **Git configuré** sur les deux dossiers VPS (git pull = déploiement)
+- **Git configuré** sur les dossiers VPS (git pull = déploiement)
 
 ### Commandes utiles VPS
 ```bash
 # Logs preprod
-ssh root@187.55.227.99 "pm2 logs doggle-preprod --lines 50"
+ssh root@187.55.227.99 "pm2 logs woofyz-preprod --lines 50"
 
 # Logs production
-ssh root@187.55.227.99 "pm2 logs doggle --lines 50"
+ssh root@187.55.227.99 "pm2 logs woofyz --lines 50"
 
 # Redémarrer preprod
-ssh root@187.55.227.99 "pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "pm2 restart woofyz-preprod"
 
 # Redémarrer production
-ssh root@187.55.227.99 "pm2 restart doggle"
+ssh root@187.55.227.99 "pm2 restart woofyz"
 
 # Déployer preprod (git pull)
-ssh root@187.55.227.99 "cd /var/www/doggle-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz-preprod"
 
 # Déployer production (git pull)
-ssh root@187.55.227.99 "cd /var/www/doggle && git pull origin main && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle"
+ssh root@187.55.227.99 "cd /var/www/woofyz && git pull origin main && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz"
 ```
 
 ---
@@ -194,7 +197,7 @@ security: correction de faille de sécurité
 
 | Environnement | Email | Mot de passe | Rôle |
 |--------------|-------|--------------|------|
-| Preprod | admin@doggle.com | doggle2026 | admin |
+| Preprod / NewPreprod | admin@woofyz.com | doggle2026 | admin |
 
 ---
 
