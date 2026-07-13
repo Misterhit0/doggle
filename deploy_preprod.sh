@@ -93,7 +93,7 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
         pnpm build
 
         echo '🔄 Restarting PM2...'
-        pm2 restart $PM2_APP_NAME
+        pm2 restart $PM2_APP_NAME || pm2 start dist/index.js --name $PM2_APP_NAME
 
         echo '✅ VPS preprod redémarré avec succès'
     " && echo -e "${GREEN}✓ Déploiement VPS preprod réussi !${NC}" || {
