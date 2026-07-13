@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "=========================================================="
-echo "😺 CONFIGURATION DU DEPOT GITHUB DOGGLE & CI/CD"
+echo "😺 CONFIGURATION DU DEPOT GITHUB WOOFYZ & CI/CD"
 echo "=========================================================="
 
 # 1. Connexion à GitHub
@@ -29,11 +29,11 @@ fi
 # 3. Premier commit
 echo "📝 Création du premier commit local..."
 git add .
-git commit -m "Initial commit - Doggle with N8n & CI/CD"
+git commit -m "Initial commit - Woofyz with N8n & CI/CD"
 
 # 4. Création du dépôt distant sur GitHub et push
 echo "🌐 Création du dépôt public sur GitHub..."
-gh repo create doggle --public --source=. --remote=origin --push
+gh repo create woofyz --public --source=. --remote=origin --push
 
 # 5. Configuration de la clé SSH pour le déploiement automatique (CI/CD)
 echo "🔒 Ajout de la clé SSH du VPS dans les secrets GitHub pour le CI/CD..."
@@ -47,5 +47,5 @@ fi
 echo "=========================================================="
 echo "🎉 CONFIGURATION TERMINEE AVEC SUCCES !"
 echo "Votre dépôt GitHub est disponible ici :"
-echo "https://github.com/$USER_LOGIN/doggle"
+echo "https://github.com/$USER_LOGIN/woofyz"
 echo "=========================================================="
