@@ -45,7 +45,7 @@ graph TD
 L'application Woofyz est séparée en trois environnements hermétiques (bases de données et configurations isolées) :
 
 ### 1. Production (Branche `main`)
-*   **URL Publique** : [https://woofyz.com](https://woofyz.com) / [https://www.woofyz.com](https://www.woofyz.com)
+*   **URL Publique** : [https://woofyz.fr](https://woofyz.fr) / [https://www.woofyz.fr](https://www.woofyz.fr)
 *   **Port Local** : `3000`
 *   **Répertoire du Code** : `/var/www/woofyz`
 *   **Nom du Processus PM2** : `woofyz`
@@ -55,11 +55,11 @@ L'application Woofyz est séparée en trois environnements hermétiques (bases d
     PORT=3000
     DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle?multipleStatements=true
     JWT_SECRET=woofyz-prod-secret-key-9988776655
-    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook/doggle-events
+    N8N_WEBHOOK_URL=https://n8n.woofyz.fr/webhook/doggle-events
     ```
 
 ### 2. Préproduction (Branche `preprod`)
-*   **URL Publique** : [https://preprod.woofyz.com](https://preprod.woofyz.com) (Accès direct : `http://187.55.227.99:3001`)
+*   **URL Publique** : [https://preprod.woofyz.fr](https://preprod.woofyz.fr) (Accès direct : `http://187.55.227.99:3001`)
 *   **Port Local** : `3001`
 *   **Répertoire du Code** : `/var/www/woofyz-preprod`
 *   **Nom du Processus PM2** : `woofyz-preprod`
@@ -69,11 +69,11 @@ L'application Woofyz est séparée en trois environnements hermétiques (bases d
     PORT=3001
     DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle_preprod?multipleStatements=true
     JWT_SECRET=woofyz-preprod-secret-key-1122334455
-    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook-test/doggle-events
+    N8N_WEBHOOK_URL=https://n8n.woofyz.fr/webhook-test/doggle-events
     ```
 
 ### 3. Nouvelle Préproduction / Branding Preview (Branche `feature/new-branding-identity`)
-*   **URL Publique** : [https://newpreprod.woofyz.com](https://newpreprod.woofyz.com) (Accès direct : [http://187.55.227.99:3002](http://187.55.227.99:3002))
+*   **URL Publique** : [https://newpreprod.woofyz.fr](https://newpreprod.woofyz.fr) (Accès direct : [http://187.55.227.99:3002](http://187.55.227.99:3002))
 *   **Port Local** : `3002`
 *   **Répertoire du Code** : `/var/www/woofyz-newpreprod`
 *   **Nom du Processus PM2** : `woofyz-newpreprod`
@@ -83,7 +83,7 @@ L'application Woofyz est séparée en trois environnements hermétiques (bases d
     PORT=3002
     DATABASE_URL=mysql://doggle_user:doggle2026_prod_pass@127.0.0.1:3306/doggle_preprod?multipleStatements=true
     JWT_SECRET=woofyz-newpreprod-secret-key-3344556677
-    N8N_WEBHOOK_URL=https://n8n.woofyz.com/webhook-test/doggle-events
+    N8N_WEBHOOK_URL=https://n8n.woofyz.fr/webhook-test/doggle-events
     ```
 
 ---
@@ -114,7 +114,7 @@ pnpm db:push
 
 n8n fonctionne dans un conteneur Docker isolé avec des droits d'écriture persistants configurés.
 
-*   **URL Publique** : [https://n8n.woofyz.com](https://n8n.woofyz.com)
+*   **URL Publique** : [https://n8n.woofyz.fr](https://n8n.woofyz.fr)
 *   **Port Local** : `5678`
 *   **Dossier Persistant (Hôte VPS)** : `/opt/n8n` (Propriétaire UID `1000:1000` pour éviter les erreurs de permission `EACCES`)
 *   **Commande Docker de démarrage** :
@@ -150,13 +150,13 @@ Déclenché lorsque deux utilisateurs s'aiment mutuellement.
     "user1": {
       "id": 1,
       "name": "Jean",
-      "email": "jean@woofyz.com",
+      "email": "jean@woofyz.fr",
       "phoneNumber": "+33611223344"
     },
     "user2": {
       "id": 2,
       "name": "Sophie",
-      "email": "sophie@woofyz.com",
+      "email": "sophie@woofyz.fr",
       "phoneNumber": "+33655667788"
     },
     "compatibilityScore": 87
@@ -212,7 +212,7 @@ Déclenché lorsqu'un utilisateur modifie les détails de son profil (très prat
   "data": {
     "userId": 1,
     "name": "Jean",
-    "email": "jean@woofyz.com",
+    "email": "jean@woofyz.fr",
     "phoneNumber": "+33611223344",
     "age": 28,
     "bio": "Propriétaire d'un adorable Labrador."

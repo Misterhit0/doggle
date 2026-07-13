@@ -82,4 +82,4 @@ ssh "$VPS_HOST" "
 }
 
 echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé en production.${NC}"
-echo -e "Vérifiez les changements sur : ${BLUE}https://woofyz.com${NC}"
+echo -e "Vérifiez les changements sur : ${BLUE}https://woofyz.fr${NC}"

@@ -144,7 +144,7 @@ async function seedAdmin() {
 
   const pool = await mysql2.createPool({ host, port, user, password, database });
 
-  const email = "admin@woofyz.com";
+  const email = "admin@woofyz.fr";
   const hash = await bcrypt.hash("doggle2026", 10);
 
   const [rows] = await pool.execute(

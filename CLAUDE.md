@@ -9,9 +9,9 @@
 
 **Woofyz** est une application de matching pour propriétaires de chiens.
 - **Stack** : TypeScript, Node.js (Express + tRPC), React (Vite), MySQL (DrizzleORM), PM2
-- **Preprod** : https://preprod.woofyz.com (Direct: http://187.55.227.99:3001) — VPS : `root@187.55.227.99:/var/www/woofyz-preprod`
+- **Preprod** : https://preprod.woofyz.fr (Direct: http://187.55.227.99:3001) — VPS : `root@187.55.227.99:/var/www/woofyz-preprod`
 - **New Preprod (Branding)** : http://187.55.227.99:3002 — VPS : `root@187.55.227.99:/var/www/woofyz-newpreprod`
-- **Production** : https://woofyz.com — VPS : `root@187.55.227.99:/var/www/woofyz`
+- **Production** : https://woofyz.fr — VPS : `root@187.55.227.99:/var/www/woofyz`
 - **Repo GitHub** : https://github.com/Misterhit0/woofyz
 
 ---
@@ -56,7 +56,7 @@ git push origin preprod
 ```bash
 ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz-preprod"
 ```
-**Vérifier manuellement sur http://187.55.227.99:3001 ou https://preprod.woofyz.com**
+**Vérifier manuellement sur http://187.55.227.99:3001 ou https://preprod.woofyz.fr**
 
 ### Étape 6 — PR vers `main` (Production)
 ```bash
@@ -197,7 +197,7 @@ security: correction de faille de sécurité
 
 | Environnement | Email | Mot de passe | Rôle |
 |--------------|-------|--------------|------|
-| Preprod / NewPreprod | admin@woofyz.com | doggle2026 | admin |
+| Preprod / NewPreprod | admin@woofyz.fr | doggle2026 | admin |
 
 ---
 

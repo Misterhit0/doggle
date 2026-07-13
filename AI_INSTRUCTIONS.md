@@ -14,7 +14,7 @@ graph TD
     TestLocal -->|Échec| Code
     TestLocal -->|Succès| PushBranch[📤 Pousser la branche de feature]
     PushBranch --> MergePreprod[🔄 Merger sur preprod pour CI/CD]
-    MergePreprod --> TestManual[👁️ Test manuel sur preprod.woofyz.com]
+    MergePreprod --> TestManual[👁️ Test manuel sur preprod.woofyz.fr]
     TestManual -->|Pas OK| Code
     TestManual -->|OK| PRMain[🔀 Créer une Pull Request vers main]
 ```
@@ -55,14 +55,14 @@ Avant d'envisager de pousser votre code ou de le déclarer terminé, vous devez 
     git commit -m "feat: description claire de votre changement"
     git push -u origin feature/nom-de-votre-tache
     ```
-*   Fusionnez ensuite votre branche sur la branche **`preprod`** pour déclencher le déploiement automatique sur le serveur de préproduction (`preprod.woofyz.com`) :
+*   Fusionnez ensuite votre branche sur la branche **`preprod`** pour déclencher le déploiement automatique sur le serveur de préproduction (`preprod.woofyz.fr`) :
     ```bash
     git checkout preprod
     git merge feature/nom-de-votre-tache
     git push origin preprod
     ```
-*   Rendez-vous sur **`https://preprod.woofyz.com`** (ou `http://187.55.227.99:3001`) pour valider manuellement que le comportement est conforme et qu'aucun bug n'a été introduit.
+*   Rendez-vous sur **`https://preprod.woofyz.fr`** (ou `http://187.55.227.99:3001`) pour valider manuellement que le comportement est conforme et qu'aucun bug n'a été introduit.
 
 ### 5. Pull Request vers `main` (Production)
 *   Une fois et **uniquement après** que les modifications ont été validées en préproduction, créez une Pull Request (ou demande de fusion) sur GitHub de la branche **`preprod`** vers la branche **`main`**.
-*   Le pipeline GitHub Actions validera à nouveau les tests et déploiera automatiquement en production sur `https://woofyz.com` une fois la fusion effectuée.
+*   Le pipeline GitHub Actions validera à nouveau les tests et déploiera automatiquement en production sur `https://woofyz.fr` une fois la fusion effectuée.

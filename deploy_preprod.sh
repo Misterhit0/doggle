@@ -59,7 +59,7 @@ if [ -z "$COMMIT_MSG" ]; then
     COMMIT_MSG="feat: evolution on $CURRENT_BRANCH"
 fi
 
-read -p "Voulez-vous pousser les changements et déployer sur preprod.woofyz.com ? (y/n) : " CONFIRM
+read -p "Voulez-vous pousser les changements et déployer sur preprod.woofyz.fr ? (y/n) : " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "\n${BLUE}3. Commits et push sur GitHub...${NC}"
     git add .
@@ -106,7 +106,7 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     git checkout "$CURRENT_BRANCH"
 
     echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé sur la préproduction.${NC}"
-    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.woofyz.com${NC}"
+    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.woofyz.fr${NC}"
 else
     echo -e "\n${YELLOW}Déploiement annulé.${NC}"
 fi

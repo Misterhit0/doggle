@@ -104,7 +104,7 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     }
 
     echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé sur la préproduction alternative.${NC}"
-    echo -e "Vérifiez les changements sur : ${BLUE}http://187.55.227.99:3002${NC}"
+    echo -e "Vérifiez les changements sur : ${BLUE}http://187.55.227.99:3002 ou http://newpreprod.woofyz.fr${NC}"
 else
     echo -e "\n${YELLOW}Déploiement annulé.${NC}"
 fi
