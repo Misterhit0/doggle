@@ -1,7 +1,20 @@
+---
+title: CLAUDE.md — Guide de Développement
+tags:
+  - woofyz
+  - documentation
+  - developer-guide
+aliases:
+  - Claude Guide
+  - CLAUDE
+date: 2026-07-15
+---
+
 # 🤖 CLAUDE.md — Règles de Développement pour Claude (et tous les assistants IA)
 
 > Ce fichier est lu automatiquement par Claude lors de chaque session dans ce projet.
 > Toutes les règles ci-dessous sont **obligatoires** et non négociables.
+> Pour les détails techniques, voir [[ARCHITECTURE]], [[BUSINESS_RULES]] et [[DEPLOYMENT_DOCS]].
 
 ---
 
@@ -62,7 +75,7 @@ ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod &&
 ```bash
 gh pr create --base main --head preprod --title "Release: ..."
 ```
-ou via GitHub : https://github.com/Misterhit0/doggle/compare/main...preprod
+ou via GitHub : https://github.com/Misterhit0/woofyz/compare/main...preprod
 
 **Les scripts automatisés :**
 - `./deploy_preprod.sh` — effectue les étapes 1→5 interactivement

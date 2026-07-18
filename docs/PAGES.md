@@ -1,6 +1,20 @@
-# 📱 Doggle — Pages, Routes & Actions Possibles
+---
+title: Woofyz — Pages, Routes & Actions Possibles
+tags:
+  - woofyz
+  - pages
+  - routing
+  - documentation
+aliases:
+  - Pages Guide
+  - PAGES
+date: 2026-07-15
+---
 
-> Inventaire de chaque page de l'application : route, but, et **toutes les actions que l'utilisateur peut y faire**. Pour l'architecture technique, voir [ARCHITECTURE.md](./ARCHITECTURE.md). Pour les règles métier détaillées derrière chaque action, voir [BUSINESS_RULES.md](./BUSINESS_RULES.md).
+# 📱 Woofyz — Pages, Routes & Actions Possibles
+
+> [!info] Guide des Pages
+> Inventaire de chaque page de l'application : route, but, et **toutes les actions que l'utilisateur peut y faire**. Pour l'architecture technique, voir [[ARCHITECTURE]]. Pour les règles métier détaillées derrière chaque action, voir [[BUSINESS_RULES]].
 >
 > Routes déclarées dans `client/src/App.tsx` (Wouter). Navigation principale (bottom nav mobile + nav desktop) dans `client/src/components/AppNav.tsx` : **Découvrir → Balades → Matchs → Profil** (accès rapide), plus un menu étendu vers Mes chiens, Événements, Chiens perdus, Favoris, Historique.
 
@@ -11,7 +25,7 @@
 
 Actions possibles :
 - Cliquer **"Se connecter"** (nav) → redirige vers login/OAuth.
-- Cliquer **"Rejoindre Doggle"** (hero + CTA finale) → redirige vers login/OAuth (inscription).
+- Cliquer **"Rejoindre Woofyz"** (hero + CTA finale) → redirige vers login/OAuth (inscription).
 - Cliquer **"Voir les chiens perdus"** → va sur `/chiens-perdus` (section urgence).
 - Défiler la page (sections : Comment ça marche, Notre mission, Chiens perdus, CTA finale, Footer).
 - Si déjà connecté : la nav affiche "Bienvenue, {nom}" + bouton "Tableau de bord".

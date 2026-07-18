@@ -182,9 +182,26 @@ export default function EventsPage() {
     if (!formData.eventType) { toast.error("Choisissez un type d'événement"); return; }
     if (!formData.location.trim()) { toast.error("Indiquez le lieu"); return; }
     if (!formData.eventDate) { toast.error("Choisissez une date et heure"); return; }
-    // Use user position if available, otherwise France center
-    const lat = latitude ?? 46.603354;
-    const lng = longitude ?? 1.888334;
+
+    let lat = latitude ?? 46.603354;
+    let lng = longitude ?? 1.888334;
+
+    // Geocode address
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formData.location)}&countrycodes=fr&limit=1`
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        lat = parseFloat(data[0].lat);
+        lng = parseFloat(data[0].lon);
+      } else {
+        toast.info("Adresse introuvable, utilisation de votre position actuelle.");
+      }
+    } catch (error) {
+      console.error("Geocoding failed, falling back to current location", error);
+    }
+
     try {
       await createEventMutation.mutateAsync({
         ...formData,

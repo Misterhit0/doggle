@@ -1,4 +1,19 @@
-# Stratégie de Lancement & Analyse de Marché - Doggle (France)
+---
+title: Stratégie de Lancement & Analyse de Marché — Woofyz
+tags:
+  - woofyz
+  - marketing
+  - documentation
+aliases:
+  - Marketing Strategy
+  - marketing_strategies_france
+date: 2026-07-15
+---
+
+# Stratégie de Lancement & Analyse de Marché — Woofyz (France)
+
+> [!info] Alignement Produit
+> La stratégie de tarification et l'organisation du lancement s'appuient sur les rôles de l'[[AGENTS|équipe d'agents de lancement]]. Les fonctionnalités clés promues dans les campagnes d'acquisition (messagerie, swipes, et signalements) sont définies dans les [[BUSINESS_RULES]] et [[PAGES]]. Les procédures de test de branding et de déploiement en préproduction alternative pour valider les modifications sont décrites dans [[DEPLOYMENT_DOCS]] et [[CLAUDE]].
 
 Ce document suit les principes du *Market Opportunity Analysis* adapté pour une application communautaire canine avec une approche Go-To-Market ultra-lean (budget max : 200 €).
 
@@ -28,26 +43,26 @@ Avec 200 €, la stratégie repose sur le **Guerilla Marketing**, la croissance 
 *   **Action :** Organiser un concours photo sur Instagram/TikTok avec un lot attractif.
 *   **Coût :** 100 € (Carte cadeau chez Zooplus, Wanimo ou MaxiZoo).
 *   **Mécanique :** 
-    1. Pour participer, il faut télécharger Doggle et créer le profil de son chien.
+    1. Pour participer, il faut télécharger Woofyz et créer le profil de son chien.
     2. Partager un screenshot du profil sur Instagram en story en taguant le compte de l'appli.
     3. Le gagnant est tiré au sort à la fin du mois.
 *   **Avantage :** Coût d'acquisition client (CAC) extrêmement faible si le concours devient viral.
 
 ### Stratégie 3 : Micro-Influence Canine (Budget : 50 € ou 0 €)
 *   **Action :** Contacter des "Dogfluencers" français de petite taille (comptes Instagram/TikTok de chiens avec 2k à 10k abonnés).
-*   **Coût :** 50 € (pour acheter et leur envoyer de petits accessoires comme des bandanas personnalisés "Doggle", ou simplement gratuit en échange de visibilité).
+*   **Coût :** 50 € (pour acheter et leur envoyer de petits accessoires comme des bandanas personnalisés "Woofyz", ou simplement gratuit en échange de visibilité).
 *   **Mécanique :** Leur proposer d'être des "Ambassadeurs fondateurs". Les micro-influenceurs sont souvent très engagés et acceptent des partenariats gratuits ou contre un simple cadeau si le projet (aider les chiens à se rencontrer) leur plaît.
 
 ### Stratégie 4 : Community Hacking (Budget : 0 €)
 *   **Action :** Infiltration bienveillante des communautés existantes.
 *   **Coût :** 0 € (seulement du temps).
 *   **Déploiement :**
-    *   **Groupes Facebook :** Rejoindre les groupes type "Balades canines Paris", "Chiens de Lyon", etc. Ne pas spammer l'application, mais plutôt organiser des balades réelles et dire : *"Pour faciliter l'organisation, j'ai mis l'événement sur cette nouvelle appli gratuite : Doggle"*.
+    *   **Groupes Facebook :** Rejoindre les groupes type "Balades canines Paris", "Chiens de Lyon", etc. Ne pas spammer l'application, mais plutôt organiser des balades réelles et dire : *"Pour faciliter l'organisation, j'ai mis l'événement sur cette nouvelle appli gratuite : Woofyz"*.
     *   **Forums & Reddit :** Présenter le projet sur `r/france` ou `r/chiens` en demandant des retours (Feedback loop). Les redditeurs adorent soutenir les projets indés français s'ils sont présentés avec humilité.
 
 ### Stratégie 5 : L'événementiel ciblé (Budget : 0 €)
-*   **Action :** Utiliser la fonctionnalité "Événements" (récemment corrigée !) de votre propre application pour organiser un rassemblement.
-*   **Déploiement :** Créer un événement "La Grande Balade Doggle de Lancement" dans un parc populaire. Contacter les journaux locaux (PQR, type Le Parisien, La Provence, Actu.fr). La presse locale adore les sujets insolites et mignons (le "Tinder des chiens"). Un article = des milliers de téléchargements gratuits.
+*   **Action :** Utiliser la fonctionnalité "Événements" de votre propre application pour organiser un rassemblement.
+*   **Déploiement :** Créer un événement "La Grande Balade Woofyz de Lancement" dans un parc populaire. Contacter les journaux locaux (PQR, type Le Parisien, La Provence, Actu.fr). La presse locale adore les sujets insolites et mignons (le "Tinder des chiens"). Un article = des milliers de téléchargements gratuits.
 
 ---
 

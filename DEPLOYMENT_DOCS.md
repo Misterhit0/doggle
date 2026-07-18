@@ -1,6 +1,19 @@
+---
+title: Woofyz - Documentation Technique de Déploiement & Architecture
+tags:
+  - woofyz
+  - documentation
+  - deployment
+  - infrastructure
+aliases:
+  - Deployment Guide
+  - DEPLOYMENT_DOCS
+date: 2026-07-15
+---
+
 # 🐾 Woofyz - Documentation Technique de Déploiement & Architecture
 
-Ce document détaille l'infrastructure technique, les configurations d'environnement (Production, Préproduction & Nouvelle Préproduction), l'intégration des webhooks avec n8n pour les notifications WhatsApp, et les pipelines de déploiement automatique (CI/CD) mis en place sur votre VPS Hostinger.
+Ce document détaille l'infrastructure technique, les configurations d'environnement (Production, Préproduction & Nouvelle Préproduction), l'intégration des webhooks avec n8n pour les notifications WhatsApp, et les pipelines de déploiement automatique (CI/CD) mis en place sur votre VPS Hostinger. Pour les règles de développement, voir [[CLAUDE]] et [[AI_INSTRUCTIONS]]. Pour le code frontend/backend détaillé, voir [[ARCHITECTURE]].
 
 ---
 

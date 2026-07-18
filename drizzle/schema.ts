@@ -40,7 +40,7 @@ export const users = mysqlTable("users", {
   dogSitterRates: json("dogSitterRates").$type<{ night?: number; halfDay?: number; walk?: number }>(),
   dogSitterAvailable: boolean("dogSitterAvailable").default(false).notNull(),
   dogSitterMaxDogs: int("dogSitterMaxDogs").default(1),
-  dogSitterStatus: mysqlEnum("dogSitterStatus", ["pending", "approved", "rejected"]).default("pending"),
+  dogSitterStatus: mysqlEnum("dogSitterStatus", ["pending", "approved", "rejected", "blocked"]).default("pending"),
   dogsittingFriendly: boolean("dogsittingFriendly").default(false).notNull(),
 
   // Payment / Monetization Limits

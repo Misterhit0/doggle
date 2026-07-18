@@ -751,10 +751,10 @@ export async function getNearbyEvents(userId: number, latitude: number, longitud
     if (!connection) return [];
     const query = `
       SELECT e.*, u.name as organizerName, u.profilePhotoUrl as organizerPhoto,
-             (6371 * acos(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)))) as distance
+             (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)), -1), 1))) as distance
       FROM events e
       JOIN users u ON e.organizerId = u.id
-      WHERE (6371 * acos(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)))) <= ?
+      WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)), -1), 1))) <= ?
       ${eventType ? 'AND e.eventType = ?' : ''}
       AND e.eventDate >= NOW()
       ORDER BY distance ASC
@@ -884,12 +884,12 @@ export async function getNearbyLostDogs(latitude: number, longitude: number, rad
     if (!connection) return [];
     const [lostDogs] = await connection.execute(
       `SELECT ld.*, d.name, d.breed, d.age, d.photoUrls, u.name as ownerName, u.profilePhotoUrl,
-              (6371 * acos(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)))) as distance
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)), -1), 1))) as distance
        FROM lost_dogs ld
        JOIN dogs d ON ld.dogId = d.id
        JOIN users u ON ld.userId = u.id
        WHERE ld.status = 'lost'
-       AND (6371 * acos(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)))) <= ?
+       AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)), -1), 1))) <= ?
        ORDER BY ld.createdAt DESC`,
       [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
     );
@@ -1272,6 +1272,13 @@ export async function migrateDatabase() {
       if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
         console.warn("[Database] Warning adding dogsittingFriendly:", e.message || e);
       }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users MODIFY COLUMN dogSitterStatus ENUM('pending', 'approved', 'rejected', 'blocked') DEFAULT 'pending'");
+      console.log("[Database] Altered users table dogSitterStatus column to support 'blocked'.");
+    } catch (e: any) {
+      console.warn("[Database] Warning modifying dogSitterStatus enum:", e.message || e);
     }
 
     // 2. Create payments table if not exists
@@ -2206,7 +2213,7 @@ export async function getActiveBoardingsForSitter(sitterId: number) {
   }
 }
 
-export async function updateDogSitterStatusAdmin(userId: number, status: 'approved' | 'rejected') {
+export async function updateDogSitterStatusAdmin(userId: number, status: 'approved' | 'rejected' | 'blocked') {
   const pool = getPool();
   if (!pool) return false;
   try {
@@ -2233,6 +2240,22 @@ export async function getPendingDogSitters() {
     return rows as any[];
   } catch (error) {
     console.error("[Database] Failed to get pending dog sitters:", error);
+    return [];
+  }
+}
+
+export async function getAllDogSitters() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, email, phoneNumber, dogSitterBio, dogSitterRates, dogSitterMaxDogs, dogSitterStatus, createdAt
+       FROM users WHERE isDogSitter = TRUE
+       ORDER BY createdAt DESC`
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get all dog sitters:", error);
     return [];
   }
 }

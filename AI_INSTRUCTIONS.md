@@ -1,6 +1,18 @@
+---
+title: Consignes de Développement pour les Assistants IA
+tags:
+  - woofyz
+  - documentation
+  - ai-guide
+aliases:
+  - AI Instructions
+  - AI_INSTRUCTIONS
+date: 2026-07-15
+---
+
 # 🤖 Consignes de Développement pour les Assistants IA (Gemini, Claude, Cursor)
 
-Ce dépôt de code utilise des règles de développement strictes. Si vous êtes un assistant de programmation IA, vous **DEVEZ** suivre scrupuleusement ce workflow pour toute tâche d'évolution, de correction de bug ou de refactoring.
+Ce dépôt de code utilise des règles de développement strictes. Si vous êtes un assistant de programmation IA, vous **DEVEZ** suivre scrupuleusement ce workflow pour toute tâche d'évolution, de correction de bug ou de refactoring. Pour les règles spécifiques de Claude Code, se référer à [[CLAUDE]]. Pour les règles métier à respecter, voir [[BUSINESS_RULES]].
 
 ---
 

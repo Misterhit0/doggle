@@ -1,12 +1,24 @@
-# Doggle (Compagnon) - Project Analysis
+---
+title: Woofyz - Project Analysis
+tags:
+  - woofyz
+  - analysis
+  - documentation
+aliases:
+  - Project Analysis
+  - analysis_results
+date: 2026-07-15
+---
 
-This document provides a comprehensive technical analysis of the **Doggle (Compagnon)** project. It details the project's purpose, technologies, system architecture, database schema, access control features, and current status.
+# Woofyz - Project Analysis
+
+This document provides a comprehensive technical analysis of the **Woofyz** project. It details the project's purpose, technologies, system architecture, database schema, access control features, and current status. For detailed rules see [[BUSINESS_RULES]] and [[ARCHITECTURE]].
 
 ---
 
 ## 📋 Project Overview & Main Stakes
 
-**Doggle (Compagnon)** is a dog-and-owner matching social platform, similar in function to swipe-matching apps but tailored for dog socialization, walks, lost dogs assistance, and master collaborations.
+**Woofyz** is a dog-and-owner matching social platform, similar in function to swipe-matching apps but tailored for dog socialization, walks, lost dogs assistance, and master collaborations.
 
 ### Key Goals
 - **Dog & Master Social Networking**: Allow owners to match with nearby dog owners based on mutual dog compatibility and master affinity.

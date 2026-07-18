@@ -249,4 +249,15 @@ describe("DogSitter - Availability logic", () => {
     expect(result.available).toBe(false);
     expect(result.reason).toBe("Capacité maximale atteinte");
   });
+
+  it("sitter bloqué = non disponible", () => {
+    const result = isSitterAvailableForDog({
+      dogSitterAvailable: true,
+      dogSitterStatus: "blocked",
+      dogSitterMaxDogs: 3,
+      currentlyHostedCount: 0,
+    });
+    expect(result.available).toBe(false);
+    expect(result.reason).toBe("Profil non approuvé");
+  });
 });

@@ -1775,7 +1775,7 @@ export const _appRouterBase = router({
     adminUpdateSitterStatus: protectedProcedure
       .input(z.object({
         userId: z.number(),
-        status: z.enum(["approved", "rejected"]),
+        status: z.enum(["approved", "rejected", "blocked"]),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
@@ -1788,6 +1788,12 @@ export const _appRouterBase = router({
     adminGetPendingSitters: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       return await db.getPendingDogSitters();
+    }),
+
+    // Admin — list all dog sitters
+    adminGetAllSitters: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return await db.getAllDogSitters();
     }),
   }),
 });
@@ -1841,7 +1847,7 @@ export const forumRouter = router({
   getPost: publicProcedure
     .input(z.object({ postId: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number | undefined;
+      const userId = ctx.user?.id;
       const post = await forumDb.forumGetPost(input.postId, userId);
       if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
       return post;
@@ -1867,7 +1873,7 @@ export const forumRouter = router({
     .mutation(async ({ input, ctx }) => {
       const result = await forumDb.forumCreatePost({
         ...input,
-        authorId: (ctx as any).userId,
+        authorId: ctx.user.id,
       });
       if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de créer le post" });
       return result;
@@ -1882,7 +1888,7 @@ export const forumRouter = router({
       tags: z.array(z.string().max(30)).max(5).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       const post = await forumDb.forumGetPost(input.postId);
       if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
       if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Non autorisé" });
@@ -1895,8 +1901,8 @@ export const forumRouter = router({
   deletePost: protectedProcedure
     .input(z.object({ postId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
-      const userRole = (ctx as any).userRole as string;
+      const userId = ctx.user.id;
+      const userRole = ctx.user.role;
       const post = await forumDb.forumGetPost(input.postId);
       if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
       if (post.authorId !== userId && userRole !== "admin") {
@@ -1914,7 +1920,7 @@ export const forumRouter = router({
       parentReplyId: z.number().int().positive().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       // Vérifier que le post n'est pas verrouillé
       const post = await forumDb.forumGetPost(input.postId);
       if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
@@ -1931,7 +1937,7 @@ export const forumRouter = router({
       body: z.string().min(2).max(20000),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       const pool = db.getPool();
       if (pool) {
         const [[reply]] = await pool.execute(
@@ -1948,8 +1954,8 @@ export const forumRouter = router({
   deleteReply: protectedProcedure
     .input(z.object({ replyId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
-      const userRole = (ctx as any).userRole as string;
+      const userId = ctx.user.id;
+      const userRole = ctx.user.role;
       const pool = db.getPool();
       if (pool) {
         const [[reply]] = await pool.execute(
@@ -1970,7 +1976,7 @@ export const forumRouter = router({
       value: z.union([z.literal(1), z.literal(-1)]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       const result = await forumDb.forumVote(userId, input.targetType, input.targetId, input.value);
       if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Vote échoué" });
       return result;
@@ -1984,7 +1990,7 @@ export const forumRouter = router({
       emoji: z.enum(["heart", "laugh", "celebrate", "eyes", "paw"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       return await forumDb.forumToggleReaction(userId, input.targetType, input.targetId, input.emoji);
     }),
 
@@ -1992,7 +1998,7 @@ export const forumRouter = router({
   bookmark: protectedProcedure
     .input(z.object({ postId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       return await forumDb.forumToggleBookmark(userId, input.postId);
     }),
 
@@ -2003,7 +2009,7 @@ export const forumRouter = router({
       replyId: z.number().int().positive(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       const post = await forumDb.forumGetPost(input.postId);
       if (!post) throw new TRPCError({ code: "NOT_FOUND" });
       if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Seul l'auteur peut accepter une réponse" });
@@ -2019,26 +2025,26 @@ export const forumRouter = router({
       reason: z.enum(["spam", "inappropriate", "harassment", "misinformation", "other"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).userId as number;
+      const userId = ctx.user.id;
       await forumDb.forumReport({ reporterId: userId, ...input });
       return { success: true };
     }),
 
   /** Mes bookmarks */
   getMyBookmarks: protectedProcedure.query(async ({ ctx }) => {
-    const userId = (ctx as any).userId as number;
+    const userId = ctx.user.id;
     return await forumDb.forumGetMyBookmarks(userId);
   }),
 
   /** Mes posts */
   getMyPosts: protectedProcedure.query(async ({ ctx }) => {
-    const userId = (ctx as any).userId as number;
+    const userId = ctx.user.id;
     return await forumDb.forumGetMyPosts(userId);
   }),
 
   /** Mon karma */
   getMyKarma: protectedProcedure.query(async ({ ctx }) => {
-    const userId = (ctx as any).userId as number;
+    const userId = ctx.user.id;
     return { karma: await forumDb.forumGetUserKarma(userId) };
   }),
 
@@ -2047,7 +2053,7 @@ export const forumRouter = router({
   pinPost: protectedProcedure
     .input(z.object({ postId: z.number(), isPinned: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await forumDb.forumPinPost(input.postId, input.isPinned);
       return { success: true };
     }),
@@ -2055,7 +2061,7 @@ export const forumRouter = router({
   lockPost: protectedProcedure
     .input(z.object({ postId: z.number(), isLocked: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await forumDb.forumLockPost(input.postId, input.isLocked);
       return { success: true };
     }),
@@ -2063,20 +2069,20 @@ export const forumRouter = router({
   setPostStatus: protectedProcedure
     .input(z.object({ postId: z.number(), status: z.enum(["open", "solved", "closed"]) }))
     .mutation(async ({ input, ctx }) => {
-      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await forumDb.forumSetPostStatus(input.postId, input.status);
       return { success: true };
     }),
 
   getPendingReports: protectedProcedure.query(async ({ ctx }) => {
-    if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     return await forumDb.forumGetPendingReports();
   }),
 
   reviewReport: protectedProcedure
     .input(z.object({ reportId: z.number(), status: z.enum(["reviewed", "dismissed"]) }))
     .mutation(async ({ input, ctx }) => {
-      if ((ctx as any).userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await forumDb.forumReviewReport(input.reportId, input.status);
       return { success: true };
     }),

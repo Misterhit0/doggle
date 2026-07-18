@@ -1,6 +1,19 @@
-# 🏗️ Doggle — Arborescence & Architecture Technique
+---
+title: Woofyz — Arborescence & Architecture Technique
+tags:
+  - woofyz
+  - architecture
+  - documentation
+aliases:
+  - Architecture Guide
+  - ARCHITECTURE
+date: 2026-07-15
+---
 
-> Ce document décrit **où se trouve le code** et **comment le projet est structuré**. Pour les règles métier (ce que fait le code), voir [BUSINESS_RULES.md](./BUSINESS_RULES.md). Pour l'inventaire des pages et actions, voir [PAGES.md](./PAGES.md). Pour l'historique des évolutions, voir [../CHANGELOG.md](../CHANGELOG.md).
+# 🏗️ Woofyz — Arborescence & Architecture Technique
+
+> [!info] Structure & Organisation
+> Ce document décrit **où se trouve le code** et **comment le projet est structuré**. Pour les règles métier (ce que fait le code), voir [[BUSINESS_RULES]]. Pour l'inventaire des pages et actions, voir [[PAGES]]. Pour l'historique des évolutions, voir [[CHANGELOG]].
 
 ---
 
@@ -12,7 +25,7 @@
 | Backend | Node.js, Express, tRPC v11, TypeScript, bcryptjs, jose (JWT) |
 | Base de données | MySQL, Drizzle ORM (+ SQL brut pour certaines fonctionnalités, voir plus bas) |
 | Cartographie | MapLibre GL JS + basemaps CartoDB (open source, migré depuis Google Maps) |
-| Process manager | PM2 (`doggle` en prod, `doggle-preprod` en préprod) |
+| Process manager | PM2 (`woofyz` en prod, `woofyz-preprod` en préprod, `woofyz-newpreprod` en preprod alternative) |
 | Reverse proxy | Nginx |
 | Automatisation | n8n (webhooks → notifications WhatsApp via Twilio) |
 | Tests | Vitest |
@@ -123,7 +136,7 @@ woofmatch/
 │
 ├── logs/                          # Logs applicatifs (auth.log, swipe.log, match.log, message.log)
 ├── patches/                       # Patches de dépendances
-└── references/                    # Guides de plateforme (mobile/Capacitor, cron jobs) — pas spécifiques à Doggle
+└── references/                    # Guides de plateforme (mobile/Capacitor, cron jobs) — pas spécifiques à Woofyz
 ```
 
 `⭐` = fichier à connaître en priorité pour comprendre/modifier le comportement de l'app.
@@ -157,14 +170,14 @@ woofmatch/
 | Signalements | `reportSighting`, `getSightings` |
 | Parrainage | `createSponsorshipRequest` |
 
-Le parrainage (`sponsorship.*`), les services de promenade (`walkingService.*`) et certaines routes `events`/`lostDogs` (ex: `rateEvent`, `markAsFound`, `getMyEvents`, `getAvailableSponsors`) sont actuellement des **stubs côté serveur** (retournent une réponse statique `{ success: true }` ou `[]` sans persister en base) — voir [BUSINESS_RULES.md](./BUSINESS_RULES.md#stubs-non-implémentés) pour la liste exacte.
+Le parrainage (`sponsorship.*`), les services de promenade (`walkingService.*`) et certaines routes `events`/`lostDogs` (ex: `rateEvent`, `markAsFound`, `getMyEvents`, `getAvailableSponsors`) sont actuellement des **stubs côté serveur** (retournent une réponse statique `{ success: true }` ou `[]` sans persister en base) — voir [[BUSINESS_RULES#stubs-non-implémentés]] pour la liste exacte.
 
 ---
 
 ## 🔌 Comment le client parle au serveur
 
 - **tRPC** avec `httpBatchLink` + transformer **superjson** (`client/src/main.tsx`).
-- Toutes les requêtes passent par `/api/trpc/*`. Les 429 (rate limit) sont gérés **dans tRPC lui-même** (middleware `server/_core/trpc.ts`), jamais en JSON brut Express, pour rester compatibles avec le parsing batch/superjson du client (voir [CHANGELOG.md](../CHANGELOG.md) pour l'historique du bug corrigé).
+- Toutes les requêtes passent par `/api/trpc/*`. Les 429 (rate limit) sont gérés **dans tRPC lui-même** (middleware `server/_core/trpc.ts`), jamais en JSON brut Express, pour rester compatibles avec le parsing batch/superjson du client (voir [[CHANGELOG]] pour l'historique du bug corrigé).
 - Sessions : cookie `HttpOnly`, `SameSite: Lax`, avec repli **Bearer token via `sessionStorage`** pour les contextes où les cookies tiers sont bloqués (Safari ITP, WebView).
 
 ## 🔒 Sécurité en un coup d'œil

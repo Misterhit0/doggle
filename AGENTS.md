@@ -1,10 +1,24 @@
+---
+title: Équipe de Lancement Stratégique & Administratif — Woofyz
+tags:
+  - woofyz
+  - agents
+  - startup-launch
+aliases:
+  - Agents List
+  - AGENTS
+date: 2026-07-15
+---
+
 # Équipe de Lancement Stratégique & Administratif — Woofyz
 
-## Paramètres Globaux d'Exécution (OpenRouter Gratuit)
-- **Provider**: OpenRouter
-- **Base_URL**: "https://openrouter.ai/api/v1"
-- **API_Key**: "${OPENROUTER_API_KEY}"
-- **LLM Engine**: `openchat/openchat-7b:free`
+> [!info] Paramètres Globaux d'Exécution (OpenRouter Gratuit)
+> - **Provider**: OpenRouter
+> - **Base_URL**: "https://openrouter.ai/api/v1"
+> - **API_Key**: "${OPENROUTER_API_KEY}"
+> - **LLM Engine**: `openchat/openchat-7b:free`
+>
+> Pour l'alignement avec les stratégies d'acquisition locales, voir [[docs/marketing_strategies_france|marketing_strategies_france]]. Pour l'audit initial du code, voir [[docs/analysis_results|analysis_results]].
 
 ---
 

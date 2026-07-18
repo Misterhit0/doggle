@@ -1,0 +1,217 @@
+{
+  "nodes": [
+    {
+      "id": "index",
+      "type": "file",
+      "file": "INDEX.md",
+      "x": 0,
+      "y": 0,
+      "width": 300,
+      "height": 200,
+      "color": "1"
+    },
+    {
+      "id": "claude",
+      "type": "file",
+      "file": "CLAUDE.md",
+      "x": -500,
+      "y": -200,
+      "width": 300,
+      "height": 300
+    },
+    {
+      "id": "ai_instructions",
+      "type": "file",
+      "file": "AI_INSTRUCTIONS.md",
+      "x": -500,
+      "y": 150,
+      "width": 300,
+      "height": 300
+    },
+    {
+      "id": "agents",
+      "type": "file",
+      "file": "AGENTS.md",
+      "x": -900,
+      "y": 0,
+      "width": 300,
+      "height": 300
+    },
+    {
+      "id": "biz_rules",
+      "type": "file",
+      "file": "docs/BUSINESS_RULES.md",
+      "x": 500,
+      "y": -200,
+      "width": 300,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "compat",
+      "type": "file",
+      "file": "docs/COMPATIBILITY_ALGORITHM.md",
+      "x": 900,
+      "y": -200,
+      "width": 300,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "pages",
+      "type": "file",
+      "file": "docs/PAGES.md",
+      "x": 500,
+      "y": 150,
+      "width": 300,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "arch",
+      "type": "file",
+      "file": "docs/ARCHITECTURE.md",
+      "x": 0,
+      "y": -500,
+      "width": 300,
+      "height": 300,
+      "color": "3"
+    },
+    {
+      "id": "deploy",
+      "type": "file",
+      "file": "DEPLOYMENT_DOCS.md",
+      "x": 400,
+      "y": -500,
+      "width": 300,
+      "height": 300,
+      "color": "3"
+    },
+    {
+      "id": "access",
+      "type": "file",
+      "file": "docs/ACCESS_CONTROL_README.md",
+      "x": -400,
+      "y": -500,
+      "width": 300,
+      "height": 300,
+      "color": "3"
+    },
+    {
+      "id": "analysis",
+      "type": "file",
+      "file": "docs/analysis_results.md",
+      "x": 900,
+      "y": 150,
+      "width": 300,
+      "height": 300,
+      "color": "4"
+    },
+    {
+      "id": "marketing",
+      "type": "file",
+      "file": "docs/marketing_strategies_france.md",
+      "x": 1300,
+      "y": 150,
+      "width": 300,
+      "height": 300,
+      "color": "4"
+    },
+    {
+      "id": "evolution",
+      "type": "file",
+      "file": "docs/PROJECT_EVOLUTION.md",
+      "x": 900,
+      "y": 500,
+      "width": 300,
+      "height": 300,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_idx_claude",
+      "fromNode": "index",
+      "fromSide": "left",
+      "toNode": "claude",
+      "toSide": "right"
+    },
+    {
+      "id": "e_idx_biz",
+      "fromNode": "index",
+      "fromSide": "right",
+      "toNode": "biz_rules",
+      "toSide": "left"
+    },
+    {
+      "id": "e_idx_arch",
+      "fromNode": "index",
+      "fromSide": "top",
+      "toNode": "arch",
+      "toSide": "bottom"
+    },
+    {
+      "id": "e_claude_ai",
+      "fromNode": "claude",
+      "fromSide": "bottom",
+      "toNode": "ai_instructions",
+      "toSide": "top"
+    },
+    {
+      "id": "e_ai_agents",
+      "fromNode": "ai_instructions",
+      "fromSide": "left",
+      "toNode": "agents",
+      "toSide": "right"
+    },
+    {
+      "id": "e_biz_compat",
+      "fromNode": "biz_rules",
+      "fromSide": "right",
+      "toNode": "compat",
+      "toSide": "left"
+    },
+    {
+      "id": "e_biz_pages",
+      "fromNode": "biz_rules",
+      "fromSide": "bottom",
+      "toNode": "pages",
+      "toSide": "top"
+    },
+    {
+      "id": "e_arch_deploy",
+      "fromNode": "arch",
+      "fromSide": "right",
+      "toNode": "deploy",
+      "toSide": "left"
+    },
+    {
+      "id": "e_arch_access",
+      "fromNode": "arch",
+      "fromSide": "left",
+      "toNode": "access",
+      "toSide": "right"
+    },
+    {
+      "id": "e_pages_analysis",
+      "fromNode": "pages",
+      "fromSide": "right",
+      "toNode": "analysis",
+      "toSide": "left"
+    },
+    {
+      "id": "e_analysis_marketing",
+      "fromNode": "analysis",
+      "fromSide": "right",
+      "toNode": "marketing",
+      "toSide": "left"
+    },
+    {
+      "id": "e_analysis_evolution",
+      "fromNode": "analysis",
+      "fromSide": "bottom",
+      "toNode": "evolution",
+      "toSide": "top"
+    }
+  ]
+}

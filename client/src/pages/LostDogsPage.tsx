@@ -839,6 +839,7 @@ export default function LostDogsPage() {
               <span className="ml-auto text-white/80 text-xs font-semibold">
                 {Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0} signalement{(Array.isArray(nearbyLostDogs) ? nearbyLostDogs.length : 0) > 1 ? "s" : ""} • rayon {latitude && longitude ? "100" : "500"} km
               </span>
+            </div>
             <MapView
               onMapReady={(mapInstance) => {
                 // Sync both ref (for markers) and state (to trigger useEffect)
@@ -874,7 +875,6 @@ export default function LostDogsPage() {
               className="w-full h-[360px]"
             />
           </div>
-        </div>
 
           {/* Legend + Filters */}
           <div className="flex flex-wrap gap-3 items-center px-1 py-2 mb-2">

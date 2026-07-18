@@ -35,7 +35,7 @@ import {
 
 export default function AdminDashboardPage() {
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "payments" | "logs" | "perf" | "db-manager" | "settings">("kpis");
+  const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "payments" | "logs" | "perf" | "db-manager" | "settings" | "dogsitters">("kpis");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -84,6 +84,20 @@ export default function AdminDashboardPage() {
   const { data: serverStats, isLoading: serverLoading, refetch: refetchServer } = trpc.admin.getServerStats.useQuery(undefined, {
     enabled: currentUser?.role === "admin",
     refetchInterval: 10000 // refresh metrics every 10s
+  });
+
+  const { data: sittersList, isLoading: sittersLoading, refetch: refetchSitters } = trpc.boarding.adminGetAllSitters.useQuery(undefined, {
+    enabled: currentUser?.role === "admin"
+  });
+
+  const updateSitterStatusMutation = trpc.boarding.adminUpdateSitterStatus.useMutation({
+    onSuccess: () => {
+      toast.success("Statut du dogsitter mis à jour avec succès !");
+      refetchSitters();
+    },
+    onError: (err: any) => {
+      toast.error("Erreur lors de la mise à jour : " + err.message);
+    }
   });
 
   // Plan settings queries & mutations
@@ -304,6 +318,7 @@ export default function AdminDashboardPage() {
                 refetchUsers();
                 refetchLogs();
                 refetchServer();
+                refetchSitters();
                 toast.success("Données actualisées");
               }}
               className="bg-white border-2 border-black text-black font-black uppercase shadow-[4px_4px_0_0_rgba(0,0,0,1)] hover:bg-neutral-100 flex gap-2 items-center"
@@ -321,6 +336,7 @@ export default function AdminDashboardPage() {
           {[
             { id: "kpis", label: "Vue d'ensemble", icon: Activity, color: "bg-cyan-300" },
             { id: "crm", label: "CRM Utilisateurs", icon: Users, color: "bg-emerald-300" },
+            { id: "dogsitters", label: "Dogsitters", icon: Heart, color: "bg-orange-300" },
             { id: "payments", label: "Paiements & Ventes", icon: CreditCard, color: "bg-yellow-300" },
             { id: "settings", label: "Paramètres App", icon: Zap, color: "bg-red-300" },
             { id: "db-manager", label: "Bases de Données", icon: Database, color: "bg-amber-300" },
@@ -624,6 +640,96 @@ export default function AdminDashboardPage() {
                         <td colSpan={6} className="p-8 text-center text-muted-foreground font-bold uppercase text-xs">
                           Aucun utilisateur trouvé
                         </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB: DOGSITTERS MODERATION */}
+        {!sittersLoading && activeTab === "dogsitters" && (
+          <div className="space-y-6 animate-fadeIn">
+            <Card className="border-4 border-black rounded-lg bg-white overflow-hidden shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b-2 border-black font-bold text-xs uppercase text-neutral-700">
+                      <th className="p-4 border-r-2 border-black">Nom</th>
+                      <th className="p-4 border-r-2 border-black">Contact</th>
+                      <th className="p-4 border-r-2 border-black">Bio</th>
+                      <th className="p-4 border-r-2 border-black">Tarifs</th>
+                      <th className="p-4 border-r-2 border-black">Capacité Max</th>
+                      <th className="p-4 border-r-2 border-black">Statut Actuel</th>
+                      <th className="p-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-2 divide-neutral-200">
+                    {sittersList && sittersList.length > 0 ? (
+                      (sittersList as any[]).map((sitter) => (
+                        <tr key={sitter.id} className="hover:bg-neutral-50 font-medium text-xs text-neutral-800">
+                          <td className="p-4 border-r-2 border-neutral-200 font-bold text-sm text-black">{sitter.name}</td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            <p className="font-semibold">{sitter.email}</p>
+                            <p className="text-neutral-500 text-[10px]">{sitter.phoneNumber || "Non renseigné"}</p>
+                          </td>
+                          <td className="p-4 border-r-2 border-neutral-200 max-w-xs truncate">{sitter.dogSitterBio || "Aucune bio"}</td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            {sitter.dogSitterRates ? (
+                              <div className="space-y-0.5 text-[10px]">
+                                {sitter.dogSitterRates.night && <p>Nuit: {sitter.dogSitterRates.night}€</p>}
+                                {sitter.dogSitterRates.halfDay && <p>Demi-J: {sitter.dogSitterRates.halfDay}€</p>}
+                                {sitter.dogSitterRates.walk && <p>Promenade: {sitter.dogSitterRates.walk}€</p>}
+                              </div>
+                            ) : "Non définis"}
+                          </td>
+                          <td className="p-4 border-r-2 border-neutral-200 font-bold text-center">{sitter.dogSitterMaxDogs || 1} chien(s)</td>
+                          <td className="p-4 border-r-2 border-neutral-200">
+                            <span className={`inline-block px-2 py-0.5 text-[9px] uppercase font-black border border-black rounded ${
+                              sitter.dogSitterStatus === "approved"
+                                ? "bg-green-200 text-green-800"
+                                : sitter.dogSitterStatus === "rejected"
+                                ? "bg-red-200 text-red-800"
+                                : sitter.dogSitterStatus === "blocked"
+                                ? "bg-black text-white"
+                                : "bg-yellow-200 text-yellow-800"
+                            }`}>
+                              {sitter.dogSitterStatus === "approved" ? "Approuvé" : sitter.dogSitterStatus === "rejected" ? "Rejeté" : sitter.dogSitterStatus === "blocked" ? "Bloqué" : "En attente"}
+                            </span>
+                          </td>
+                          <td className="p-4 flex gap-2 flex-wrap">
+                            {sitter.dogSitterStatus !== "approved" && (
+                              <Button
+                                onClick={() => updateSitterStatusMutation.mutate({ userId: sitter.id, status: "approved" })}
+                                className="bg-green-300 hover:bg-green-400 text-black border-2 border-black font-black uppercase text-[10px] py-1 px-2 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                              >
+                                Accepter
+                              </Button>
+                            )}
+                            {sitter.dogSitterStatus !== "rejected" && (
+                              <Button
+                                onClick={() => updateSitterStatusMutation.mutate({ userId: sitter.id, status: "rejected" })}
+                                className="bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black uppercase text-[10px] py-1 px-2 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                              >
+                                Rejeter
+                              </Button>
+                            )}
+                            {sitter.dogSitterStatus !== "blocked" && (
+                              <Button
+                                onClick={() => updateSitterStatusMutation.mutate({ userId: sitter.id, status: "blocked" })}
+                                className="bg-red-500 hover:bg-red-600 text-white border-2 border-black font-black uppercase text-[10px] py-1 px-2 shadow-[2px_2px_0_0_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+                              >
+                                Bloquer
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground font-bold uppercase text-xs">Aucun dogsitter inscrit</td>
                       </tr>
                     )}
                   </tbody>

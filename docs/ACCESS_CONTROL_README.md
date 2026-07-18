@@ -1,8 +1,23 @@
-# DOGGLE - SYSTÈME DE CONTRÔLE D'ACCÈS
+---
+title: Woofyz - Système de Contrôle d'Accès
+tags:
+  - woofyz
+  - security
+  - documentation
+aliases:
+  - Access Control Guide
+  - ACCESS_CONTROL_README
+date: 2026-07-15
+---
+
+# 🛡️ Woofyz — Système de Contrôle d'Accès
 
 ## 📋 Vue d'ensemble
 
-Ce système de contrôle d'accès permet de **restreindre l'édition du code source Doggle** à certains utilisateurs autorisés uniquement.
+Ce système de contrôle d'accès permet de **restreindre l'édition du code source critique de Woofyz** à certains utilisateurs autorisés uniquement. Pour l'architecture globale, voir [[ARCHITECTURE]].
+
+> [!info] Contexte de Sécurité
+> Ce système de sécurité est activement vérifié lors des commits développeurs (Git Hooks) décrits dans [[CLAUDE]] et [[AI_INSTRUCTIONS]]. Les variables de clé secrètes d'accès sont définies localement sur le VPS et listées dans les fichiers d'environnement détaillés dans [[DEPLOYMENT_DOCS]].
 
 **Fonctionnalités** :
 - ✅ Authentification par email + clé d'accès
@@ -152,9 +167,8 @@ node doggle-access-control.js report
 node doggle-access-control.js generate-env
 ```
 
-**Résultat** : Crée `.env.access` avec toutes les clés d'accès
-
-⚠️ **Ne pas partager ce fichier publiquement !**
+> [!warning] Sécurité des Clés
+> Ne partagez jamais le fichier `.env.access` publiquement !
 
 ---
 
@@ -350,7 +364,7 @@ Pour des questions ou des problèmes :
 
 ## 📜 Licence
 
-Ce système de contrôle d'accès est propriétaire à Doggle. Tous les droits réservés.
+Ce système de contrôle d'accès est propriétaire à **Woofyz**. Tous les droits réservés.
 
 **Utilisation** : Réservé aux utilisateurs autorisés uniquement.
 
