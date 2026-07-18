@@ -390,13 +390,30 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   // Get all users
   const allUsers = await db.select().from(users);
 
+  // Filter candidates based on dogsitting preferences
+  const candidates = allUsers.filter(user => {
+    if (user.id === userId) return false;
+    
+    // If current user is a dog sitter, target must be dogsitting friendly
+    if (currentUser?.isDogSitter && !user.dogsittingFriendly) {
+      return false;
+    }
+    
+    // If target is a dog sitter, current user must be dogsitting friendly
+    if (user.isDogSitter && !currentUser?.dogsittingFriendly) {
+      return false;
+    }
+    
+    return true;
+  });
+
   if (!currentUser || currentUser.latitude === null || currentUser.longitude === null) {
-    return allUsers.filter(user => user.id !== userId);
+    return candidates;
   }
 
   // Filter by distance
-  const nearby = allUsers.filter(user => {
-    if (user.id === userId || user.latitude === null || user.longitude === null) return false;
+  const nearby = candidates.filter(user => {
+    if (user.latitude === null || user.longitude === null) return false;
     const distance = calculateDistance(
       currentUser.latitude,
       currentUser.longitude,
@@ -407,7 +424,7 @@ export async function getNearbyUsers(userId: number, radiusKm: number = 5) {
   });
 
   if (nearby.length === 0) {
-    return allUsers.filter(user => user.id !== userId);
+    return candidates;
   }
 
   return nearby;
@@ -420,6 +437,7 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
     return [];
   }
 
+  const currentUser = await getUserById(userId);
   const nearbyUsers = await getNearbyUsers(userId, radiusKm);
   
   if (nearbyUsers.length === 0) {
@@ -429,7 +447,10 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
   // Get dogs for each nearby user
   const duos = await Promise.all(
     nearbyUsers.map(async (user) => {
-      const userDogs = await getDogsByUserId(user.id);
+      let userDogs = await getDogsByUserId(user.id);
+      if (currentUser?.isDogSitter) {
+        userDogs = userDogs.filter(dog => dog.availableForBoarding === true || dog.availableForBoarding === 1);
+      }
       return {
         user,
         dogs: userDogs,
@@ -734,10 +755,10 @@ export async function getNearbyEvents(userId: number, latitude: number, longitud
     if (!connection) return [];
     const query = `
       SELECT e.*, u.name as organizerName, u.profilePhotoUrl as organizerPhoto,
-             (6371 * acos(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)))) as distance
+             (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)), -1), 1))) as distance
       FROM events e
       JOIN users u ON e.organizerId = u.id
-      WHERE (6371 * acos(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)))) <= ?
+      WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(e.latitude)) * cos(radians(e.longitude) - radians(?)) + sin(radians(?)) * sin(radians(e.latitude)), -1), 1))) <= ?
       ${eventType ? 'AND e.eventType = ?' : ''}
       AND e.eventDate >= NOW()
       ORDER BY distance ASC
@@ -818,10 +839,41 @@ export async function reportLostDog(data: {
   try {
     const connection = getPool();
     if (!connection) return null;
+
+    let dogName = "Inconnu";
+    let dogBreed = null;
+    let dogAge = null;
+
+    if (data.dogId) {
+      const [dogRows] = await connection.execute(
+        "SELECT name, breed, age FROM dogs WHERE id = ?",
+        [data.dogId]
+      );
+      if (Array.isArray(dogRows) && dogRows.length > 0) {
+        const dog = dogRows[0] as any;
+        dogName = dog.name || "Inconnu";
+        dogBreed = dog.breed || null;
+        dogAge = dog.age !== undefined ? dog.age : null;
+      }
+    }
+
     const [result] = await connection.execute(
-      `INSERT INTO lost_dogs (dogId, userId, description, lostDate, lostLocation, latitude, longitude, reward, contactPhone, status, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'lost', NOW())`,
-      [data.dogId, data.userId, data.description, data.lostDate, data.lostLocation, data.latitude, data.longitude, data.reward || null, data.contactPhone || null]
+      `INSERT INTO lost_dogs (dogId, userId, name, breed, age, description, lostDate, lostLocation, latitude, longitude, reward, contactPhone, status, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lost', NOW())`,
+      [
+        data.dogId,
+        data.userId,
+        dogName,
+        dogBreed,
+        dogAge,
+        data.description,
+        data.lostDate,
+        data.lostLocation,
+        data.latitude,
+        data.longitude,
+        data.reward || null,
+        data.contactPhone || null
+      ]
     );
     return (result as any).insertId;
   } catch (error) {
@@ -847,7 +899,7 @@ export async function reportSighting(data: {
     const connection = getPool();
     if (!connection) return null;
     const [result] = await connection.execute(
-      `INSERT INTO lost_dog_sightings (lostDogId, userId, location, latitude, longitude, sightingDate, description, confidence, createdAt)
+      `INSERT INTO sightings (lostDogId, userId, location, latitude, longitude, sightingDate, description, confidence, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [data.lostDogId, data.userId, data.location, data.latitude, data.longitude, data.sightingDate, data.description, data.confidence]
     );
@@ -867,12 +919,12 @@ export async function getNearbyLostDogs(latitude: number, longitude: number, rad
     if (!connection) return [];
     const [lostDogs] = await connection.execute(
       `SELECT ld.*, d.name, d.breed, d.age, d.photoUrls, u.name as ownerName, u.profilePhotoUrl,
-              (6371 * acos(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)))) as distance
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)), -1), 1))) as distance
        FROM lost_dogs ld
        JOIN dogs d ON ld.dogId = d.id
        JOIN users u ON ld.userId = u.id
        WHERE ld.status = 'lost'
-       AND (6371 * acos(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)))) <= ?
+       AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(ld.latitude)) * cos(radians(ld.longitude) - radians(?)) + sin(radians(?)) * sin(radians(ld.latitude)), -1), 1))) <= ?
        ORDER BY ld.createdAt DESC`,
       [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
     );
@@ -892,7 +944,7 @@ export async function getSightings(lostDogId: number) {
     if (!connection) return [];
     const [sightings] = await connection.execute(
       `SELECT s.*, u.name as reporterName, u.profilePhotoUrl
-       FROM lost_dog_sightings s
+       FROM sightings s
        JOIN users u ON s.userId = u.id
        WHERE s.lostDogId = ?
        ORDER BY s.sightingDate DESC`,
@@ -901,6 +953,29 @@ export async function getSightings(lostDogId: number) {
     return sightings || [];
   } catch (error) {
     console.error("[Database] Failed to get sightings:", error);
+    return [];
+  }
+}
+
+export async function getNearbySightings(latitude: number, longitude: number, radiusKm: number = 25) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const connection = getPool();
+    if (!connection) return [];
+    const [sightings] = await connection.execute(
+      `SELECT s.*, u.name as reporterName, u.profilePhotoUrl,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(s.latitude)) * cos(radians(s.longitude) - radians(?)) + sin(radians(?)) * sin(radians(s.latitude)), -1), 1))) as distance
+       FROM sightings s
+       JOIN users u ON s.userId = u.id
+       WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(s.latitude)) * cos(radians(s.longitude) - radians(?)) + sin(radians(?)) * sin(radians(s.latitude)), -1), 1))) <= ?
+       ORDER BY s.sightingDate DESC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return sightings || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby sightings:", error);
     return [];
   }
 }
@@ -1248,6 +1323,22 @@ export async function migrateDatabase() {
       }
     }
 
+    try {
+      await pool.execute("ALTER TABLE users ADD COLUMN dogsittingFriendly BOOLEAN NOT NULL DEFAULT FALSE");
+      console.log("[Database] Added column dogsittingFriendly to users table.");
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_FIELDNAME' && !e.message?.includes('duplicate column')) {
+        console.warn("[Database] Warning adding dogsittingFriendly:", e.message || e);
+      }
+    }
+
+    try {
+      await pool.execute("ALTER TABLE users MODIFY COLUMN dogSitterStatus ENUM('pending', 'approved', 'rejected', 'blocked') DEFAULT 'pending'");
+      console.log("[Database] Altered users table dogSitterStatus column to support 'blocked'.");
+    } catch (e: any) {
+      console.warn("[Database] Warning modifying dogSitterStatus enum:", e.message || e);
+    }
+
     // 2. Create payments table if not exists
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS payments (
@@ -1333,10 +1424,14 @@ export async function migrateDatabase() {
 
     // Seed default plans
     await pool.execute(`
-      INSERT IGNORE INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
+      INSERT INTO plan_settings (plan, maxSwipesPerDay, maxFavoritesPerDay, price) VALUES
       ('free', 10, 1, 0.00),
-      ('premium', 20, 2, 4.99),
-      ('vip', -1, 5, 9.99)
+      ('premium', -1, 999, 4.99),
+      ('vip', -1, 999, 19.99)
+      ON DUPLICATE KEY UPDATE 
+        maxSwipesPerDay = VALUES(maxSwipesPerDay), 
+        maxFavoritesPerDay = VALUES(maxFavoritesPerDay), 
+        price = VALUES(price)
     `);
     console.log("[Database] Default plan settings seeded.");
 
@@ -1507,6 +1602,23 @@ export async function getDailyFavoriteCount(userId: number): Promise<number> {
   }
 }
 
+export async function getActiveDiscussionsCount(userId: number): Promise<number> {
+  const pool = getPool();
+  if (!pool) return 0;
+  try {
+    const query = `
+      SELECT COUNT(DISTINCT m.id) as count
+      FROM matches m
+      JOIN messages msg ON m.id = msg.matchId
+      WHERE m.userId1 = ? OR m.userId2 = ?
+    `;
+    const [rows] = await pool.execute(query, [userId, userId]);
+    return Number((rows as any[])[0]?.count ?? 0);
+  } catch (error) {
+    console.error("[Database] Failed to get active discussions count:", error);
+    return 0;
+  }
+}
 
 export async function usersAreMatched(userId1: number, userId2: number): Promise<boolean> {
   const match1 = await getMatch(userId1, userId2);
@@ -1952,3 +2064,257 @@ export async function getPlanConfig(plan: string): Promise<any> {
   }
   return { maxSwipesPerDay: 10, maxFavoritesPerDay: 1 };
 }
+
+// ============ BOARDING (DOG-SITTER) HELPERS ============
+
+export async function registerAsDogSitter(userId: number, data: {
+  dogSitterBio?: string;
+  dogSitterRates?: { night?: number; halfDay?: number; walk?: number };
+  dogSitterMaxDogs?: number;
+}) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE users SET isDogSitter = TRUE, dogSitterBio = ?, dogSitterRates = ?, dogSitterMaxDogs = ?, dogSitterStatus = 'pending' WHERE id = ?`,
+      [
+        data.dogSitterBio ?? null,
+        data.dogSitterRates ? JSON.stringify(data.dogSitterRates) : null,
+        data.dogSitterMaxDogs ?? 1,
+        userId,
+      ]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to register as dog sitter:", error);
+    return false;
+  }
+}
+
+export async function updateDogSitterProfile(userId: number, data: {
+  dogSitterBio?: string;
+  dogSitterRates?: { night?: number; halfDay?: number; walk?: number };
+  dogSitterAvailable?: boolean;
+  dogSitterMaxDogs?: number;
+}) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    const sets: string[] = [];
+    const params: any[] = [];
+    if (data.dogSitterBio !== undefined) { sets.push("dogSitterBio = ?"); params.push(data.dogSitterBio); }
+    if (data.dogSitterRates !== undefined) { sets.push("dogSitterRates = ?"); params.push(JSON.stringify(data.dogSitterRates)); }
+    if (data.dogSitterAvailable !== undefined) { sets.push("dogSitterAvailable = ?"); params.push(data.dogSitterAvailable ? 1 : 0); }
+    if (data.dogSitterMaxDogs !== undefined) { sets.push("dogSitterMaxDogs = ?"); params.push(data.dogSitterMaxDogs); }
+    if (sets.length === 0) return true;
+    params.push(userId);
+    await pool.execute(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, params);
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update dog sitter profile:", error);
+    return false;
+  }
+}
+
+export async function toggleDogForBoarding(dogId: number, userId: number, available: boolean) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE dogs SET availableForBoarding = ? WHERE id = ? AND userId = ?`,
+      [available ? 1 : 0, dogId, userId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to toggle dog for boarding:", error);
+    return false;
+  }
+}
+
+export async function getAvailableDogsForBoarding(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    // Dogs marked as available, owned by someone who is NOT the sitter
+    const [rows] = await pool.execute(
+      `SELECT d.*, u.name as ownerName, u.profilePhotoUrl as ownerPhoto, u.phoneNumber as ownerPhone,
+              u.latitude as ownerLat, u.longitude as ownerLng, u.bio as ownerBio
+       FROM dogs d
+       JOIN users u ON d.userId = u.id
+       WHERE d.availableForBoarding = TRUE AND d.userId != ?
+       ORDER BY d.updatedAt DESC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get available dogs for boarding:", error);
+    return [];
+  }
+}
+
+export async function createBoardingRequest(data: {
+  dogId: number;
+  ownerId: number;
+  sitterId: number;
+  startDate: Date;
+  endDate: Date;
+  message?: string;
+  totalPrice?: number;
+  ownerPhone?: string;
+}) {
+  const pool = getPool();
+  if (!pool) return null;
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO boarding_requests (dogId, ownerId, sitterId, startDate, endDate, message, totalPrice, ownerPhone, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [data.dogId, data.ownerId, data.sitterId, data.startDate, data.endDate, data.message ?? null, data.totalPrice ?? null, data.ownerPhone ?? null]
+    );
+    return (result as any).insertId as number;
+  } catch (error) {
+    console.error("[Database] Failed to create boarding request:", error);
+    return null;
+  }
+}
+
+export async function getBoardingRequestsForSitter(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.age as dogAge, d.photoUrls as dogPhotoUrls,
+              u.name as ownerName, u.profilePhotoUrl as ownerPhoto, u.phoneNumber as ownerPhone
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.ownerId = u.id
+       WHERE br.sitterId = ?
+       ORDER BY br.createdAt DESC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get boarding requests for sitter:", error);
+    return [];
+  }
+}
+
+export async function getBoardingRequestsForOwner(ownerId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.photoUrls as dogPhotoUrls,
+              u.name as sitterName, u.profilePhotoUrl as sitterPhoto, u.phoneNumber as sitterPhone,
+              u.dogSitterRates as sitterRates, u.dogSitterBio as sitterBio
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.sitterId = u.id
+       WHERE br.ownerId = ?
+       ORDER BY br.createdAt DESC`,
+      [ownerId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get boarding requests for owner:", error);
+    return [];
+  }
+}
+
+export async function respondToBoardingRequest(requestId: number, sitterId: number, status: 'accepted' | 'rejected') {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE boarding_requests SET status = ? WHERE id = ? AND sitterId = ?`,
+      [status, requestId, sitterId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to respond to boarding request:", error);
+    return false;
+  }
+}
+
+export async function completeBoardingRequest(requestId: number, sitterId: number) {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE boarding_requests SET status = 'completed' WHERE id = ? AND sitterId = ?`,
+      [requestId, sitterId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to complete boarding request:", error);
+    return false;
+  }
+}
+
+export async function getActiveBoardingsForSitter(sitterId: number) {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.*, d.name as dogName, d.breed as dogBreed, d.age as dogAge, d.photoUrls as dogPhotoUrls,
+              u.name as ownerName, u.phoneNumber as ownerPhone, u.profilePhotoUrl as ownerPhoto
+       FROM boarding_requests br
+       JOIN dogs d ON br.dogId = d.id
+       JOIN users u ON br.ownerId = u.id
+       WHERE br.sitterId = ? AND br.status = 'accepted' AND br.endDate >= NOW()
+       ORDER BY br.startDate ASC`,
+      [sitterId]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get active boardings:", error);
+    return [];
+  }
+}
+
+export async function updateDogSitterStatusAdmin(userId: number, status: 'approved' | 'rejected' | 'blocked') {
+  const pool = getPool();
+  if (!pool) return false;
+  try {
+    await pool.execute(
+      `UPDATE users SET dogSitterStatus = ? WHERE id = ?`,
+      [status, userId]
+    );
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to update dog sitter status:", error);
+    return false;
+  }
+}
+
+export async function getPendingDogSitters() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, email, phoneNumber, dogSitterBio, dogSitterRates, dogSitterMaxDogs, dogSitterStatus, createdAt
+       FROM users WHERE isDogSitter = TRUE AND dogSitterStatus = 'pending'
+       ORDER BY createdAt DESC`
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get pending dog sitters:", error);
+    return [];
+  }
+}
+
+export async function getAllDogSitters() {
+  const pool = getPool();
+  if (!pool) return [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, email, phoneNumber, dogSitterBio, dogSitterRates, dogSitterMaxDogs, dogSitterStatus, createdAt
+       FROM users WHERE isDogSitter = TRUE
+       ORDER BY createdAt DESC`
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("[Database] Failed to get all dog sitters:", error);
+    return [];
+  }
+}
+

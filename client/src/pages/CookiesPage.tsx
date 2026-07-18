@@ -52,11 +52,11 @@ export default function CookiesPage() {
               Qu'est-ce qu'un Cookie ?
             </div>
             <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-              Un cookie est un petit fichier texte déposé sur votre terminal (ordinateur, tablette ou mobile) lors de la visite d'un site internet. Il permet de retenir vos choix et vos informations d'authentification pour rendre l'utilisation de Doggle plus fluide.
+              Un cookie est un petit fichier texte déposé sur votre terminal (ordinateur, tablette ou mobile) lors de la visite d'un site internet. Il permet de retenir vos choix et vos informations d'authentification pour rendre l'utilisation de Woofyz plus fluide.
             </p>
 
             <div className="border-t-2 border-black pt-6 space-y-6">
-              <h3 className="text-lg font-bold uppercase text-foreground">Traceurs utilisés sur Doggle</h3>
+              <h3 className="text-lg font-bold uppercase text-foreground">Traceurs utilisés sur Woofyz</h3>
               <div className="space-y-4">
                 {list.map((item) => (
                   <div key={item.name} className="p-4 border-2 border-black rounded-lg bg-gray-50 space-y-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">

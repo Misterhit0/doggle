@@ -75,8 +75,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="text-xs font-black uppercase text-foreground">E-mail</p>
-                      <a href="mailto:hello@doggle.cloud" className="text-sm font-semibold text-muted-foreground hover:text-accent transition-colors">
-                        hello@doggle.cloud
+                      <a href="mailto:hello@woofyz.com" className="text-sm font-semibold text-muted-foreground hover:text-accent transition-colors">
+                        hello@woofyz.com
                       </a>
                     </div>
                   </div>
@@ -99,8 +99,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="text-xs font-black uppercase text-foreground">Site Internet</p>
-                      <a href="https://doggle.cloud" className="text-sm font-semibold text-muted-foreground hover:text-accent transition-colors">
-                        www.doggle.cloud
+                      <a href="https://woofyz.com" className="text-sm font-semibold text-muted-foreground hover:text-accent transition-colors">
+                        www.woofyz.com
                       </a>
                     </div>
                   </div>

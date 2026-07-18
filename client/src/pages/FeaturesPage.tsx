@@ -66,7 +66,7 @@ export default function FeaturesPage() {
               <span className="text-xs font-black uppercase tracking-wider text-foreground">Découvrez l'expérience</span>
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase text-foreground leading-[1.1] mb-6">
-              Fonctionnalités de <span className="text-accent">Doggle</span>
+              Fonctionnalités de <span className="text-accent">Woofyz</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-medium">
               Conçu pour simplifier les rencontres de vos chiens tout en créant un environnement de soutien social, de sécurité et d'entraide entre propriétaires.
@@ -102,7 +102,7 @@ export default function FeaturesPage() {
           >
             <h3 className="text-2xl font-bold uppercase text-foreground mb-4">Et bientôt plus encore...</h3>
             <p className="text-muted-foreground font-medium mb-6">
-              Nous continuons d'améliorer l'application au quotidien grâce aux retours de notre communauté de passionnés. Aidez-nous à façonner l'avenir de Doggle !
+              Nous continuons d'améliorer l'application au quotidien grâce aux retours de notre communauté de passionnés. Aidez-nous à façonner l'avenir de Woofyz !
             </p>
             <a
               href="/"

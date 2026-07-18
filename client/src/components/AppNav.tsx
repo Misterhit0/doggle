@@ -12,7 +12,9 @@ import {
   Home as HomeIcon,
   Calendar,
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Dog,
+  MessageSquare,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -31,6 +33,7 @@ const NAV_ITEMS = [
   { label: 'Événements', href: '/events', icon: Calendar },
   { label: 'Chiens perdus', href: '/lost-dogs', icon: AlertCircle },
   { label: 'Carte de balade', href: '/walking-map', icon: Map },
+  { label: 'Forum', href: '/forum', icon: MessageSquare },
   { label: 'Favoris', href: '/favorites', icon: Heart },
   { label: 'Historique', href: '/history', icon: History },
 ];
@@ -39,6 +42,7 @@ const BOTTOM_ITEMS = [
   { label: 'Découvrir', href: '/discovery', icon: Compass },
   { label: 'Balades', href: '/walking-map', icon: Map },
   { label: 'Matchs', href: '/matches', icon: Heart },
+  { label: 'Forum', href: '/forum', icon: MessageSquare },
   { label: 'Profil', href: '/profile', icon: User },
 ];
 
@@ -70,11 +74,8 @@ export default function AppNav() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <a href="/discovery" className="flex items-center gap-2 font-black text-xl tracking-tight">
-              {/* Memphis logo bubble */}
-              <div className="w-8 h-8 rounded-full bg-accent border-2 border-black flex items-center justify-center shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)]">
-                <span className="text-accent-foreground font-black text-xs">🐾</span>
-              </div>
-              <span className="text-foreground uppercase font-black tracking-widest text-lg">Doggle</span>
+              <img src="/logo-new.svg" alt="Woofyz Logo" className="w-8 h-8 object-contain" />
+              <span className="text-foreground uppercase font-black tracking-widest text-lg">Woofyz</span>
             </a>
 
             {/* Desktop Navigation (Hidden on Mobile) */}
@@ -127,6 +128,12 @@ export default function AppNav() {
                       </a>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem asChild>
+                    <a href="/dog-sitter" className="cursor-pointer flex items-center font-bold text-blue-700 focus:text-blue-800">
+                      <Dog className="w-4 h-4 mr-2" />
+                      {(user as any).isDogSitter ? 'Dashboard Dog-Sitter' : 'Devenir Dog-Sitter'}
+                    </a>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild className="md:hidden">
                     <a href="/dogs" className="cursor-pointer flex items-center font-bold">
                       <HomeIcon className="w-4 h-4 mr-2" />

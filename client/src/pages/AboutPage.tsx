@@ -42,7 +42,7 @@ export default function AboutPage() {
               <span className="text-xs font-black uppercase tracking-wider text-foreground">Notre mission</span>
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase text-foreground leading-[1.1] mb-6">
-              À propos de <span className="text-accent">Doggle</span>
+              À propos de <span className="text-accent">Woofyz</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto font-medium">
               Découvrez l'histoire de la plateforme créée par des passionnés, pour des passionnés de chiens.
@@ -59,10 +59,10 @@ export default function AboutPage() {
               <Card className="p-8 border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-4">
                 <h2 className="text-3xl font-black uppercase text-foreground">Notre Histoire 🐾</h2>
                 <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-                  Doggle est né d'un constat simple de notre fondateur, fatigué de voir son jeune golden retriever s'ennuyer lors des balades quotidiennes. Alors que la plupart des applications connectent les humains pour des rencontres amoureuses, aucune ne s'intéressait à la socialisation de nos compagnons canins et au partage d'expérience entre maîtres.
+                  Woofyz est né d'un constat simple de notre fondateur, fatigué de voir son jeune golden retriever s'ennuyer lors des balades quotidiennes. Alors que la plupart des applications connectent les humains pour des rencontres amoureuses, aucune ne s'intéressait à la socialisation de nos compagnons canins et au partage d'expérience entre maîtres.
                 </p>
                 <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-                  En 2026, nous avons lancé Doggle, une plateforme indépendante qui aide les propriétaires de chiens à se rencontrer localement. Que ce soit pour une simple promenade à deux, des conseils d'éducation, des balades en meute le week-end ou de l'entraide de garde, Doggle est là pour connecter les maîtres et enrichir les vies de nos animaux.
+                  En 2026, nous avons lancé Woofyz, une plateforme indépendante qui aide les propriétaires de chiens à se rencontrer localement. Que ce soit pour une simple promenade à deux, des conseils d'éducation, des balades en meute le week-end ou de l'entraide de garde, Woofyz est là pour connecter les maîtres et enrichir les vies de nos animaux.
                 </p>
               </Card>
             </motion.div>

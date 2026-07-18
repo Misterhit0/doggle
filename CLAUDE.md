@@ -1,17 +1,31 @@
+---
+title: CLAUDE.md — Guide de Développement
+tags:
+  - woofyz
+  - documentation
+  - developer-guide
+aliases:
+  - Claude Guide
+  - CLAUDE
+date: 2026-07-15
+---
+
 # 🤖 CLAUDE.md — Règles de Développement pour Claude (et tous les assistants IA)
 
 > Ce fichier est lu automatiquement par Claude lors de chaque session dans ce projet.
 > Toutes les règles ci-dessous sont **obligatoires** et non négociables.
+> Pour les détails techniques, voir [[ARCHITECTURE]], [[BUSINESS_RULES]] et [[DEPLOYMENT_DOCS]].
 
 ---
 
 ## 🎯 Contexte du Projet
 
-**Doggle** est une application de matching pour propriétaires de chiens.
+**Woofyz** est une application de matching pour propriétaires de chiens.
 - **Stack** : TypeScript, Node.js (Express + tRPC), React (Vite), MySQL (DrizzleORM), PM2
-- **Preprod** : https://preprod.doggle.cloud — VPS : `root@187.55.227.99:/var/www/doggle-preprod`
-- **Production** : https://doggle.cloud — VPS : `root@187.55.227.99:/var/www/doggle`
-- **Repo GitHub** : https://github.com/Misterhit0/doggle
+- **Preprod** : https://preprod.woofyz.fr (Direct: http://187.55.227.99:3001) — VPS : `root@187.55.227.99:/var/www/woofyz-preprod`
+- **New Preprod (Branding)** : http://187.55.227.99:3002 — VPS : `root@187.55.227.99:/var/www/woofyz-newpreprod`
+- **Production** : https://woofyz.fr — VPS : `root@187.55.227.99:/var/www/woofyz`
+- **Repo GitHub** : https://github.com/Misterhit0/woofyz
 
 ---
 
@@ -53,15 +67,15 @@ git push origin preprod
 
 ### Étape 5 — Déployer sur le VPS preprod
 ```bash
-ssh root@187.55.227.99 "cd /var/www/doggle-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz-preprod"
 ```
-**Vérifier manuellement sur https://preprod.doggle.cloud**
+**Vérifier manuellement sur http://187.55.227.99:3001 ou https://preprod.woofyz.fr**
 
 ### Étape 6 — PR vers `main` (Production)
 ```bash
 gh pr create --base main --head preprod --title "Release: ..."
 ```
-ou via GitHub : https://github.com/Misterhit0/doggle/compare/main...preprod
+ou via GitHub : https://github.com/Misterhit0/woofyz/compare/main...preprod
 
 **Les scripts automatisés :**
 - `./deploy_preprod.sh` — effectue les étapes 1→5 interactivement
@@ -121,32 +135,34 @@ const isUser1 = match.user1Id === user?.id;
 ## 🚀 Déploiement VPS
 
 ### Infrastructure
+### Infrastructure
 - **VPS IP** : `187.55.227.99`
 - **Gestionnaire process** : PM2
-  - `doggle` → production (`/var/www/doggle`, branche `main`)
-  - `doggle-preprod` → preprod (`/var/www/doggle-preprod`, branche `preprod`)
+  - `woofyz` → production (`/var/www/woofyz`, branche `main`)
+  - `woofyz-preprod` → preprod (`/var/www/woofyz-preprod`, branche `preprod`)
+  - `woofyz-newpreprod` → newpreprod (`/var/www/woofyz-newpreprod`, branche `feature/new-branding-identity`, Port 3002)
 - **Reverse proxy** : Nginx
-- **Git configuré** sur les deux dossiers VPS (git pull = déploiement)
+- **Git configuré** sur les dossiers VPS (git pull = déploiement)
 
 ### Commandes utiles VPS
 ```bash
 # Logs preprod
-ssh root@187.55.227.99 "pm2 logs doggle-preprod --lines 50"
+ssh root@187.55.227.99 "pm2 logs woofyz-preprod --lines 50"
 
 # Logs production
-ssh root@187.55.227.99 "pm2 logs doggle --lines 50"
+ssh root@187.55.227.99 "pm2 logs woofyz --lines 50"
 
 # Redémarrer preprod
-ssh root@187.55.227.99 "pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "pm2 restart woofyz-preprod"
 
 # Redémarrer production
-ssh root@187.55.227.99 "pm2 restart doggle"
+ssh root@187.55.227.99 "pm2 restart woofyz"
 
 # Déployer preprod (git pull)
-ssh root@187.55.227.99 "cd /var/www/doggle-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle-preprod"
+ssh root@187.55.227.99 "cd /var/www/woofyz-preprod && git pull origin preprod && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz-preprod"
 
 # Déployer production (git pull)
-ssh root@187.55.227.99 "cd /var/www/doggle && git pull origin main && pnpm install --frozen-lockfile && pnpm build && pm2 restart doggle"
+ssh root@187.55.227.99 "cd /var/www/woofyz && git pull origin main && pnpm install --frozen-lockfile && pnpm build && pm2 restart woofyz"
 ```
 
 ---
@@ -194,7 +210,7 @@ security: correction de faille de sécurité
 
 | Environnement | Email | Mot de passe | Rôle |
 |--------------|-------|--------------|------|
-| Preprod | admin@doggle.com | doggle2026 | admin |
+| Preprod / NewPreprod | contact@woofyz.com | doggle2026 | admin |
 
 ---
 

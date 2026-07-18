@@ -33,7 +33,16 @@ export const users = mysqlTable("users", {
   isShareLocationActive: boolean("isShareLocationActive").default(false).notNull(),
   
   phoneNumber: varchar("phoneNumber", { length: 20 }),
-  
+
+  // Dog Sitter Profile
+  isDogSitter: boolean("isDogSitter").default(false).notNull(),
+  dogSitterBio: text("dogSitterBio"),
+  dogSitterRates: json("dogSitterRates").$type<{ night?: number; halfDay?: number; walk?: number }>(),
+  dogSitterAvailable: boolean("dogSitterAvailable").default(false).notNull(),
+  dogSitterMaxDogs: int("dogSitterMaxDogs").default(1),
+  dogSitterStatus: mysqlEnum("dogSitterStatus", ["pending", "approved", "rejected", "blocked"]).default("pending"),
+  dogsittingFriendly: boolean("dogsittingFriendly").default(false).notNull(),
+
   // Payment / Monetization Limits
   plan: varchar("plan", { length: 32 }).default("free").notNull(),
   bypassPaymentLimits: boolean("bypassPaymentLimits").default(false).notNull(),
@@ -60,6 +69,15 @@ export const dogs = mysqlTable("dogs", {
   description: text("description"),
   personality: json("personality").$type<string[]>(), // e.g., "playful", "calm", "energetic"
   photoUrls: json("photoUrls").$type<string[]>(),
+
+  // Boarding
+  availableForBoarding: boolean("availableForBoarding").default(false).notNull(),
+
+  // Breeding
+  sex: mysqlEnum("sex", ["male", "female", "unknown"]).default("unknown"),
+  openToBreeding: boolean("openToBreeding").default(false).notNull(),
+  breedingInfo: text("breedingInfo"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -314,3 +332,177 @@ export const planSettings = mysqlTable("plan_settings", {
 
 export type PlanSetting = typeof planSettings.$inferSelect;
 export type InsertPlanSetting = typeof planSettings.$inferInsert;
+
+/**
+ * Boarding requests — dog-sitter system
+ */
+export const boardingRequests = mysqlTable("boarding_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),         // chien à garder
+  ownerId: int("ownerId").notNull(),     // propriétaire du chien
+  sitterId: int("sitterId").notNull(),   // dog-sitter
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  message: text("message"),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected", "completed"]).default("pending").notNull(),
+  totalPrice: decimal("totalPrice", { precision: 10, scale: 2 }),
+  ownerPhone: varchar("ownerPhone", { length: 20 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BoardingRequest = typeof boardingRequests.$inferSelect;
+export type InsertBoardingRequest = typeof boardingRequests.$inferInsert;
+
+export const boardingRequestsRelations = relations(boardingRequests, ({ one }) => ({
+  dog: one(dogs, { fields: [boardingRequests.dogId], references: [dogs.id] }),
+  owner: one(users, { fields: [boardingRequests.ownerId], references: [users.id] }),
+  sitter: one(users, { fields: [boardingRequests.sitterId], references: [users.id] }),
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FORUM COMMUNAUTAIRE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Catégories du forum (seeded, gérées par admin) */
+export const forumCategories = mysqlTable("forum_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull().unique(),
+  title: varchar("title", { length: 120 }).notNull(),
+  description: text("description"),
+  icon: varchar("icon", { length: 10 }).notNull().default("💬"),
+  color: varchar("color", { length: 20 }).notNull().default("#6366f1"),
+  position: int("position").notNull().default(0),
+  isOfficial: boolean("isOfficial").default(false).notNull(),
+  postCount: int("postCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ForumCategory = typeof forumCategories.$inferSelect;
+
+/** Posts du forum */
+export const forumPosts = mysqlTable("forum_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  categoryId: int("categoryId").notNull(),
+  authorId: int("authorId").notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["open", "solved", "closed"]).default("open").notNull(),
+  isPinned: boolean("isPinned").default(false).notNull(),
+  isLocked: boolean("isLocked").default(false).notNull(),
+  viewCount: int("viewCount").default(0).notNull(),
+  replyCount: int("replyCount").default(0).notNull(),
+  upvotes: int("upvotes").default(0).notNull(),
+  downvotes: int("downvotes").default(0).notNull(),
+  tags: json("tags").$type<string[]>().default([]),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ForumPost = typeof forumPosts.$inferSelect;
+export type InsertForumPost = typeof forumPosts.$inferInsert;
+
+/** Réponses imbriquées (2 niveaux max côté UI) */
+export const forumReplies = mysqlTable("forum_replies", {
+  id: int("id").autoincrement().primaryKey(),
+  postId: int("postId").notNull(),
+  authorId: int("authorId").notNull(),
+  parentReplyId: int("parentReplyId"),  // NULL = réponse root
+  body: text("body").notNull(),
+  isAcceptedAnswer: boolean("isAcceptedAnswer").default(false).notNull(),
+  upvotes: int("upvotes").default(0).notNull(),
+  downvotes: int("downvotes").default(0).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ForumReply = typeof forumReplies.$inferSelect;
+export type InsertForumReply = typeof forumReplies.$inferInsert;
+
+/** Votes (+1/-1) sur posts ET réponses — un vote par user+target */
+export const forumVotes = mysqlTable("forum_votes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  targetType: mysqlEnum("targetType", ["post", "reply"]).notNull(),
+  targetId: int("targetId").notNull(),
+  value: int("value").notNull(), // +1 ou -1
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uniq: unique().on(t.userId, t.targetType, t.targetId),
+}));
+
+export type ForumVote = typeof forumVotes.$inferSelect;
+
+/** Réactions emoji sur posts et réponses */
+export const forumReactions = mysqlTable("forum_reactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  targetType: mysqlEnum("targetType", ["post", "reply"]).notNull(),
+  targetId: int("targetId").notNull(),
+  emoji: mysqlEnum("emoji", ["heart", "laugh", "celebrate", "eyes", "paw"]).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uniq: unique().on(t.userId, t.targetType, t.targetId, t.emoji),
+}));
+
+export type ForumReaction = typeof forumReactions.$inferSelect;
+
+/** Bookmarks / sauvegardes de posts */
+export const forumBookmarks = mysqlTable("forum_bookmarks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  postId: int("postId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  uniq: unique().on(t.userId, t.postId),
+}));
+
+export type ForumBookmark = typeof forumBookmarks.$inferSelect;
+
+/** Signalements (reports) */
+export const forumReports = mysqlTable("forum_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  reporterId: int("reporterId").notNull(),
+  targetType: mysqlEnum("targetType", ["post", "reply"]).notNull(),
+  targetId: int("targetId").notNull(),
+  reason: mysqlEnum("reason", [
+    "spam", "inappropriate", "harassment", "misinformation", "other"
+  ]).notNull(),
+  status: mysqlEnum("status", ["pending", "reviewed", "dismissed"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ForumReport = typeof forumReports.$inferSelect;
+
+// ─── Relations Forum ─────────────────────────────────────────────────────────
+
+export const forumCategoriesRelations = relations(forumCategories, ({ many }) => ({
+  posts: many(forumPosts),
+}));
+
+export const forumPostsRelations = relations(forumPosts, ({ one, many }) => ({
+  category: one(forumCategories, { fields: [forumPosts.categoryId], references: [forumCategories.id] }),
+  author: one(users, { fields: [forumPosts.authorId], references: [users.id] }),
+  replies: many(forumReplies),
+  votes: many(forumVotes),
+  reactions: many(forumReactions),
+  bookmarks: many(forumBookmarks),
+}));
+
+export const forumRepliesRelations = relations(forumReplies, ({ one, many }) => ({
+  post: one(forumPosts, { fields: [forumReplies.postId], references: [forumPosts.id] }),
+  author: one(users, { fields: [forumReplies.authorId], references: [users.id] }),
+  parent: one(forumReplies, { fields: [forumReplies.parentReplyId], references: [forumReplies.id] }),
+  children: many(forumReplies),
+}));
+
+export const forumVotesRelations = relations(forumVotes, ({ one }) => ({
+  user: one(users, { fields: [forumVotes.userId], references: [users.id] }),
+}));
+
+export const forumBookmarksRelations = relations(forumBookmarks, ({ one }) => ({
+  user: one(users, { fields: [forumBookmarks.userId], references: [users.id] }),
+  post: one(forumPosts, { fields: [forumBookmarks.postId], references: [forumPosts.id] }),
+}));

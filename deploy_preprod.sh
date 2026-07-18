@@ -10,10 +10,10 @@ NC='\033[0m' # No Color
 
 # VPS Config
 VPS_HOST="root@187.55.227.99"
-VPS_PREPROD_DIR="/var/www/doggle-preprod"
-PM2_APP_NAME="doggle-preprod"
+VPS_PREPROD_DIR="/var/www/woofyz-preprod"
+PM2_APP_NAME="woofyz-preprod"
 
-echo -e "${BLUE}=== 🧪 PIPELINE DE DÉPLOIEMENT PRÉPRODUCTION (DOGGLE) ===${NC}"
+echo -e "${BLUE}=== 🧪 PIPELINE DE DÉPLOIEMENT PRÉPRODUCTION (WOOFYZ) ===${NC}"
 
 # Get current branch
 CURRENT_BRANCH=$(git branch --show-current)
@@ -59,7 +59,7 @@ if [ -z "$COMMIT_MSG" ]; then
     COMMIT_MSG="feat: evolution on $CURRENT_BRANCH"
 fi
 
-read -p "Voulez-vous pousser les changements et déployer sur preprod.doggle.cloud ? (y/n) : " CONFIRM
+read -p "Voulez-vous pousser les changements et déployer sur preprod.woofyz.fr ? (y/n) : " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "\n${BLUE}3. Commits et push sur GitHub...${NC}"
     git add .
@@ -72,22 +72,41 @@ if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     git merge "$CURRENT_BRANCH"
     git push origin preprod
 
-    echo -e "\n${BLUE}5. Déploiement sur le VPS preprod via git pull...${NC}"
+    echo -e "\n${BLUE}5. Déploiement sur le VPS preprod...${NC}"
     ssh "$VPS_HOST" "
         set -e
         cd $VPS_PREPROD_DIR
+
+        echo '🧹 Cleaning untracked files...'
+        git clean -fd
+
+        echo '📦 Git pull...'
         git pull origin preprod
+
+        echo '📦 Install dependencies...'
         pnpm install --frozen-lockfile
+
+        echo '🗃️  Running database migrations...'
+        pnpm db:migrate
+
+        echo '🏗️  Building application...'
         pnpm build
-        pm2 restart $PM2_APP_NAME
+
+        echo '🔄 Restarting PM2...'
+        pm2 restart $PM2_APP_NAME || pm2 start dist/index.js --name $PM2_APP_NAME
+
         echo '✅ VPS preprod redémarré avec succès'
-    " && echo -e "${GREEN}✓ Déploiement VPS preprod réussi !${NC}" || echo -e "${RED}❌ Erreur lors du déploiement VPS — vérifiez manuellement.${NC}"
+    " && echo -e "${GREEN}✓ Déploiement VPS preprod réussi !${NC}" || {
+        echo -e "${RED}❌ Erreur lors du déploiement VPS — vérifiez manuellement.${NC}"
+        git checkout "$CURRENT_BRANCH"
+        exit 1
+    }
 
     # Switch back to working branch
     git checkout "$CURRENT_BRANCH"
 
     echo -e "\n${GREEN}🚀 Succès ! Le code a été déployé sur la préproduction.${NC}"
-    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.doggle.cloud${NC}"
+    echo -e "Vérifiez les changements sur : ${BLUE}https://preprod.woofyz.fr${NC}"
 else
     echo -e "\n${YELLOW}Déploiement annulé.${NC}"
 fi

@@ -1,6 +1,19 @@
-# 📐 Doggle — Règles Métier
+---
+title: Woofyz — Règles Métier
+tags:
+  - woofyz
+  - business-rules
+  - documentation
+aliases:
+  - Business Rules
+  - BUSINESS_RULES
+date: 2026-07-15
+---
 
-> Ce document décrit **ce que fait le code**, domaine par domaine : algorithmes, seuils, contraintes de validation, et ce qui est réellement implémenté vs simulé (stub). Pour l'arborescence, voir [ARCHITECTURE.md](./ARCHITECTURE.md). Pour les actions disponibles par page, voir [PAGES.md](./PAGES.md).
+# 📐 Woofyz — Règles Métier
+
+> [!info] Règles de fonctionnement
+> Ce document décrit **ce que fait le code**, domaine par domaine : algorithmes, seuils, contraintes de validation, et ce qui est réellement implémenté vs simulé (stub). Pour l'arborescence, voir [[ARCHITECTURE]]. Pour les actions disponibles par page, voir [[PAGES]].
 >
 > Source de vérité : `server/routers.ts`, `server/db.ts`, `shared/compatibilityEngine.ts`. Toute règle ci-dessous est testée dans `server/*.test.ts`.
 
@@ -11,9 +24,9 @@
 - **Inscription** (`auth.signup`) : email valide, mot de passe ≥ 6 caractères, nom ≥ 2 caractères. Mot de passe haché avec bcrypt (10 rounds). Session créée immédiatement après inscription (cookie 1 an).
 - **Connexion** (`auth.login`) : email + mot de passe. Message d'erreur volontairement générique ("Invalid email or password") pour ne pas révéler si l'email existe.
 - **Déconnexion** (`auth.logout`) : efface le cookie de session.
-- **Rate limiting dédié** : 5 tentatives de login/signup par minute et par IP. Au-delà, `TRPCError({ code: "TOO_MANY_REQUESTS" })` — géré en middleware tRPC pour rester compatible avec le client (voir [CHANGELOG.md](../CHANGELOG.md)).
+- **Rate limiting dédié** : 5 tentatives de login/signup par minute et par IP. Au-delà, `TRPCError({ code: "TOO_MANY_REQUESTS" })` — géré en middleware tRPC pour rester compatible avec le client (voir [[CHANGELOG]]).
 - **Rate limiting global** : 200 requêtes/15 min par IP sur l'ensemble de l'API tRPC.
-- Comptes de test : voir CLAUDE.md (`admin@doggle.com` / `doggle2026` sur préprod, rôle admin).
+- Comptes de test : voir [[CLAUDE]] (`contact@woofyz.com` / `doggle2026` sur préprod, rôle admin).
 
 ## 2. Profil Maître
 
@@ -27,7 +40,8 @@
 - Un chien a : nom (obligatoire, 1-100 caractères), race, âge (0-50), description (≤ 500), personnalité (liste de traits), **jusqu'à 3 photos maximum** (`photoUrls`, chaque URL doit être valide).
 - Un utilisateur peut avoir plusieurs chiens (`dog.getMyDogs`).
 - Toute action sur un chien (`getDog`, `updateDog`, `deleteDog`) vérifie que **le chien appartient bien à l'utilisateur courant** (`dog.userId !== ctx.user.id` → `NOT_FOUND`, pas de fuite d'info sur l'existence du chien).
-- ⚠️ `deleteDog` a une vérification de propriété fonctionnelle mais la suppression elle-même est un **TODO non implémenté** dans `server/routers.ts` (`// TODO: Implement delete logic`) — l'appel renvoie `success: true` sans rien supprimer en base.
+- > [!warning] TODO Non Implémenté
+  > `deleteDog` a une vérification de propriété fonctionnelle mais la suppression elle-même est un **TODO non implémenté** dans `server/routers.ts` (`// TODO: Implement delete logic`) — l'appel renvoie `success: true` sans rien supprimer en base.
 
 ## 4. Découverte & Swipe (cœur de l'app)
 
@@ -57,14 +71,16 @@ Si les infos de compatibilité manquent au moment du match (pas de chien renseig
 ## 5. Matchs & Réparation Automatique
 
 - Un match est créé quand les deux swipes mutuels sont "like".
-- **`healStuckMatches()`** (`server/db.ts`, appelé au démarrage du serveur) répare les swipes mutuels qui n'ont pas généré de match (bug historique). **Ne jamais supprimer cette fonction** (voir CLAUDE.md).
+- **`healStuckMatches()`** (`server/db.ts`, appelé au démarrage du serveur) répare les swipes mutuels qui n'ont pas généré de match (bug historique). > [!important] Règle critique
+  > Ne jamais supprimer cette fonction (voir [[CLAUDE]]).
 - Notification créée pour les deux utilisateurs à la création d'un match + webhook n8n `match.created`.
 
 ## 6. Messagerie
 
 - Longueur d'un message : 1 à 1000 caractères.
 - Chaque message envoyé crée une notification pour le destinataire + déclenche le webhook n8n `message.received`.
-- ⚠️ **Faille connue, non corrigée** : `message.sendMessage` ne vérifie pas que l'expéditeur fait partie du match ciblé (`// TODO: Verify user is part of this match` dans `routers.ts`). N'importe quel utilisateur connecté peut actuellement écrire dans une conversation en devinant un `matchId`. À corriger avant une mise en production à plus grande échelle.
+- > [!warning] Faille de Sécurité Connue
+  > `message.sendMessage` ne vérifie pas que l'expéditeur fait partie du match ciblé (`// TODO: Verify user is part of this match` dans `routers.ts`). N'importe quel utilisateur connecté peut actuellement écrire dans une conversation en devinant un `matchId`. À corriger avant une mise en production à plus grande échelle.
 
 ## 7. Favoris & Historique
 
@@ -76,12 +92,14 @@ Si les infos de compatibilité manquent au moment du match (pas de chien renseig
 - Signalement de perte : description (≤ 500), date, lieu, coordonnées GPS, récompense optionnelle, téléphone de contact optionnel.
 - Signalement d'observation ("sighting") : niveau de confiance obligatoire parmi `certain` | `likely` | `possible`.
 - Rayon de recherche par défaut pour les chiens perdus à proximité : **25 km** (plus large que la découverte classique, cohérent avec l'urgence).
-- ⚠️ `markAsFound` est un **stub** : renvoie `success: true` sans mettre à jour le statut en base.
+- > [!warning] Stub d'API
+  > `markAsFound` est un **stub** : renvoie `success: true` sans mettre à jour le statut en base.
 
 ## 9. Événements
 
 - Titre (5-255 caractères), description (10-1000), durée minimum **15 minutes**.
-- ⚠️ `getMyEvents` et `rateEvent` sont des **stubs** (retournent respectivement `[]` et `success: true` sans logique réelle).
+- > [!warning] Stubs d'API
+  > `getMyEvents` et `rateEvent` sont des **stubs** (retournent respectivement `[]` et `success: true` sans logique réelle).
 
 ## 10. Avis & Notation
 
@@ -96,9 +114,9 @@ Si les infos de compatibilité manquent au moment du match (pas de chien renseig
 
 ## 12. Parrainage & Services de Promenade
 
-⚠️ **Domaines entièrement simulés côté serveur** — aucune persistance réelle actuellement :
-- `sponsorship.*` : `requestSponsorship` valide les entrées (motif ≥ 10 caractères, fréquence `weekly|biweekly|monthly`) mais ne sauvegarde rien ; `getAvailableSponsors`/`getMySponsors` renvoient toujours `[]` ; `acceptSponsorship`/`rateSponsorship` renvoient toujours `success: true`.
-- `walkingService.*` : même chose — `createService`/`bookService`/`rateService` valident les entrées mais ne persistent rien ; `getNearbyServices`/`getMyBookings` renvoient toujours `[]`.
+> [!warning] Domaines Entièrement Simulés
+  > - `sponsorship.*` : `requestSponsorship` valide les entrées (motif ≥ 10 caractères, fréquence `weekly|biweekly|monthly`) mais ne sauvegarde rien ; `getAvailableSponsors`/`getMySponsors` renvoient toujours `[]` ; `acceptSponsorship`/`rateSponsorship` renvoient toujours `success: true`.
+  > - `walkingService.*` : même chose — `createService`/`bookService`/`rateService` valident les entrées mais ne persistent rien ; `getNearbyServices`/`getMyBookings` renvoient toujours `[]`.
 
 Ces deux domaines sont prêts côté validation/contrat d'API mais **nécessitent l'implémentation de la persistance en base** avant d'être utilisables en production.
 

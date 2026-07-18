@@ -42,13 +42,13 @@ export default function PrivacyPage() {
               Politique de <span className="text-accent">Confidentialité</span>
             </h1>
             <p className="text-sm font-semibold text-muted-foreground max-w-xl mx-auto">
-              Dernière mise à jour : 10 Juillet 2026. Chez Doggle, nous respectons scrupuleusement la vie privée des maîtres et la protection de leurs données.
+              Dernière mise à jour : 10 Juillet 2026. Chez Woofyz, nous respectons scrupuleusement la vie privée des maîtres et la protection de leurs données.
             </p>
           </motion.div>
 
           <Card className="p-8 border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-12 space-y-6">
             <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-              Doggle est une application éditée en France. Nous prenons le respect du Règlement Général sur la Protection des Données (RGPD) très au sérieux. Cette page décrit comment nous recueillons, traitons et protégeons vos données.
+              Woofyz est une application éditée en France. Nous prenons le respect du Règlement Général sur la Protection des Données (RGPD) très au sérieux. Cette page décrit comment nous recueillons, traitons et protégeons vos données.
             </p>
 
             <div className="border-t-2 border-black pt-6 space-y-8">
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
           </Card>
 
           <div className="text-center text-xs text-muted-foreground font-semibold">
-            Pour toute question relative à vos données personnelles, veuillez nous contacter à <a href="mailto:privacy@doggle.cloud" className="text-accent underline">privacy@doggle.cloud</a>.
+            Pour toute question relative à vos données personnelles, veuillez nous contacter à <a href="mailto:privacy@woofyz.com" className="text-accent underline">privacy@woofyz.com</a>.
           </div>
         </div>
       </MemphisBackground>

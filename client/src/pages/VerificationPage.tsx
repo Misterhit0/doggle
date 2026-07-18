@@ -102,7 +102,7 @@ export default function VerificationPage() {
                 <div>
                   <h3 className="font-black text-xl uppercase tracking-wider text-green-950">Vérifié ✓</h3>
                   <p className="text-sm text-green-900 mt-1 font-semibold">
-                    Votre identité a été vérifiée avec succès. Vous avez désormais accès à l'ensemble des fonctionnalités de la communauté Doggle.
+                    Votre identité a été vérifiée avec succès. Vous avez désormais accès à l'ensemble des fonctionnalités de la communauté Woofyz.
                   </p>
                 </div>
               </div>

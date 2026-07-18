@@ -3,8 +3,9 @@ import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, authRateLimitedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
+import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, getNearbySightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
+import * as forumDb from "./forumDb";
 import { TRPCError } from "@trpc/server";
 import { calculateCompatibility, getAffinities } from "@shared/compatibilityEngine";
 import bcrypt from "bcryptjs";
@@ -17,7 +18,7 @@ import crypto from "crypto";
 import { storagePut } from "./storage";
 import { ENV } from "./_core/env";
 
-export const appRouter = router({
+export const _appRouterBase = router({
   system: systemRouter,
   storage: router({
     uploadPhoto: protectedProcedure
@@ -182,6 +183,7 @@ export const appRouter = router({
           bio: z.string().max(500).optional(),
           profilePhotoUrl: z.string().optional(),
           phoneNumber: z.string().optional(),
+          dogsittingFriendly: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -193,6 +195,7 @@ export const appRouter = router({
         if (input.bio !== undefined) updateData.bio = input.bio;
         if (input.profilePhotoUrl !== undefined) updateData.profilePhotoUrl = input.profilePhotoUrl;
         if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber;
+        if (input.dogsittingFriendly !== undefined) updateData.dogsittingFriendly = input.dogsittingFriendly;
 
         await db.updateUserProfile(ctx.user.id, updateData);
 
@@ -277,6 +280,9 @@ export const appRouter = router({
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
           photoUrls: z.array(z.string()).max(3).optional(),
+          sex: z.enum(["male", "female", "unknown"]).optional(),
+          openToBreeding: z.boolean().optional(),
+          breedingInfo: z.string().max(500).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -288,6 +294,9 @@ export const appRouter = router({
           description: input.description,
           personality: input.personality ? (JSON.stringify(input.personality) as any) : undefined,
           photoUrls: input.photoUrls ? (JSON.stringify(input.photoUrls) as any) : undefined,
+          sex: input.sex as any,
+          openToBreeding: input.openToBreeding ?? false,
+          breedingInfo: input.breedingInfo,
         });
         const user = await db.getUserById(ctx.user.id);
         triggerN8nWebhook("dog.created", {
@@ -310,6 +319,10 @@ export const appRouter = router({
           description: z.string().max(500).optional(),
           personality: z.array(z.string()).optional(),
           photoUrls: z.array(z.string()).max(3).optional(),
+          sex: z.enum(["male", "female", "unknown"]).optional(),
+          openToBreeding: z.boolean().optional(),
+          breedingInfo: z.string().max(500).optional(),
+          availableForBoarding: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -325,6 +338,10 @@ export const appRouter = router({
         if (input.description !== undefined) updateData.description = input.description;
         if (input.personality !== undefined) updateData.personality = JSON.stringify(input.personality) as any;
         if (input.photoUrls !== undefined) updateData.photoUrls = JSON.stringify(input.photoUrls) as any;
+        if (input.sex !== undefined) updateData.sex = input.sex;
+        if (input.openToBreeding !== undefined) updateData.openToBreeding = input.openToBreeding;
+        if (input.breedingInfo !== undefined) updateData.breedingInfo = input.breedingInfo;
+        if (input.availableForBoarding !== undefined) updateData.availableForBoarding = input.availableForBoarding;
 
         await db.updateDog(input.dogId, updateData);
 
@@ -352,6 +369,8 @@ export const appRouter = router({
       .input(
         z.object({
           radiusKm: z.number().min(0.5).max(50).default(5),
+          breedingOnly: z.boolean().optional().default(false),
+          dogsitterOnly: z.boolean().optional().default(false),
         })
       )
       .query(async ({ ctx, input }) => {
@@ -482,7 +501,21 @@ export const appRouter = router({
         const swipedUserIds = await db.getSwipedUserIds(ctx.user.id);
         const blockedUserIds = await db.getBlockedUserIds(ctx.user.id);
         const excludeUserIds = [...swipedUserIds, ...blockedUserIds];
-        const filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
+        let filteredDuos = duos.filter(d => !excludeUserIds.includes(Number(d.user.id)));
+
+        // Filter by breeding mode (non-blocking: just filter, doesn't break basic matching)
+        if (input.breedingOnly) {
+          filteredDuos = filteredDuos.filter(d =>
+            d.dogs && d.dogs.some((dog: any) => dog.openToBreeding === true || dog.openToBreeding === 1)
+          );
+        }
+
+        // Filter by dogSitter mode (show only dog sitters)
+        if (input.dogsitterOnly) {
+          filteredDuos = filteredDuos.filter(d =>
+            d.user && (d.user.isDogSitter === true || d.user.isDogSitter === 1)
+          );
+        }
 
         // Helper parsers for JSON arrays in mysql
         const parseJsonField = (field: any): string[] => {
@@ -501,16 +534,21 @@ export const appRouter = router({
         const buildDogProfile = (dog: any) => {
           if (!dog) return {};
           return {
+            id: dog.id,
+            name: dog.name,
             breed: dog.breed,
             age: dog.age,
             personality: parseJsonField(dog.personality),
+            description: dog.description,
           };
         };
 
         const buildMasterProfile = (usr: any) => {
           if (!usr) return {};
           return {
-            age: usr.age,
+            id: usr.id,
+            isDogSitter: !!usr.isDogSitter,
+            dogSitterBio: usr.dogSitterBio,
             interests: parseJsonField(usr.interests),
             walkingHabits: usr.walkingHabits ? [usr.walkingHabits] : [],
             whatISeek: parseJsonField(usr.whatISeek),
@@ -811,12 +849,26 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // TODO: Verify user is part of this match
+        const match = await db.getMatchById(input.matchId);
+        if (!match || (match.userId1 !== ctx.user.id && match.userId2 !== ctx.user.id)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You are not part of this match" });
+        }
+
+        const freshUser = await db.getUserById(ctx.user.id);
+        const userPlan = freshUser?.plan || "free";
+        if (userPlan === "free") {
+          const messagesInMatch = await db.getMessagesForMatch(input.matchId);
+          if (messagesInMatch.length === 0) {
+            const activeDiscussions = await db.getActiveDiscussionsCount(ctx.user.id);
+            if (activeDiscussions >= 3) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "DISCUSSION_LIMIT_EXCEEDED" });
+            }
+          }
+        }
+
         await db.sendMessage(input.matchId, ctx.user.id, input.content);
         logger.message(input.matchId, ctx.user.id, input.content, "Message sent successfully");
 
-        // Fetch the match details to find the recipient!
-        const match = await db.getMatchById(input.matchId);
         if (match) {
           const recipientId = match.userId1 === ctx.user.id ? match.userId2 : match.userId1;
           const sender = await db.getUserById(ctx.user.id);
@@ -1130,6 +1182,12 @@ export const appRouter = router({
       .input(z.object({ latitude: z.number(), longitude: z.number(), radiusKm: z.number().default(25) }))
       .query(async ({ ctx, input }) => {
         return getNearbyLostDogs(input.latitude, input.longitude, input.radiusKm);
+      }),
+
+    getNearbySightings: protectedProcedure
+      .input(z.object({ latitude: z.number(), longitude: z.number(), radiusKm: z.number().default(25) }))
+      .query(async ({ ctx, input }) => {
+        return getNearbySightings(input.latitude, input.longitude, input.radiusKm);
       }),
 
     reportSighting: protectedProcedure
@@ -1580,9 +1638,180 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ── Boarding (Dog-Sitter) ──────────────────────────────────────────────────
+  boarding: router({
+    // Register as a dog-sitter (sends notification to admin via webhook)
+    registerAsSitter: protectedProcedure
+      .input(z.object({
+        dogSitterBio: z.string().max(800).optional(),
+        dogSitterRates: z.object({
+          night: z.number().min(0).max(500).optional(),
+          halfDay: z.number().min(0).max(500).optional(),
+          walk: z.number().min(0).max(200).optional(),
+        }).optional(),
+        dogSitterMaxDogs: z.number().int().min(1).max(10).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.registerAsDogSitter(ctx.user.id, {
+          dogSitterBio: input.dogSitterBio,
+          dogSitterRates: input.dogSitterRates,
+          dogSitterMaxDogs: input.dogSitterMaxDogs,
+        });
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Inscription échouée" });
+
+        // Notify admin via webhook
+        const user = await db.getUserById(ctx.user.id);
+        await triggerN8nWebhook("dogsitter.registered", {
+          userId: ctx.user.id,
+          name: user?.name,
+          email: user?.email,
+          phoneNumber: user?.phoneNumber,
+          dogSitterBio: input.dogSitterBio,
+          dogSitterRates: input.dogSitterRates,
+          dogSitterMaxDogs: input.dogSitterMaxDogs,
+        });
+        return { success: true };
+      }),
+
+    // Update sitter profile (bio, rates, availability)
+    updateSitterProfile: protectedProcedure
+      .input(z.object({
+        dogSitterBio: z.string().max(800).optional(),
+        dogSitterRates: z.object({
+          night: z.number().min(0).max(500).optional(),
+          halfDay: z.number().min(0).max(500).optional(),
+          walk: z.number().min(0).max(200).optional(),
+        }).optional(),
+        dogSitterAvailable: z.boolean().optional(),
+        dogSitterMaxDogs: z.number().int().min(1).max(10).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.updateDogSitterProfile(ctx.user.id, input);
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Mise à jour échouée" });
+        return { success: true };
+      }),
+
+    // Toggle a dog as available/unavailable for boarding
+    toggleDogForBoarding: protectedProcedure
+      .input(z.object({ dogId: z.number(), available: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.toggleDogForBoarding(input.dogId, ctx.user.id, input.available);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Chien introuvable" });
+        return { success: true };
+      }),
+
+    // Get all dogs available for boarding (for sitters to browse)
+    getAvailableDogs: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getAvailableDogsForBoarding(ctx.user.id);
+    }),
+
+    // Owner sends a boarding request to a sitter
+    requestBoarding: protectedProcedure
+      .input(z.object({
+        dogId: z.number(),
+        sitterId: z.number(),
+        startDate: z.string(), // ISO string
+        endDate: z.string(),
+        message: z.string().max(500).optional(),
+        totalPrice: z.number().min(0).optional(),
+        ownerPhone: z.string().max(20).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const dog = await db.getDogById(input.dogId);
+        if (!dog || dog.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Chien introuvable" });
+        }
+        const id = await db.createBoardingRequest({
+          dogId: input.dogId,
+          ownerId: ctx.user.id,
+          sitterId: input.sitterId,
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          message: input.message,
+          totalPrice: input.totalPrice,
+          ownerPhone: input.ownerPhone,
+        });
+        if (!id) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Demande échouée" });
+
+        // Notify sitter
+        const sitter = await db.getUserById(input.sitterId);
+        const owner = await db.getUserById(ctx.user.id);
+        await triggerN8nWebhook("boarding.requested", {
+          sitterId: input.sitterId,
+          sitterName: sitter?.name,
+          sitterEmail: sitter?.email,
+          ownerName: owner?.name,
+          dogId: input.dogId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        });
+        return { success: true, requestId: id };
+      }),
+
+    // Sitter gets their pending/active requests
+    getSitterRequests: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBoardingRequestsForSitter(ctx.user.id);
+    }),
+
+    // Owner gets their sent requests
+    getOwnerRequests: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getBoardingRequestsForOwner(ctx.user.id);
+    }),
+
+    // Sitter responds to a request
+    respondToRequest: protectedProcedure
+      .input(z.object({
+        requestId: z.number(),
+        status: z.enum(["accepted", "rejected"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.respondToBoardingRequest(input.requestId, ctx.user.id, input.status);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Demande introuvable" });
+        return { success: true };
+      }),
+
+    // Get active boardings for sitter
+    getActiveBoardings: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getActiveBoardingsForSitter(ctx.user.id);
+    }),
+
+    // Mark a boarding as completed
+    completeBoardng: protectedProcedure
+      .input(z.object({ requestId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const ok = await db.completeBoardingRequest(input.requestId, ctx.user.id);
+        if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Demande introuvable" });
+        return { success: true };
+      }),
+
+    // Admin — approve/reject a dog sitter
+    adminUpdateSitterStatus: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        status: z.enum(["approved", "rejected", "blocked"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const ok = await db.updateDogSitterStatusAdmin(input.userId, input.status);
+        if (!ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return { success: true };
+      }),
+
+    // Admin — list pending dog sitters
+    adminGetPendingSitters: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return await db.getPendingDogSitters();
+    }),
+
+    // Admin — list all dog sitters
+    adminGetAllSitters: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return await db.getAllDogSitters();
+    }),
+  }),
 });
 
-export type AppRouter = typeof appRouter;
 
 export async function triggerN8nWebhook(event: string, data: any) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
@@ -1601,3 +1830,284 @@ export async function triggerN8nWebhook(event: string, data: any) {
     console.error(`[Webhook] Failed to send ${event} to n8n:`, error.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FORUM ROUTER (intégré dans appRouter via forum: forumRouter)
+// Voir routers.ts — l'export est fait directement via appRouter ci-dessous.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const forumRouter = router({
+  // ─── Public ───────────────────────────────────────────────────────────────
+
+  /** Toutes les catégories du forum */
+  getCategories: publicProcedure.query(async () => {
+    return await forumDb.forumGetCategories();
+  }),
+
+  /** Liste paginable de posts avec filtres */
+  getPosts: publicProcedure
+    .input(z.object({
+      categorySlug: z.string().optional(),
+      sort: z.enum(["recent", "popular", "unanswered", "trending"]).optional().default("recent"),
+      tag: z.string().optional(),
+      page: z.number().int().positive().optional().default(1),
+      limit: z.number().int().min(1).max(50).optional().default(20),
+    }))
+    .query(async ({ input }) => {
+      return await forumDb.forumGetPosts(input);
+    }),
+
+  /** Un post complet avec ses réponses */
+  getPost: publicProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.user?.id;
+      const post = await forumDb.forumGetPost(input.postId, userId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      return post;
+    }),
+
+  /** Recherche full-text */
+  search: publicProcedure
+    .input(z.object({ query: z.string().min(2), limit: z.number().optional().default(20) }))
+    .query(async ({ input }) => {
+      return await forumDb.forumSearch(input.query, input.limit);
+    }),
+
+  // ─── Protégé (utilisateur connecté) ────────────────────────────────────────
+
+  /** Créer un post */
+  createPost: protectedProcedure
+    .input(z.object({
+      categoryId: z.number().int().positive(),
+      title: z.string().min(5).max(300),
+      body: z.string().min(10).max(50000),
+      tags: z.array(z.string().max(30)).max(5).optional().default([]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await forumDb.forumCreatePost({
+        ...input,
+        authorId: ctx.user.id,
+      });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de créer le post" });
+      return result;
+    }),
+
+  /** Modifier un post (auteur seulement) */
+  updatePost: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      title: z.string().min(5).max(300).optional(),
+      body: z.string().min(10).max(50000).optional(),
+      tags: z.array(z.string().max(30)).max(5).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Non autorisé" });
+      const { postId, ...data } = input;
+      await forumDb.forumUpdatePost(postId, data);
+      return { success: true };
+    }),
+
+  /** Supprimer un post (auteur ou admin) */
+  deletePost: protectedProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const userRole = ctx.user.role;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.authorId !== userId && userRole !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Non autorisé" });
+      }
+      await forumDb.forumSoftDeletePost(input.postId);
+      return { success: true };
+    }),
+
+  /** Répondre à un post */
+  createReply: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      body: z.string().min(2).max(20000),
+      parentReplyId: z.number().int().positive().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      // Vérifier que le post n'est pas verrouillé
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post introuvable" });
+      if (post.isLocked) throw new TRPCError({ code: "FORBIDDEN", message: "Ce post est verrouillé" });
+      const result = await forumDb.forumCreateReply({ ...input, authorId: userId });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de créer la réponse" });
+      return result;
+    }),
+
+  /** Modifier une réponse (auteur seulement) */
+  updateReply: protectedProcedure
+    .input(z.object({
+      replyId: z.number().int().positive(),
+      body: z.string().min(2).max(20000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const pool = db.getPool();
+      if (pool) {
+        const [[reply]] = await pool.execute(
+          `SELECT authorId FROM forum_replies WHERE id = ? AND deletedAt IS NULL`, [input.replyId]
+        ) as any;
+        if (!reply) throw new TRPCError({ code: "NOT_FOUND" });
+        if (reply.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await forumDb.forumUpdateReply(input.replyId, input.body);
+      return { success: true };
+    }),
+
+  /** Supprimer une réponse */
+  deleteReply: protectedProcedure
+    .input(z.object({ replyId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const userRole = ctx.user.role;
+      const pool = db.getPool();
+      if (pool) {
+        const [[reply]] = await pool.execute(
+          `SELECT authorId FROM forum_replies WHERE id = ? AND deletedAt IS NULL`, [input.replyId]
+        ) as any;
+        if (!reply) throw new TRPCError({ code: "NOT_FOUND" });
+        if (reply.authorId !== userId && userRole !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await forumDb.forumSoftDeleteReply(input.replyId);
+      return { success: true };
+    }),
+
+  /** Vote sur un post ou une réponse (+1/-1) */
+  vote: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      value: z.union([z.literal(1), z.literal(-1)]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const result = await forumDb.forumVote(userId, input.targetType, input.targetId, input.value);
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Vote échoué" });
+      return result;
+    }),
+
+  /** Toggle réaction emoji */
+  react: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      emoji: z.enum(["heart", "laugh", "celebrate", "eyes", "paw"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      return await forumDb.forumToggleReaction(userId, input.targetType, input.targetId, input.emoji);
+    }),
+
+  /** Toggle bookmark */
+  bookmark: protectedProcedure
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      return await forumDb.forumToggleBookmark(userId, input.postId);
+    }),
+
+  /** Marquer une réponse comme meilleure réponse (auteur du post seulement) */
+  acceptAnswer: protectedProcedure
+    .input(z.object({
+      postId: z.number().int().positive(),
+      replyId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const post = await forumDb.forumGetPost(input.postId);
+      if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+      if (post.authorId !== userId) throw new TRPCError({ code: "FORBIDDEN", message: "Seul l'auteur peut accepter une réponse" });
+      await forumDb.forumAcceptAnswer(input.postId, input.replyId);
+      return { success: true };
+    }),
+
+  /** Signaler un post ou une réponse */
+  report: protectedProcedure
+    .input(z.object({
+      targetType: z.enum(["post", "reply"]),
+      targetId: z.number().int().positive(),
+      reason: z.enum(["spam", "inappropriate", "harassment", "misinformation", "other"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      await forumDb.forumReport({ reporterId: userId, ...input });
+      return { success: true };
+    }),
+
+  /** Mes bookmarks */
+  getMyBookmarks: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    return await forumDb.forumGetMyBookmarks(userId);
+  }),
+
+  /** Mes posts */
+  getMyPosts: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    return await forumDb.forumGetMyPosts(userId);
+  }),
+
+  /** Mon karma */
+  getMyKarma: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    return { karma: await forumDb.forumGetUserKarma(userId) };
+  }),
+
+  // ─── Modération (admin seulement) ──────────────────────────────────────────
+
+  pinPost: protectedProcedure
+    .input(z.object({ postId: z.number(), isPinned: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumPinPost(input.postId, input.isPinned);
+      return { success: true };
+    }),
+
+  lockPost: protectedProcedure
+    .input(z.object({ postId: z.number(), isLocked: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumLockPost(input.postId, input.isLocked);
+      return { success: true };
+    }),
+
+  setPostStatus: protectedProcedure
+    .input(z.object({ postId: z.number(), status: z.enum(["open", "solved", "closed"]) }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumSetPostStatus(input.postId, input.status);
+      return { success: true };
+    }),
+
+  getPendingReports: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    return await forumDb.forumGetPendingReports();
+  }),
+
+  reviewReport: protectedProcedure
+    .input(z.object({ reportId: z.number(), status: z.enum(["reviewed", "dismissed"]) }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await forumDb.forumReviewReport(input.reportId, input.status);
+      return { success: true };
+    }),
+});
+
+// ─── Export final appRouter ────────────────────────────────────────────────
+// forumRouter déclaré ici (après _appRouterBase) pour éviter l'erreur
+// "Cannot access before initialization" en Vitest ESM.
+// On reconstruit appRouter en incluant forum via router() standard.
+export const appRouter = router({
+  ..._appRouterBase._def.procedures,
+  forum: forumRouter,
+});
+export type AppRouter = typeof appRouter;
