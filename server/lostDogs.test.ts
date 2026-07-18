@@ -168,7 +168,7 @@ describe("LostDogsPage - Urgency classification", () => {
 
   it("classe correctement un mélange de chiens", () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 5000);
     const old = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
     const { urgent, recent } = classifyDogs([
