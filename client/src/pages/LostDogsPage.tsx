@@ -580,11 +580,28 @@ export default function LostDogsPage() {
       toast.error("Indiquez la date de disparition");
       return;
     }
-    // Accept coords from map click OR from browser geolocation
-    const lat = formData.lostLat ?? latitude;
-    const lng = formData.lostLng ?? longitude;
+
+    let lat = formData.lostLat ?? latitude;
+    let lng = formData.lostLng ?? longitude;
+
+    // Geocode address if text location is entered and we don't have map click coords
+    if (formData.lostLocation.trim() && !formData.lostLat) {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formData.lostLocation)}&countrycodes=fr&limit=1`
+        );
+        const data = await response.json();
+        if (data && data.length > 0) {
+          lat = parseFloat(data[0].lat);
+          lng = parseFloat(data[0].lon);
+        }
+      } catch (error) {
+        console.error("Geocoding failed", error);
+      }
+    }
+
     if (!lat || !lng) {
-      toast.error("Placez un marqueur sur la carte ou autorisez la géolocalisation");
+      toast.error("Placez un marqueur sur la carte ou indiquez une adresse valide");
       return;
     }
     // lostLocation: use picked address or fallback to coords string
@@ -618,11 +635,28 @@ export default function LostDogsPage() {
       toast.error("Ajoutez une description du repérage");
       return;
     }
-    // Accept coords from map click OR from browser geolocation
-    const lat = sightingData.sightingLat ?? latitude;
-    const lng = sightingData.sightingLng ?? longitude;
+
+    let lat = sightingData.sightingLat ?? latitude;
+    let lng = sightingData.sightingLng ?? longitude;
+
+    // Geocode address if text location is entered and we don't have map click coords
+    if (sightingData.location.trim() && !sightingData.sightingLat) {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sightingData.location)}&countrycodes=fr&limit=1`
+        );
+        const data = await response.json();
+        if (data && data.length > 0) {
+          lat = parseFloat(data[0].lat);
+          lng = parseFloat(data[0].lon);
+        }
+      } catch (error) {
+        console.error("Geocoding failed", error);
+      }
+    }
+
     if (!lat || !lng) {
-      toast.error("Placez un marqueur sur la carte pour indiquer où vous avez vu le chien");
+      toast.error("Placez un marqueur sur la carte ou indiquez une adresse valide");
       return;
     }
     const location = sightingData.location || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
