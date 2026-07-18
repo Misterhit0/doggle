@@ -835,10 +835,41 @@ export async function reportLostDog(data: {
   try {
     const connection = getPool();
     if (!connection) return null;
+
+    let dogName = "Inconnu";
+    let dogBreed = null;
+    let dogAge = null;
+
+    if (data.dogId) {
+      const [dogRows] = await connection.execute(
+        "SELECT name, breed, age FROM dogs WHERE id = ?",
+        [data.dogId]
+      );
+      if (Array.isArray(dogRows) && dogRows.length > 0) {
+        const dog = dogRows[0] as any;
+        dogName = dog.name || "Inconnu";
+        dogBreed = dog.breed || null;
+        dogAge = dog.age !== undefined ? dog.age : null;
+      }
+    }
+
     const [result] = await connection.execute(
-      `INSERT INTO lost_dogs (dogId, userId, description, lostDate, lostLocation, latitude, longitude, reward, contactPhone, status, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'lost', NOW())`,
-      [data.dogId, data.userId, data.description, data.lostDate, data.lostLocation, data.latitude, data.longitude, data.reward || null, data.contactPhone || null]
+      `INSERT INTO lost_dogs (dogId, userId, name, breed, age, description, lostDate, lostLocation, latitude, longitude, reward, contactPhone, status, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lost', NOW())`,
+      [
+        data.dogId,
+        data.userId,
+        dogName,
+        dogBreed,
+        dogAge,
+        data.description,
+        data.lostDate,
+        data.lostLocation,
+        data.latitude,
+        data.longitude,
+        data.reward || null,
+        data.contactPhone || null
+      ]
     );
     return (result as any).insertId;
   } catch (error) {
@@ -864,7 +895,7 @@ export async function reportSighting(data: {
     const connection = getPool();
     if (!connection) return null;
     const [result] = await connection.execute(
-      `INSERT INTO lost_dog_sightings (lostDogId, userId, location, latitude, longitude, sightingDate, description, confidence, createdAt)
+      `INSERT INTO sightings (lostDogId, userId, location, latitude, longitude, sightingDate, description, confidence, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [data.lostDogId, data.userId, data.location, data.latitude, data.longitude, data.sightingDate, data.description, data.confidence]
     );
@@ -909,7 +940,7 @@ export async function getSightings(lostDogId: number) {
     if (!connection) return [];
     const [sightings] = await connection.execute(
       `SELECT s.*, u.name as reporterName, u.profilePhotoUrl
-       FROM lost_dog_sightings s
+       FROM sightings s
        JOIN users u ON s.userId = u.id
        WHERE s.lostDogId = ?
        ORDER BY s.sightingDate DESC`,
