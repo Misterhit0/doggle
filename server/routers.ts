@@ -3,7 +3,7 @@ import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, authRateLimitedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
+import { createEvent, getNearbyEvents, joinEvent, createSponsorshipRequest, reportLostDog, reportSighting, getNearbyLostDogs, getSightings, getNearbySightings, createReview, getReviewsForUser, getAverageRating, createVerification, getVerificationForUser, updateVerificationStatus } from "./db";
 import * as db from "./db";
 import * as forumDb from "./forumDb";
 import { TRPCError } from "@trpc/server";
@@ -1174,6 +1174,12 @@ export const _appRouterBase = router({
       .input(z.object({ latitude: z.number(), longitude: z.number(), radiusKm: z.number().default(25) }))
       .query(async ({ ctx, input }) => {
         return getNearbyLostDogs(input.latitude, input.longitude, input.radiusKm);
+      }),
+
+    getNearbySightings: protectedProcedure
+      .input(z.object({ latitude: z.number(), longitude: z.number(), radiusKm: z.number().default(25) }))
+      .query(async ({ ctx, input }) => {
+        return getNearbySightings(input.latitude, input.longitude, input.radiusKm);
       }),
 
     reportSighting: protectedProcedure

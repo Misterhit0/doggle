@@ -500,10 +500,17 @@ export default function LostDogsPage() {
   }, [showSpas]);
 
   // Always load lost dogs — use large radius (500km = France-wide) if no geoloc yet
+  // Always load lost dogs — use large radius (1000km = France-wide)
   const { data: nearbyLostDogs, refetch: refetchLostDogs } = trpc.lostDogs.getNearbyLostDogs.useQuery(
     latitude && longitude
-      ? { latitude, longitude, radiusKm: 100 }
-      : { latitude: 46.603354, longitude: 1.888334, radiusKm: 500 },
+      ? { latitude, longitude, radiusKm: 1000 }
+      : { latitude: 46.603354, longitude: 1.888334, radiusKm: 1000 },
+    { refetchOnWindowFocus: false }
+  );
+  const { data: nearbySightings, refetch: refetchNearbySightings } = trpc.lostDogs.getNearbySightings.useQuery(
+    latitude && longitude
+      ? { latitude, longitude, radiusKm: 1000 }
+      : { latitude: 46.603354, longitude: 1.888334, radiusKm: 1000 },
     { refetchOnWindowFocus: false }
   );
   const { refetch: refetchSightings } = trpc.lostDogs.getSightings.useQuery(
@@ -511,49 +518,88 @@ export default function LostDogsPage() {
     { enabled: !!selectedDogId }
   );
 
-  // Helper: place all lost-dog markers on a given map instance
-  const placeMarkersOnMap = useCallback((mapInstance: maplibregl.Map, dogs: any[]) => {
+  // Helper: place all lost-dog and sighting markers on a given map instance
+  const placeMarkersOnMap = useCallback((mapInstance: maplibregl.Map, dogs: any[], sightingsList: any[]) => {
     // Remove old markers
     listMarkersRef.current?.forEach(m => m.remove());
     listMarkersRef.current = [];
 
-    if (!Array.isArray(dogs) || dogs.length === 0) return;
-
     const bounds = new maplibregl.LngLatBounds();
+    let hasPoints = false;
 
-    dogs.forEach((dog) => {
-      if (!dog.latitude || !dog.longitude) return;
+    // 1. Lost dogs pins
+    if (Array.isArray(dogs)) {
+      dogs.forEach((dog) => {
+        if (!dog.latitude || !dog.longitude) return;
 
-      const lostDate = new Date(dog.lostDate).toLocaleDateString("fr-FR", {
-        day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+        const lostDate = new Date(dog.lostDate).toLocaleDateString("fr-FR", {
+          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+        });
+
+        const el = document.createElement("div");
+        el.style.cssText = "display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#ef4444;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;font-size:18px;cursor:pointer;transition:transform .15s";
+        el.innerText = "🐕";
+        el.onmouseenter = () => { el.style.transform = "scale(1.2)"; };
+        el.onmouseleave = () => { el.style.transform = "scale(1)"; };
+
+        const popup = new maplibregl.Popup({ offset: 22, closeButton: false }).setHTML(`
+          <div style="font-family:sans-serif;max-width:200px;padding:6px">
+            <h3 style="font-weight:900;font-size:14px;color:#dc2626;margin:0 0 3px;text-transform:uppercase">${dog.name}</h3>
+            <p style="font-size:11px;color:#666;margin:0 0 4px">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
+            <p style="font-size:11px;margin:0 0 3px">📅 Perdu le ${lostDate}</p>
+            <p style="font-size:11px;margin:0">📍 ${dog.lostLocation || "Lieu inconnu"}</p>
+            ${dog.reward ? `<p style="font-size:11px;font-weight:900;color:#dc2626;margin:4px 0 0">💰 Récompense: ${dog.reward}</p>` : ""}
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([Number(dog.longitude), Number(dog.latitude)])
+          .setPopup(popup)
+          .addTo(mapInstance);
+
+        listMarkersRef.current.push(marker);
+        bounds.extend([Number(dog.longitude), Number(dog.latitude)]);
+        hasPoints = true;
       });
+    }
 
-      const el = document.createElement("div");
-      el.style.cssText = "display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#ef4444;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;font-size:18px;cursor:pointer;transition:transform .15s";
-      el.innerText = "🐕";
-      el.onmouseenter = () => { el.style.transform = "scale(1.2)"; };
-      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
+    // 2. Sightings pins (orange)
+    if (Array.isArray(sightingsList)) {
+      sightingsList.forEach((sighting) => {
+        if (!sighting.latitude || !sighting.longitude) return;
 
-      const popup = new maplibregl.Popup({ offset: 22, closeButton: false }).setHTML(`
-        <div style="font-family:sans-serif;max-width:200px;padding:6px">
-          <h3 style="font-weight:900;font-size:14px;color:#dc2626;margin:0 0 3px;text-transform:uppercase">${dog.name}</h3>
-          <p style="font-size:11px;color:#666;margin:0 0 4px">${dog.breed || ""} ${dog.age ? `• ${dog.age} ans` : ""}</p>
-          <p style="font-size:11px;margin:0 0 3px">📅 Perdu le ${lostDate}</p>
-          <p style="font-size:11px;margin:0">📍 ${dog.lostLocation || "Lieu inconnu"}</p>
-          ${dog.reward ? `<p style="font-size:11px;font-weight:900;color:#dc2626;margin:4px 0 0">💰 Récompense offerte</p>` : ""}
-        </div>
-      `);
+        const sightingDate = new Date(sighting.sightingDate).toLocaleDateString("fr-FR", {
+          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+        });
 
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([Number(dog.longitude), Number(dog.latitude)])
-        .setPopup(popup)
-        .addTo(mapInstance);
+        const el = document.createElement("div");
+        el.style.cssText = "display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#f59e0b;border-radius:50%;border:2px solid #000;box-shadow:2px 2px 0 #000;font-size:18px;cursor:pointer;transition:transform .15s";
+        el.innerText = "👁️";
+        el.onmouseenter = () => { el.style.transform = "scale(1.2)"; };
+        el.onmouseleave = () => { el.style.transform = "scale(1)"; };
 
-      listMarkersRef.current.push(marker);
-      bounds.extend([Number(dog.longitude), Number(dog.latitude)]);
-    });
+        const popup = new maplibregl.Popup({ offset: 22, closeButton: false }).setHTML(`
+          <div style="font-family:sans-serif;max-width:200px;padding:6px">
+            <h3 style="font-weight:900;font-size:14px;color:#d97706;margin:0 0 3px;text-transform:uppercase">Chien aperçu</h3>
+            <p style="font-size:11px;color:#666;margin:0 0 4px">Certitude : ${sighting.confidence === 'certain' ? '✅ Certain' : sighting.confidence === 'likely' ? '🤔 Probable' : '❓ Possible'}</p>
+            <p style="font-size:11px;margin:0 0 3px">📅 Aperçu le ${sightingDate}</p>
+            <p style="font-size:11px;margin:0 0 3px">📍 ${sighting.location || "Lieu inconnu"}</p>
+            <p style="font-size:11px;font-style:italic;margin:0">"${sighting.description || ""}"</p>
+          </div>
+        `);
 
-    if (listMarkersRef.current.length > 0) {
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([Number(sighting.longitude), Number(sighting.latitude)])
+          .setPopup(popup)
+          .addTo(mapInstance);
+
+        listMarkersRef.current.push(marker);
+        bounds.extend([Number(sighting.longitude), Number(sighting.latitude)]);
+        hasPoints = true;
+      });
+    }
+
+    if (hasPoints) {
       mapInstance.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 600 });
     }
   }, []);
@@ -561,9 +607,9 @@ export default function LostDogsPage() {
   // Re-place markers whenever data OR map changes
   useEffect(() => {
     const mapInstance = listMapRef.current;
-    if (!mapInstance || !nearbyLostDogs) return;
-    placeMarkersOnMap(mapInstance, nearbyLostDogs as any[]);
-  }, [listMap, nearbyLostDogs, placeMarkersOnMap]);
+    if (!mapInstance) return;
+    placeMarkersOnMap(mapInstance, (nearbyLostDogs || []) as any[], (nearbySightings || []) as any[]);
+  }, [listMap, nearbyLostDogs, nearbySightings, placeMarkersOnMap]);
 
 
   const handleReportLostDog = async () => {
@@ -675,6 +721,7 @@ export default function LostDogsPage() {
       setSightingData({ lostDogId: 0, location: "", sightingLat: null, sightingLng: null, sightingDate: "", description: "", confidence: "likely" });
       setIsSighting(false);
       refetchSightings();
+      refetchNearbySightings();
     } catch (error) {
       toast.error("Erreur lors du signalement — réessayez");
     }

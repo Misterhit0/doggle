@@ -953,6 +953,29 @@ export async function getSightings(lostDogId: number) {
   }
 }
 
+export async function getNearbySightings(latitude: number, longitude: number, radiusKm: number = 25) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const connection = getPool();
+    if (!connection) return [];
+    const [sightings] = await connection.execute(
+      `SELECT s.*, u.name as reporterName, u.profilePhotoUrl,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(s.latitude)) * cos(radians(s.longitude) - radians(?)) + sin(radians(?)) * sin(radians(s.latitude)), -1), 1))) as distance
+       FROM sightings s
+       JOIN users u ON s.userId = u.id
+       WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(s.latitude)) * cos(radians(s.longitude) - radians(?)) + sin(radians(?)) * sin(radians(s.latitude)), -1), 1))) <= ?
+       ORDER BY s.sightingDate DESC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return sightings || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby sightings:", error);
+    return [];
+  }
+}
+
 // Home location and walking tracking
 export async function setHomeLocation(userId: number, latitude: number, longitude: number) {
   const db = await getDb();
