@@ -19,6 +19,7 @@ export default function DiscoveryPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [radiusKm, setRadiusKm] = useState(5);
   const [breedingOnly, setBreedingOnly] = useState(false);
+  const [dogsitterOnly, setDogsitterOnly] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -53,6 +54,7 @@ export default function DiscoveryPage() {
   const { data: duos, isLoading, refetch } = trpc.discovery.getNearbyDuos.useQuery({
     radiusKm,
     breedingOnly,
+    dogsitterOnly,
   }, {
     enabled: !!user,
   });
@@ -331,6 +333,26 @@ export default function DiscoveryPage() {
             </div>
           </div>
 
+          {/* Dogsitter filter */}
+          <div className="mt-3 pt-2.5 border-t border-black/10 flex items-center justify-between">
+            <label htmlFor="dogsitterMode" className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm font-black">💼 Mode Dog Sitter</span>
+              <span className="text-[10px] text-muted-foreground">Afficher uniquement les profils dog sitter</span>
+            </label>
+            <div
+              className={`w-10 h-5 rounded-full border-2 border-black transition-colors cursor-pointer flex items-center ${dogsitterOnly ? "bg-amber-400" : "bg-gray-200"}`}
+              onClick={() => {
+                const newVal = !dogsitterOnly;
+                setDogsitterOnly(newVal);
+                if (newVal) setBreedingOnly(false);
+                setCurrentIndex(0);
+                refetch();
+              }}
+            >
+              <div className={`w-3.5 h-3.5 rounded-full bg-white border-2 border-black transition-transform ${dogsitterOnly ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+            </div>
+          </div>
+
           {/* Breeding filter */}
           <div className="mt-3 pt-2.5 border-t border-black/10 flex items-center justify-between">
             <label htmlFor="breedingMode" className="flex items-center gap-2 cursor-pointer">
@@ -339,7 +361,13 @@ export default function DiscoveryPage() {
             </label>
             <div
               className={`w-10 h-5 rounded-full border-2 border-black transition-colors cursor-pointer flex items-center ${breedingOnly ? "bg-pink-400" : "bg-gray-200"}`}
-              onClick={() => { setBreedingOnly(prev => !prev); setCurrentIndex(0); refetch(); }}
+              onClick={() => {
+                const newVal = !breedingOnly;
+                setBreedingOnly(newVal);
+                if (newVal) setDogsitterOnly(false);
+                setCurrentIndex(0);
+                refetch();
+              }}
             >
               <div className={`w-3.5 h-3.5 rounded-full bg-white border-2 border-black transition-transform ${breedingOnly ? "translate-x-[18px]" : "translate-x-0.5"}`} />
             </div>

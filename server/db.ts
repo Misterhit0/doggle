@@ -437,6 +437,7 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
     return [];
   }
 
+  const currentUser = await getUserById(userId);
   const nearbyUsers = await getNearbyUsers(userId, radiusKm);
   
   if (nearbyUsers.length === 0) {
@@ -446,7 +447,10 @@ export async function getNearbyDuos(userId: number, radiusKm: number = 5) {
   // Get dogs for each nearby user
   const duos = await Promise.all(
     nearbyUsers.map(async (user) => {
-      const userDogs = await getDogsByUserId(user.id);
+      let userDogs = await getDogsByUserId(user.id);
+      if (currentUser?.isDogSitter) {
+        userDogs = userDogs.filter(dog => dog.availableForBoarding === true || dog.availableForBoarding === 1);
+      }
       return {
         user,
         dogs: userDogs,

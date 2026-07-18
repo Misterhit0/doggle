@@ -370,6 +370,7 @@ export const _appRouterBase = router({
         z.object({
           radiusKm: z.number().min(0.5).max(50).default(5),
           breedingOnly: z.boolean().optional().default(false),
+          dogsitterOnly: z.boolean().optional().default(false),
         })
       )
       .query(async ({ ctx, input }) => {
@@ -506,6 +507,13 @@ export const _appRouterBase = router({
         if (input.breedingOnly) {
           filteredDuos = filteredDuos.filter(d =>
             d.dogs && d.dogs.some((dog: any) => dog.openToBreeding === true || dog.openToBreeding === 1)
+          );
+        }
+
+        // Filter by dogSitter mode (show only dog sitters)
+        if (input.dogsitterOnly) {
+          filteredDuos = filteredDuos.filter(d =>
+            d.user && (d.user.isDogSitter === true || d.user.isDogSitter === 1)
           );
         }
 
