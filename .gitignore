@@ -126,3 +126,4 @@ deploy_preprod.sh
 deploy_main.sh
 deploy_vps.sh
 admin_credentials.md
+.obsidian/
