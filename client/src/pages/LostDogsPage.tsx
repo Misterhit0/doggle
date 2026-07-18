@@ -727,12 +727,34 @@ export default function LostDogsPage() {
     }
   };
 
-  const urgentDogs = (nearbyLostDogs as any[])?.filter(dog => {
+  const virtualLostDogsFromSightings = (nearbySightings as any[])
+    ?.filter(s => s.lostDogId === 0 || !s.lostDogId)
+    ?.map(s => ({
+      id: `sighting-${s.id}`,
+      name: "Chien aperçu",
+      breed: "Non identifié",
+      age: null,
+      description: s.description,
+      lostLocation: s.location,
+      lostDate: s.sightingDate,
+      reward: null,
+      contactPhone: null,
+      photoUrls: null,
+      isSighting: true,
+      confidence: s.confidence,
+    })) || [];
+
+  const allSignals = [
+    ...(nearbyLostDogs || []),
+    ...virtualLostDogsFromSightings
+  ];
+
+  const urgentDogs = allSignals?.filter(dog => {
     const daysSinceLost = (Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceLost <= 7;
   }) || [];
 
-  const recentDogs = (nearbyLostDogs as any[])?.filter(dog => {
+  const recentDogs = allSignals?.filter(dog => {
     const daysSinceLost = (Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceLost > 7;
   }) || [];
@@ -1045,22 +1067,24 @@ export default function LostDogsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {urgentDogs.map((dog: any) => (
-                  <Card key={dog.id} className="p-6 border-4 border-red-500 bg-red-50 hover:shadow-2xl transition-all transform hover:scale-105">
+                  <Card key={dog.id} className={`p-6 border-4 ${dog.isSighting ? 'border-amber-500 bg-amber-50/50' : 'border-red-500 bg-red-50'} hover:shadow-2xl transition-all transform hover:scale-105`}>
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <h3 className="font-black text-2xl text-red-700">{dog.name}</h3>
-                        <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse">URGENT</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${dog.isSighting ? 'bg-amber-500' : 'bg-red-500 animate-pulse'} text-white`}>
+                          {dog.isSighting ? "APERÇU" : "URGENT"}
+                        </span>
                       </div>
                       <p className="font-semibold text-sm text-gray-700">{dog.breed} {dog.age ? `— ${dog.age} ans` : ""}</p>
                       <p className="text-sm text-gray-800 line-clamp-3">{dog.description}</p>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2 font-semibold">
-                          <MapPin size={18} className="text-red-600" />
+                          <MapPin size={18} className={dog.isSighting ? "text-amber-500" : "text-red-600"} />
                           <span>{dog.lostLocation}</span>
                         </div>
                         <div className="flex items-center gap-2 text-gray-700">
-                          <Clock size={18} className="text-orange-600" />
-                          <span>Disparu depuis {Math.round((Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24))} days</span>
+                          <Clock size={18} className={dog.isSighting ? "text-amber-600" : "text-orange-600"} />
+                          <span>{dog.isSighting ? "Aperçu depuis" : "Disparu depuis"} {Math.max(1, Math.round((Date.now() - new Date(dog.lostDate).getTime()) / (1000 * 60 * 60 * 24)))} jours</span>
                         </div>
                         {dog.contactPhone && (
                           <div className="flex items-center gap-2 font-semibold">
@@ -1070,12 +1094,14 @@ export default function LostDogsPage() {
                         )}
                         {dog.reward && <p className="font-black text-red-600">💰 Récompense : {dog.reward}</p>}
                       </div>
-                      <Button
-                        onClick={() => { setSelectedDogId(dog.id); setIsSighting(true); }}
-                        className="w-full mt-4 bg-green-500 hover:bg-green-600 font-bold border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
-                      >
-                        ✅ J'ai vu ce chien !
-                      </Button>
+                      {!dog.isSighting && (
+                        <Button
+                          onClick={() => { setSelectedDogId(dog.id); setIsSighting(true); }}
+                          className="w-full mt-4 bg-green-500 hover:bg-green-600 font-bold border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                        >
+                          ✅ J'ai vu ce chien !
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -1091,14 +1117,19 @@ export default function LostDogsPage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {recentDogs.map((dog: any) => (
-                  <Card key={dog.id} className="p-6 border-2 border-gray-300 hover:shadow-lg transition-shadow">
+                  <Card key={dog.id} className={`p-6 border-2 ${dog.isSighting ? 'border-amber-400 bg-amber-50/20' : 'border-gray-300'} hover:shadow-lg transition-shadow`}>
                     <div className="space-y-3">
-                      <h3 className="font-bold text-lg text-foreground">{dog.name}</h3>
+                      <div className="flex items-start justify-between">
+                        <h3 className="font-bold text-lg text-foreground">{dog.name}</h3>
+                        {dog.isSighting && (
+                          <span className="bg-amber-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">APERÇU</span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">{dog.breed} {dog.age ? `— ${dog.age} ans` : ""}</p>
                       <p className="text-sm line-clamp-2">{dog.description}</p>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2">
-                          <MapPin size={16} className="text-gray-500" />
+                          <MapPin size={16} className={dog.isSighting ? "text-amber-500" : "text-gray-500"} />
                           <span>{dog.lostLocation}</span>
                         </div>
                         {dog.contactPhone && (
@@ -1109,13 +1140,15 @@ export default function LostDogsPage() {
                         )}
                         {dog.reward && <p className="font-semibold text-accent">Récompense : {dog.reward}</p>}
                       </div>
-                      <Button
-                        onClick={() => { setSelectedDogId(dog.id); setIsSighting(true); }}
-                        className="w-full mt-4"
-                        variant="outline"
-                      >
-                        J'ai vu ce chien
-                      </Button>
+                      {!dog.isSighting && (
+                        <Button
+                          onClick={() => { setSelectedDogId(dog.id); setIsSighting(true); }}
+                          className="w-full mt-4"
+                          variant="outline"
+                        >
+                          J'ai vu ce chien
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -1124,7 +1157,7 @@ export default function LostDogsPage() {
           )}
 
           {/* Empty State */}
-          {nearbyLostDogs && (nearbyLostDogs as any[]).length === 0 && (
+          {allSignals && (allSignals as any[]).length === 0 && (
             <div className="text-center py-20">
               <Heart size={64} className="mx-auto mb-4 text-gray-300" />
               <p className="text-2xl font-bold text-foreground mb-2">Aucun chien perdu signalé près de vous</p>
