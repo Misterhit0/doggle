@@ -1,7 +1,7 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification, payments } from "../drizzle/schema";
+import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification, payments, walkingServices, walkingBookings, sponsorships, dogFriendlyPlaces, placeReviews, walks, walkGoals, dangerAlerts, petHealthRecords, petVaccines, petDocuments, veterinarians, vetSlots, vetAppointments } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { logger } from "./_core/logger";
 
@@ -167,6 +167,16 @@ export async function updateDog(dogId: number, updates: Record<string, unknown>)
   }
 
   await db.update(dogs).set(updates).where(eq(dogs.id, dogId));
+}
+
+export async function deleteDog(dogId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot delete dog: database not available");
+    return;
+  }
+
+  await db.delete(dogs).where(eq(dogs.id, dogId));
 }
 
 // Swipe Management
@@ -978,6 +988,20 @@ export async function getNearbySightings(latitude: number, longitude: number, ra
     console.error("[Database] Failed to get nearby sightings:", error);
     return [];
   }
+}
+
+export async function markLostDogAsFound(lostDogId: number, userId: number) {
+  const connection = getPool();
+  if (!connection) {
+    console.warn("[Database] Cannot mark lost dog as found: database not available");
+    return false;
+  }
+
+  const [result] = await connection.execute(
+    "UPDATE lost_dogs SET status = 'found' WHERE id = ? AND userId = ?",
+    [lostDogId, userId]
+  );
+  return (result as any).affectedRows > 0;
 }
 
 // Home location and walking tracking
@@ -2317,4 +2341,664 @@ export async function getAllDogSitters() {
     return [];
   }
 }
+
+// ============ WALKING SERVICES HELPERS ============
+export async function createWalkingService(userId: number, data: {
+  title: string;
+  description: string;
+  pricePerWalk?: number;
+  frequency?: "daily" | "weekly" | "biweekly" | "monthly";
+  availableDays: string[];
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(walkingServices).values({
+    userId,
+    title: data.title,
+    description: data.description,
+    pricePerWalk: data.pricePerWalk ? String(data.pricePerWalk) : null,
+    frequency: data.frequency || null,
+    availableDays: data.availableDays,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getNearbyWalkingServices(latitude: number, longitude: number, radiusKm: number = 10) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [services] = await connection.execute(
+      `SELECT ws.*, u.name as providerName, u.profilePhotoUrl, u.latitude, u.longitude,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) as distance
+       FROM walking_services ws
+       JOIN users u ON ws.userId = u.id
+       WHERE u.latitude IS NOT NULL AND u.longitude IS NOT NULL
+         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) <= ?
+       ORDER BY distance ASC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return services || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby walking services:", error);
+    return [];
+  }
+}
+
+export async function createWalkingBooking(userId: number, data: {
+  serviceId: number;
+  scheduledDate: Date;
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(walkingBookings).values({
+    userId,
+    serviceId: data.serviceId,
+    scheduledDate: data.scheduledDate,
+    notes: data.notes || null,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getWalkingBookingsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select()
+    .from(walkingBookings)
+    .where(eq(walkingBookings.userId, userId));
+}
+
+export async function rateWalkingBooking(bookingId: number, userId: number, rating: number, review?: string) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.update(walkingBookings)
+    .set({ rating, review: review || null })
+    .where(and(eq(walkingBookings.id, bookingId), eq(walkingBookings.userId, userId)));
+
+  return result[0].affectedRows > 0;
+}
+
+// ============ SPONSORSHIP HELPERS ============
+export async function requestSponsorship(userId: number, reason: string, frequency: "weekly" | "biweekly" | "monthly") {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(sponsorships).values({
+    userId,
+    reason,
+    frequency,
+    status: "pending",
+  });
+
+  return result[0].insertId;
+}
+
+export async function getAvailableSponsors(latitude: number, longitude: number, radiusKm: number = 10) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [sits] = await connection.execute(
+      `SELECT s.*, u.name as elderName, u.profilePhotoUrl, u.latitude, u.longitude,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) as distance
+       FROM sponsorships s
+       JOIN users u ON s.userId = u.id
+       WHERE s.status = 'pending' AND u.latitude IS NOT NULL AND u.longitude IS NOT NULL
+         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) <= ?
+       ORDER BY distance ASC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return sits || [];
+  } catch (error) {
+    console.error("[Database] Failed to get available sponsors:", error);
+    return [];
+  }
+}
+
+export async function acceptSponsorship(sponsorshipId: number, sitterId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.update(sponsorships)
+    .set({ sitterId, status: "accepted" })
+    .where(eq(sponsorships.id, sponsorshipId));
+
+  return result[0].affectedRows > 0;
+}
+
+export async function getMySponsorships(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select()
+    .from(sponsorships)
+    .where(eq(sponsorships.userId, userId));
+}
+
+export async function rateSponsorship(sponsorshipId: number, userId: number, rating: number, review?: string) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.update(sponsorships)
+    .set({ rating, review: review || null })
+    .where(and(eq(sponsorships.id, sponsorshipId), eq(sponsorships.userId, userId)));
+
+  return result[0].affectedRows > 0;
+}
+
+// ============ DOG FRIENDLY PLACES HELPERS ============
+export async function createDogFriendlyPlace(data: {
+  name: string;
+  placeType: "park" | "beach" | "restaurant" | "hotel" | "other";
+  latitude: number;
+  longitude: number;
+  address?: string;
+  description?: string;
+  osmId?: string;
+  isDogsAllowed?: boolean;
+  attributes?: any;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(dogFriendlyPlaces).values({
+    name: data.name,
+    placeType: data.placeType,
+    latitude: String(data.latitude),
+    longitude: String(data.longitude),
+    address: data.address || null,
+    description: data.description || null,
+    osmId: data.osmId || null,
+    isDogsAllowed: data.isDogsAllowed !== false,
+    attributes: data.attributes || null,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getNearbyDogFriendlyPlaces(latitude: number, longitude: number, radiusKm: number = 25) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [places] = await connection.execute(
+      `SELECT dfp.*,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(dfp.latitude)) * cos(radians(dfp.longitude) - radians(?)) + sin(radians(?)) * sin(radians(dfp.latitude)), -1), 1))) as distance
+       FROM dog_friendly_places dfp
+       WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(dfp.latitude)) * cos(radians(dfp.longitude) - radians(?)) + sin(radians(?)) * sin(radians(dfp.latitude)), -1), 1))) <= ?
+       ORDER BY distance ASC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return places || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby dog friendly places:", error);
+    return [];
+  }
+}
+
+export async function getPlaceDetails(placeId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const places = await db.select().from(dogFriendlyPlaces).where(eq(dogFriendlyPlaces.id, placeId));
+  if (places.length === 0) return null;
+
+  const reviewsList = await db.select().from(placeReviews).where(eq(placeReviews.placeId, placeId));
+  const avgRating = reviewsList.length > 0
+    ? reviewsList.reduce((acc, curr) => acc + curr.rating, 0) / reviewsList.length
+    : 0;
+
+  return {
+    ...places[0],
+    averageRating: parseFloat(avgRating.toFixed(1)),
+    reviewsCount: reviewsList.length,
+  };
+}
+
+export async function addPlaceReview(placeId: number, userId: number, rating: number, comment?: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(placeReviews).values({
+    placeId,
+    userId,
+    rating,
+    comment: comment || null,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getPlaceReviews(placeId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(placeReviews).where(eq(placeReviews.placeId, placeId));
+}
+
+// ============ WALKS & GOALS HELPERS ============
+export async function createWalk(userId: number, data: {
+  distanceMeter: number;
+  durationSecond: number;
+  gpsPath: { lat: number; lng: number; timestamp: number }[];
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(walks).values({
+    userId,
+    distanceMeter: data.distanceMeter,
+    durationSecond: data.durationSecond,
+    gpsPath: data.gpsPath,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getMyWalks(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(walks).where(eq(walks.userId, userId)).orderBy(desc(walks.createdAt));
+}
+
+export async function setOrUpdateGoal(userId: number, data: {
+  goalType: "distance" | "duration";
+  targetValue: number;
+  period: "weekly" | "monthly";
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const now = new Date();
+  const startDate = new Date();
+  const endDate = new Date();
+
+  if (data.period === "weekly") {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    startDate.setDate(diff);
+    startDate.setHours(0, 0, 0, 0);
+
+    endDate.setDate(startDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+  } else {
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+
+    endDate.setMonth(startDate.getMonth() + 1);
+    endDate.setDate(0);
+    endDate.setHours(23, 59, 59, 999);
+  }
+
+  // Delete existing goals for same type and period
+  await db.delete(walkGoals).where(
+    and(
+      eq(walkGoals.userId, userId),
+      eq(walkGoals.goalType, data.goalType),
+      eq(walkGoals.period, data.period)
+    )
+  );
+
+  const result = await db.insert(walkGoals).values({
+    userId,
+    goalType: data.goalType,
+    targetValue: data.targetValue,
+    currentValue: 0,
+    period: data.period,
+    startDate,
+    endDate,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getCurrentGoals(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const activeGoals = await db.select().from(walkGoals).where(eq(walkGoals.userId, userId));
+  const userWalks = await db.select().from(walks).where(eq(walks.userId, userId));
+
+  return activeGoals.map(goal => {
+    const matchingWalks = userWalks.filter(walk => {
+      const walkDate = new Date(walk.createdAt);
+      return walkDate >= new Date(goal.startDate) && walkDate <= new Date(goal.endDate);
+    });
+
+    const sum = matchingWalks.reduce((acc, curr) => {
+      return acc + (goal.goalType === "distance" ? curr.distanceMeter : curr.durationSecond);
+    }, 0);
+
+    return {
+      ...goal,
+      currentValue: sum,
+    };
+  });
+}
+
+// ============ DANGER ALERTS HELPERS ============
+export async function createDangerAlert(userId: number, data: {
+  dangerType: "cyanobacteria" | "hunting" | "poison_bait" | "stray_animal" | "other";
+  latitude: number;
+  longitude: number;
+  description?: string;
+  durationHours?: number;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const durationHours = data.durationHours || 24;
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + durationHours);
+
+  const result = await db.insert(dangerAlerts).values({
+    userId,
+    dangerType: data.dangerType,
+    latitude: String(data.latitude),
+    longitude: String(data.longitude),
+    description: data.description || null,
+    status: "active",
+    expiresAt,
+  });
+
+  return result[0].insertId;
+}
+
+export async function getNearbyDangerAlerts(latitude: number, longitude: number, radiusKm: number = 5) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [alerts] = await connection.execute(
+      `SELECT da.*,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(da.latitude)) * cos(radians(da.longitude) - radians(?)) + sin(radians(?)) * sin(radians(da.latitude)), -1), 1))) as distance
+       FROM danger_alerts da
+       WHERE da.status = 'active' AND da.expiresAt > NOW()
+         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(da.latitude)) * cos(radians(da.longitude) - radians(?)) + sin(radians(?)) * sin(radians(da.latitude)), -1), 1))) <= ?
+       ORDER BY distance ASC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return alerts || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby danger alerts:", error);
+    return [];
+  }
+}
+
+export async function resolveDangerAlert(alertId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.update(dangerAlerts)
+    .set({ status: "resolved" })
+    .where(and(eq(dangerAlerts.id, alertId), eq(dangerAlerts.userId, userId)));
+
+  return result[0].affectedRows > 0;
+}
+
+export async function getNearbyUsersToNotify(latitude: number, longitude: number, radiusKm: number = 5) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [usersList] = await connection.execute(
+      `SELECT u.id, u.name, u.phoneNumber, u.latitude, u.longitude,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) as distance
+       FROM users u
+       WHERE u.latitude IS NOT NULL AND u.longitude IS NOT NULL AND u.phoneNumber IS NOT NULL
+         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) + sin(radians(?)) * sin(radians(u.latitude)), -1), 1))) <= ?`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return usersList as any[] || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby users to notify:", error);
+    return [];
+  }
+}
+
+// ============ PET HEALTH & VET APPOINTMENTS HELPERS ============
+
+export async function canUserAccessPetHealth(dogId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const [dog] = await db.select().from(dogs).where(eq(dogs.id, dogId));
+  if (dog && dog.ownerId === userId) return true;
+
+  const pool = getPool();
+  if (pool) {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT id FROM boarding_requests
+         WHERE dogId = ? AND sitterId = ? AND status IN ('accepted', 'completed')`,
+        [dogId, userId]
+      );
+      if (Array.isArray(rows) && rows.length > 0) return true;
+    } catch (err) {
+      console.error("[Database] Failed to check dogsitter health access:", err);
+    }
+  }
+  return false;
+}
+
+export async function upsertHealthRecord(dogId: number, data: {
+  weight?: number;
+  allergies?: string;
+  medicalHistory?: string;
+  treatmentInfo?: string;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const existing = await db.select().from(petHealthRecords).where(eq(petHealthRecords.dogId, dogId));
+  if (existing.length > 0) {
+    await db.update(petHealthRecords)
+      .set({
+        weight: data.weight !== undefined ? String(data.weight) : undefined,
+        allergies: data.allergies ?? null,
+        medicalHistory: data.medicalHistory ?? null,
+        treatmentInfo: data.treatmentInfo ?? null,
+      })
+      .where(eq(petHealthRecords.dogId, dogId));
+    return existing[0].id;
+  } else {
+    const result = await db.insert(petHealthRecords).values({
+      dogId,
+      weight: data.weight !== undefined ? String(data.weight) : null,
+      allergies: data.allergies || null,
+      medicalHistory: data.medicalHistory || null,
+      treatmentInfo: data.treatmentInfo || null,
+    });
+    return result[0].insertId;
+  }
+}
+
+export async function getHealthRecord(dogId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [record] = await db.select().from(petHealthRecords).where(eq(petHealthRecords.dogId, dogId));
+  return record || null;
+}
+
+export async function addVaccine(dogId: number, data: {
+  name: string;
+  administeredDate: Date;
+  nextBoosterDate: Date;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(petVaccines).values({
+    dogId,
+    name: data.name,
+    administeredDate: data.administeredDate,
+    nextBoosterDate: data.nextBoosterDate,
+    status: "active",
+  });
+  return result[0].insertId;
+}
+
+export async function getVaccines(dogId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(petVaccines).where(eq(petVaccines.dogId, dogId)).orderBy(desc(petVaccines.nextBoosterDate));
+}
+
+export async function addDocument(dogId: number, data: {
+  documentName: string;
+  documentUrl: string;
+  documentType: "prescription" | "certificate" | "other";
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(petDocuments).values({
+    dogId,
+    documentName: data.documentName,
+    documentUrl: data.documentUrl,
+    documentType: data.documentType,
+  });
+  return result[0].insertId;
+}
+
+export async function getDocuments(dogId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(petDocuments).where(eq(petDocuments.dogId, dogId)).orderBy(desc(petDocuments.createdAt));
+}
+
+export async function createVeterinarian(data: {
+  name: string;
+  specialty?: string;
+  clinicName?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  phoneNumber?: string;
+  email?: string;
+  isPartner?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(veterinarians).values({
+    name: data.name,
+    specialty: data.specialty || null,
+    clinicName: data.clinicName || null,
+    address: data.address || null,
+    latitude: data.latitude !== undefined ? String(data.latitude) : null,
+    longitude: data.longitude !== undefined ? String(data.longitude) : null,
+    phoneNumber: data.phoneNumber || null,
+    email: data.email || null,
+    isPartner: data.isPartner === true,
+  });
+  return result[0].insertId;
+}
+
+export async function createVetSlot(vetId: number, slotTime: Date) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(vetSlots).values({
+    vetId,
+    slotTime,
+    isBooked: false,
+  });
+  return result[0].insertId;
+}
+
+export async function getNearbyVets(latitude: number, longitude: number, radiusKm: number = 10) {
+  const connection = getPool();
+  if (!connection) return [];
+
+  try {
+    const [vets] = await connection.execute(
+      `SELECT v.*,
+              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(v.latitude)) * cos(radians(v.longitude) - radians(?)) + sin(radians(?)) * sin(radians(v.latitude)), -1), 1))) as distance
+       FROM veterinarians v
+       WHERE v.latitude IS NOT NULL AND v.longitude IS NOT NULL
+         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(v.latitude)) * cos(radians(v.longitude) - radians(?)) + sin(radians(?)) * sin(radians(v.latitude)), -1), 1))) <= ?
+       ORDER BY distance ASC`,
+      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
+    );
+    return vets || [];
+  } catch (error) {
+    console.error("[Database] Failed to get nearby vets:", error);
+    return [];
+  }
+}
+
+export async function getVetSlots(vetId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(vetSlots).where(and(eq(vetSlots.vetId, vetId), eq(vetSlots.isBooked, false)));
+}
+
+export async function createVetAppointment(userId: number, data: {
+  dogId: number;
+  vetId?: number;
+  customVetName?: string;
+  appointmentTime: Date;
+  reason: string;
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  if (data.vetId) {
+    const slotsList = await db.select().from(vetSlots).where(and(eq(vetSlots.vetId, data.vetId), eq(vetSlots.slotTime, data.appointmentTime)));
+    if (slotsList.length > 0) {
+      await db.update(vetSlots).set({ isBooked: true }).where(eq(vetSlots.id, slotsList[0].id));
+    }
+  }
+
+  const result = await db.insert(vetAppointments).values({
+    dogId: data.dogId,
+    userId,
+    vetId: data.vetId || null,
+    customVetName: data.customVetName || null,
+    appointmentTime: data.appointmentTime,
+    reason: data.reason,
+    notes: data.notes || null,
+    status: "scheduled",
+  });
+  return result[0].insertId;
+}
+
+export async function cancelVetAppointment(appointmentId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+
+  const [appointment] = await db.select().from(vetAppointments).where(and(eq(vetAppointments.id, appointmentId), eq(vetAppointments.userId, userId)));
+  if (!appointment) return false;
+
+  if (appointment.vetId) {
+    const slotsList = await db.select().from(vetSlots).where(and(eq(vetSlots.vetId, appointment.vetId), eq(vetSlots.slotTime, appointment.appointmentTime)));
+    if (slotsList.length > 0) {
+      await db.update(vetSlots).set({ isBooked: false }).where(eq(vetSlots.id, slotsList[0].id));
+    }
+  }
+
+  const result = await db.update(vetAppointments)
+    .set({ status: "cancelled" })
+    .where(and(eq(vetAppointments.id, appointmentId), eq(vetAppointments.userId, userId)));
+
+  return result[0].affectedRows > 0;
+}
+
+
+
+
 

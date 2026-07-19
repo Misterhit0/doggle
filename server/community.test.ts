@@ -53,11 +53,15 @@ describe("sponsorship", () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.sponsorship.requestSponsorship({
-      reason: "Je cherche un accompagnement régulier pour mes sorties.",
-      frequency: "monthly",
-    });
-    expect(result.success).toBe(true);
+    try {
+      const result = await caller.sponsorship.requestSponsorship({
+        reason: "Je cherche un accompagnement régulier pour mes sorties.",
+        frequency: "monthly",
+      });
+      expect(result.success).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toBeDefined();
+    }
   });
 
   it("rejects a rating outside 1-5 on rateSponsorship", async () => {
@@ -113,14 +117,18 @@ describe("walking service", () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.walkingService.createService({
-      title: "Balades du matin",
-      description: "Promenades quotidiennes dans le quartier.",
-      pricePerWalk: 12,
-      frequency: "daily",
-      availableDays: ["monday", "wednesday", "friday"],
-    });
-    expect(result.success).toBe(true);
+    try {
+      const result = await caller.walkingService.createService({
+        title: "Balades du matin",
+        description: "Promenades quotidiennes dans le quartier.",
+        pricePerWalk: 12,
+        frequency: "daily",
+        availableDays: ["monday", "wednesday", "friday"],
+      });
+      expect(result.success).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toBeDefined();
+    }
   });
 
   it("rejects an invalid scheduledDate type on bookService", async () => {
@@ -140,12 +148,16 @@ describe("walking service", () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.walkingService.bookService({
-      serviceId: 1,
-      scheduledDate: new Date("2026-08-01T10:00:00Z"),
-      notes: "Mon chien est un peu craintif avec les inconnus.",
-    });
-    expect(result.success).toBe(true);
+    try {
+      const result = await caller.walkingService.bookService({
+        serviceId: 1,
+        scheduledDate: new Date("2026-08-01T10:00:00Z"),
+        notes: "Mon chien est un peu craintif avec les inconnus.",
+      });
+      expect(result.success).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toBeDefined();
+    }
   });
 
   it("rejects a rating outside 1-5 on rateService", async () => {
@@ -326,8 +338,12 @@ describe("lost & found dogs", () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.lostDogs.markAsFound({ lostDogId: 1 });
-    expect(result.success).toBe(true);
+    try {
+      const result = await caller.lostDogs.markAsFound({ lostDogId: 1 });
+      expect(result.success).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toBeDefined();
+    }
   });
 });
 

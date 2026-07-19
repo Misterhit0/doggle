@@ -476,6 +476,202 @@ export const forumReports = mysqlTable("forum_reports", {
 
 export type ForumReport = typeof forumReports.$inferSelect;
 
+/** Dog Walking Services */
+export const walkingServices = mysqlTable("walking_services", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  pricePerWalk: decimal("pricePerWalk", { precision: 10, scale: 2 }),
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "biweekly", "monthly"]),
+  availableDays: json("availableDays").$type<string[]>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WalkingService = typeof walkingServices.$inferSelect;
+
+/** Dog Walking Bookings */
+export const walkingBookings = mysqlTable("walking_bookings", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceId: int("serviceId").notNull(),
+  userId: int("userId").notNull(),
+  scheduledDate: timestamp("scheduledDate").notNull(),
+  notes: text("notes"),
+  rating: int("rating"),
+  review: text("review"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WalkingBooking = typeof walkingBookings.$inferSelect;
+
+/** Sponsorships System */
+export const sponsorships = mysqlTable("sponsorships", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sitterId: int("sitterId"),
+  reason: text("reason").notNull(),
+  frequency: mysqlEnum("frequency", ["weekly", "biweekly", "monthly"]).notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected"]).default("pending").notNull(),
+  rating: int("rating"),
+  review: text("review"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Sponsorship = typeof sponsorships.$inferSelect;
+
+/** Dog Friendly Places (PlayDogs Style) */
+export const dogFriendlyPlaces = mysqlTable("dog_friendly_places", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  placeType: mysqlEnum("placeType", ["park", "beach", "restaurant", "hotel", "other"]).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  address: text("address"),
+  description: text("description"),
+  osmId: varchar("osmId", { length: 100 }),
+  isDogsAllowed: boolean("isDogsAllowed").default(true).notNull(),
+  attributes: json("attributes").$type<{ leashRequired?: boolean; waterAvailable?: boolean; fenced?: boolean; [key: string]: any }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DogFriendlyPlace = typeof dogFriendlyPlaces.$inferSelect;
+
+/** Place Reviews */
+export const placeReviews = mysqlTable("place_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  placeId: int("placeId").notNull(),
+  userId: int("userId").notNull(),
+  rating: int("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PlaceReview = typeof placeReviews.$inferSelect;
+
+/** Walks */
+export const walks = mysqlTable("walks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  distanceMeter: int("distanceMeter").notNull(),
+  durationSecond: int("durationSecond").notNull(),
+  gpsPath: json("gpsPath").$type<{ lat: number; lng: number; timestamp: number }[]>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Walk = typeof walks.$inferSelect;
+
+/** Walk Goals */
+export const walkGoals = mysqlTable("walk_goals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  goalType: mysqlEnum("goalType", ["distance", "duration"]).notNull(),
+  targetValue: int("targetValue").notNull(),
+  currentValue: int("currentValue").default(0).notNull(),
+  period: mysqlEnum("period", ["weekly", "monthly"]).notNull(),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WalkGoal = typeof walkGoals.$inferSelect;
+
+/** Danger Alerts */
+export const dangerAlerts = mysqlTable("danger_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  dangerType: mysqlEnum("dangerType", ["cyanobacteria", "hunting", "poison_bait", "stray_animal", "other"]).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["active", "resolved"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+});
+
+export type DangerAlert = typeof dangerAlerts.$inferSelect;
+
+/** Pet Health Records */
+export const petHealthRecords = mysqlTable("pet_health_records", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),
+  weight: decimal("weight", { precision: 5, scale: 2 }),
+  allergies: text("allergies"),
+  medicalHistory: text("medicalHistory"),
+  treatmentInfo: text("treatmentInfo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PetHealthRecord = typeof petHealthRecords.$inferSelect;
+
+/** Pet Vaccines */
+export const petVaccines = mysqlTable("pet_vaccines", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  administeredDate: timestamp("administeredDate").notNull(),
+  nextBoosterDate: timestamp("nextBoosterDate").notNull(),
+  status: mysqlEnum("status", ["active", "overdue"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PetVaccine = typeof petVaccines.$inferSelect;
+
+/** Pet Documents */
+export const petDocuments = mysqlTable("pet_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),
+  documentName: varchar("documentName", { length: 255 }).notNull(),
+  documentUrl: varchar("documentUrl", { length: 500 }).notNull(),
+  documentType: mysqlEnum("documentType", ["prescription", "certificate", "other"]).default("other").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PetDocument = typeof petDocuments.$inferSelect;
+
+/** Veterinarians */
+export const veterinarians = mysqlTable("veterinarians", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  specialty: varchar("specialty", { length: 255 }),
+  clinicName: varchar("clinicName", { length: 255 }),
+  address: text("address"),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  phoneNumber: varchar("phoneNumber", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  isPartner: boolean("isPartner").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Veterinarian = typeof veterinarians.$inferSelect;
+
+/** Vet Slots */
+export const vetSlots = mysqlTable("vet_slots", {
+  id: int("id").autoincrement().primaryKey(),
+  vetId: int("vetId").notNull(),
+  slotTime: timestamp("slotTime").notNull(),
+  isBooked: boolean("isBooked").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VetSlot = typeof vetSlots.$inferSelect;
+
+/** Vet Appointments */
+export const vetAppointments = mysqlTable("vet_appointments", {
+  id: int("id").autoincrement().primaryKey(),
+  dogId: int("dogId").notNull(),
+  userId: int("userId").notNull(),
+  vetId: int("vetId"),
+  customVetName: varchar("customVetName", { length: 255 }),
+  appointmentTime: timestamp("appointmentTime").notNull(),
+  reason: varchar("reason", { length: 255 }).notNull(),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["scheduled", "completed", "cancelled"]).default("scheduled").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VetAppointment = typeof vetAppointments.$inferSelect;
+
 // ─── Relations Forum ─────────────────────────────────────────────────────────
 
 export const forumCategoriesRelations = relations(forumCategories, ({ many }) => ({

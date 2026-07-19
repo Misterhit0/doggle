@@ -9,6 +9,32 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { appRouter } from "./routers";
+import type { TrpcContext } from "./_core/context";
+
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+
+function createAuthContext(userId: number = 1): { ctx: TrpcContext } {
+  const user: AuthenticatedUser = {
+    id: userId,
+    openId: `user-${userId}`,
+    email: `user${userId}@example.com`,
+    name: `User ${userId}`,
+    loginMethod: "manus",
+    role: "user",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
+
+  const ctx: TrpcContext = {
+    user,
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: {} as TrpcContext["res"],
+  };
+
+  return { ctx };
+}
 
 // ─── 1. Filtrage POI par type ────────────────────────────────────────────────
 
@@ -179,5 +205,16 @@ describe("LostDogsPage - Urgency classification", () => {
     // yesterday = urgent, lastWeek = 7 jours = urgent (<=7), old = recent
     expect(urgent).toHaveLength(2);
     expect(recent).toHaveLength(1);
+  });
+});
+
+describe("lostDogs.markAsFound", () => {
+  it("fails if user is not the owner or if report doesn't exist", async () => {
+    const { ctx } = createAuthContext(1);
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.community.lostDogs.markAsFound({ lostDogId: 999999 })
+    ).rejects.toThrow();
   });
 });

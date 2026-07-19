@@ -10,8 +10,8 @@ NC='\033[0m' # No Color
 
 # VPS Config
 VPS_HOST="root@187.55.227.99"
-VPS_PROD_DIR="/var/www/doggle"
-PM2_APP_NAME="doggle"
+VPS_PROD_DIR="/var/www/woofyz"
+PM2_APP_NAME="woofyz"
 
 echo -e "${BLUE}=== 🚀 PIPELINE DE DÉPLOIEMENT PRODUCTION (DOGGLE) ===${NC}"
 
@@ -73,8 +73,9 @@ if [[ "$MERGE_CONFIRM" =~ ^[Yy]$ ]]; then
         cd $VPS_PROD_DIR
         git pull origin main
         pnpm install --frozen-lockfile
+        pnpm db:migrate
         pnpm build
-        pm2 restart $PM2_APP_NAME
+        pm2 restart $PM2_APP_NAME || pm2 start dist/index.js --name $PM2_APP_NAME
         echo '✅ VPS production redémarré avec succès'
     " && echo -e "${GREEN}✓ Déploiement VPS production réussi !${NC}" || echo -e "${RED}❌ Erreur lors du déploiement VPS prod — vérifiez manuellement.${NC}"
 

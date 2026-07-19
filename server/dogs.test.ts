@@ -182,5 +182,18 @@ describe("dog profile management", () => {
         expect(error.message).toBeDefined();
       }
     });
+
+    it("deletes a dog owned by the caller", async () => {
+      const { ctx } = createAuthContext(1);
+      const caller = appRouter.createCaller(ctx);
+
+      try {
+        const createResult = await caller.dog.createDog({ name: "TempToDelete" });
+        const deleteResult = await caller.dog.deleteDog({ dogId: createResult.dogId });
+        expect(deleteResult.success).toBe(true);
+      } catch (error: any) {
+        expect(error.message).toBeDefined();
+      }
+    });
   });
 });

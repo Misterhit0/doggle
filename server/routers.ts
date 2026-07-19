@@ -348,7 +348,6 @@ export const _appRouterBase = router({
         return { success: true };
       }),
 
-    // Delete dog profile
     deleteDog: protectedProcedure
       .input(z.object({ dogId: z.number() }))
       .mutation(async ({ ctx, input }) => {
@@ -357,7 +356,7 @@ export const _appRouterBase = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Dog not found" });
         }
 
-        // TODO: Implement delete logic
+        await db.deleteDog(input.dogId);
         return { success: true };
       }),
   }),
@@ -987,26 +986,37 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return { success: true, message: "Sponsorship request submitted" };
+        const id = await db.requestSponsorship(ctx.user.id, input.reason, input.frequency);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to request sponsorship" });
+        }
+        return { success: true, message: "Sponsorship request submitted", sponsorshipId: id };
       }),
 
     // Get available sponsors (volunteers)
     getAvailableSponsors: protectedProcedure
       .input(z.object({ radiusKm: z.number().default(10) }))
       .query(async ({ ctx, input }) => {
-        return [];
+        const user = await db.getUserById(ctx.user.id);
+        const lat = user?.latitude ?? user?.homeLatitude ?? 48.8566;
+        const lng = user?.longitude ?? user?.homeLongitude ?? 2.3522;
+        return db.getAvailableSponsors(lat, lng, input.radiusKm);
       }),
 
     // Accept sponsorship request
     acceptSponsorship: protectedProcedure
       .input(z.object({ elderId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const success = await db.acceptSponsorship(input.elderId, ctx.user.id);
+        if (!success) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Sponsorship already accepted or not found" });
+        }
         return { success: true, message: "Sponsorship accepted" };
       }),
 
     // Get my sponsorships
     getMySponsors: protectedProcedure.query(async ({ ctx }) => {
-      return [];
+      return db.getMySponsorships(ctx.user.id);
     }),
 
     // Rate sponsorship
@@ -1019,6 +1029,10 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const success = await db.rateSponsorship(input.sponsorshipId, ctx.user.id, input.rating, input.review);
+        if (!success) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot rate this sponsorship" });
+        }
         return { success: true, message: "Rating submitted" };
       }),
   }),
@@ -1037,14 +1051,21 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return { success: true, message: "Walking service created", serviceId: 1 };
+        const id = await db.createWalkingService(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create walking service" });
+        }
+        return { success: true, message: "Walking service created", serviceId: id };
       }),
 
     // Get available walking services nearby
     getNearbyServices: protectedProcedure
       .input(z.object({ radiusKm: z.number().default(10) }))
       .query(async ({ ctx, input }) => {
-        return [];
+        const user = await db.getUserById(ctx.user.id);
+        const lat = user?.latitude ?? user?.homeLatitude ?? 48.8566;
+        const lng = user?.longitude ?? user?.homeLongitude ?? 2.3522;
+        return db.getNearbyWalkingServices(lat, lng, input.radiusKm);
       }),
 
     // Book walking service
@@ -1057,12 +1078,16 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return { success: true, message: "Booking confirmed", bookingId: 1 };
+        const id = await db.createWalkingBooking(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to book walking service" });
+        }
+        return { success: true, message: "Booking confirmed", bookingId: id };
       }),
 
     // Get my bookings
     getMyBookings: protectedProcedure.query(async ({ ctx }) => {
-      return [];
+      return db.getWalkingBookingsForUser(ctx.user.id);
     }),
 
     // Rate walking service
@@ -1075,6 +1100,10 @@ export const _appRouterBase = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const success = await db.rateWalkingBooking(input.bookingId, ctx.user.id, input.rating, input.review);
+        if (!success) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot rate this walking service" });
+        }
         return { success: true, message: "Rating submitted" };
       }),
   }),
@@ -1219,9 +1248,420 @@ export const _appRouterBase = router({
     markAsFound: protectedProcedure
       .input(z.object({ lostDogId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        return { success: true };
+        const success = await db.markLostDogAsFound(input.lostDogId, ctx.user.id);
+        if (!success) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot mark this dog as found" });
+        }
       }),
   }),
+
+  // Dog-Friendly Places System
+  dogFriendlyPlaces: router({
+    createPlace: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(3).max(100),
+          placeType: z.enum(["park", "beach", "restaurant", "hotel", "other"]),
+          latitude: z.number(),
+          longitude: z.number(),
+          address: z.string().optional(),
+          description: z.string().max(500).optional(),
+          osmId: z.string().optional(),
+          isDogsAllowed: z.boolean().default(true),
+          attributes: z.any().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createDogFriendlyPlace(input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create dog-friendly place" });
+        }
+        return { success: true, message: "Place created successfully", placeId: id };
+      }),
+
+    getNearbyPlaces: protectedProcedure
+      .input(
+        z.object({
+          latitude: z.number().optional(),
+          longitude: z.number().optional(),
+          radiusKm: z.number().default(25),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        let lat = input.latitude;
+        let lng = input.longitude;
+
+        if (lat === undefined || lng === undefined) {
+          const user = await db.getUserById(ctx.user.id);
+          lat = user?.latitude ?? user?.homeLatitude ?? 48.8566;
+          lng = user?.longitude ?? user?.homeLongitude ?? 2.3522;
+        }
+
+        return db.getNearbyDogFriendlyPlaces(lat, lng, input.radiusKm);
+      }),
+
+    getPlaceDetails: protectedProcedure
+      .input(z.object({ placeId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const details = await db.getPlaceDetails(input.placeId);
+        if (!details) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Place not found" });
+        }
+        return details;
+      }),
+
+    addPlaceReview: protectedProcedure
+      .input(
+        z.object({
+          placeId: z.number(),
+          rating: z.number().min(1).max(5),
+          comment: z.string().max(500).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.addPlaceReview(input.placeId, ctx.user.id, input.rating, input.comment);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to submit review" });
+        }
+        return { success: true, message: "Review submitted successfully", reviewId: id };
+      }),
+
+    getPlaceReviews: protectedProcedure
+      .input(z.object({ placeId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getPlaceReviews(input.placeId);
+      }),
+  }),
+
+  // GPS Walks & Tracking System
+  walks: router({
+    syncWalk: protectedProcedure
+      .input(
+        z.object({
+          distanceMeter: z.number().min(0),
+          durationSecond: z.number().min(0),
+          gpsPath: z.array(
+            z.object({
+              lat: z.number(),
+              lng: z.number(),
+              timestamp: z.number(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createWalk(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to sync walk" });
+        }
+        return { success: true, message: "Walk synchronized successfully", walkId: id };
+      }),
+
+    getMyWalks: protectedProcedure.query(async ({ ctx }) => {
+      return db.getMyWalks(ctx.user.id);
+    }),
+
+    setOrUpdateGoal: protectedProcedure
+      .input(
+        z.object({
+          goalType: z.enum(["distance", "duration"]),
+          targetValue: z.number().min(1),
+          period: z.enum(["weekly", "monthly"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.setOrUpdateGoal(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to set/update walk goal" });
+        }
+        return { success: true, message: "Walk goal set successfully", goalId: id };
+      }),
+
+    getCurrentGoals: protectedProcedure.query(async ({ ctx }) => {
+      return db.getCurrentGoals(ctx.user.id);
+    }),
+  }),
+
+  // Danger Alerts System
+  dangerAlerts: router({
+    reportDanger: protectedProcedure
+      .input(
+        z.object({
+          dangerType: z.enum(["cyanobacteria", "hunting", "poison_bait", "stray_animal", "other"]),
+          latitude: z.number(),
+          longitude: z.number(),
+          description: z.string().max(500).optional(),
+          durationHours: z.number().default(24),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createDangerAlert(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create danger alert" });
+        }
+
+        const nearbyUsers = await db.getNearbyUsersToNotify(input.latitude, input.longitude, 5);
+        const phoneNumbers = nearbyUsers
+          .map(u => u.phoneNumber)
+          .filter((phone): phone is string => typeof phone === "string" && phone.length > 0);
+
+        if (phoneNumbers.length > 0) {
+          const webhookUrl = process.env.N8N_WEBHOOK_URL;
+          if (webhookUrl) {
+            try {
+              await fetch(webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  event: "danger.reported",
+                  dangerType: input.dangerType,
+                  latitude: input.latitude,
+                  longitude: input.longitude,
+                  description: input.description || "",
+                  recipients: phoneNumbers,
+                }),
+                signal: AbortSignal.timeout(5000),
+              });
+              console.log(`[Webhook] Sent danger alert to n8n webhook for ${phoneNumbers.length} users.`);
+            } catch (err: any) {
+              console.error("[Webhook] Failed to send danger notification to n8n:", err.message);
+            }
+          } else {
+            console.log(`[Webhook] No N8N_WEBHOOK_URL configured, skipping event danger.reported for ${phoneNumbers.length} users.`);
+          }
+        }
+
+        return { success: true, message: "Danger alert reported and notifications dispatched", alertId: id };
+      }),
+
+    getNearbyDangers: protectedProcedure
+      .input(
+        z.object({
+          latitude: z.number().optional(),
+          longitude: z.number().optional(),
+          radiusKm: z.number().default(5),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        let lat = input.latitude;
+        let lng = input.longitude;
+
+        if (lat === undefined || lng === undefined) {
+          const user = await db.getUserById(ctx.user.id);
+          lat = user?.latitude ?? user?.homeLatitude ?? 48.8566;
+          lng = user?.longitude ?? user?.homeLongitude ?? 2.3522;
+        }
+
+        return db.getNearbyDangerAlerts(lat, lng, input.radiusKm);
+      }),
+
+    resolveDanger: protectedProcedure
+      .input(z.object({ alertId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const success = await db.resolveDangerAlert(input.alertId, ctx.user.id);
+        if (!success) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot resolve this danger alert or not found" });
+        }
+        return { success: true, message: "Danger resolved" };
+      }),
+  }),
+
+  // Pet Health System
+  petHealth: router({
+    upsertHealthRecord: protectedProcedure
+      .input(
+        z.object({
+          dogId: z.number(),
+          weight: z.number().optional(),
+          allergies: z.string().optional(),
+          medicalHistory: z.string().optional(),
+          treatmentInfo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const dogObj = await db.getDogById(input.dogId);
+        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can modify pet health record" });
+        }
+        const recordId = await db.upsertHealthRecord(input.dogId, input);
+        return { success: true, recordId };
+      }),
+
+    getHealthRecord: protectedProcedure
+      .input(z.object({ dogId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const allowed = await db.canUserAccessPetHealth(input.dogId, ctx.user.id);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access to pet health record is restricted" });
+        }
+        return db.getHealthRecord(input.dogId);
+      }),
+
+    addVaccine: protectedProcedure
+      .input(
+        z.object({
+          dogId: z.number(),
+          name: z.string().min(2),
+          administeredDate: z.date(),
+          nextBoosterDate: z.date(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const dogObj = await db.getDogById(input.dogId);
+        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can add vaccines" });
+        }
+        const vaccineId = await db.addVaccine(input.dogId, input);
+
+        const webhookUrl = process.env.N8N_WEBHOOK_URL;
+        if (webhookUrl && ctx.user.phoneNumber) {
+          try {
+            await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                event: "health.vaccine_reminder",
+                dogName: dogObj.name,
+                vaccineName: input.name,
+                nextBoosterDate: input.nextBoosterDate,
+                recipient: ctx.user.phoneNumber,
+              }),
+              signal: AbortSignal.timeout(5000),
+            });
+            console.log(`[Webhook] Sent vaccine reminder event to n8n for user ${ctx.user.id}.`);
+          } catch (e: any) {
+            console.error("[Webhook] Failed to send vaccine reminder to n8n:", e.message);
+          }
+        }
+
+        return { success: true, vaccineId };
+      }),
+
+    getVaccines: protectedProcedure
+      .input(z.object({ dogId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const allowed = await db.canUserAccessPetHealth(input.dogId, ctx.user.id);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access restricted" });
+        }
+        return db.getVaccines(input.dogId);
+      }),
+
+    addDocument: protectedProcedure
+      .input(
+        z.object({
+          dogId: z.number(),
+          documentName: z.string().min(2),
+          documentUrl: z.string().url(),
+          documentType: z.enum(["prescription", "certificate", "other"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const dogObj = await db.getDogById(input.dogId);
+        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can add documents" });
+        }
+        const documentId = await db.addDocument(input.dogId, input);
+        return { success: true, documentId };
+      }),
+
+    getDocuments: protectedProcedure
+      .input(z.object({ dogId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const allowed = await db.canUserAccessPetHealth(input.dogId, ctx.user.id);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access restricted" });
+        }
+        return db.getDocuments(input.dogId);
+      }),
+  }),
+
+  // Vet Appointments System
+  vetAppointments: router({
+    searchVets: protectedProcedure
+      .input(
+        z.object({
+          latitude: z.number().optional(),
+          longitude: z.number().optional(),
+          radiusKm: z.number().default(10),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        let lat = input.latitude;
+        let lng = input.longitude;
+
+        if (lat === undefined || lng === undefined) {
+          const user = await db.getUserById(ctx.user.id);
+          lat = user?.latitude ?? user?.homeLatitude ?? 48.8566;
+          lng = user?.longitude ?? user?.homeLongitude ?? 2.3522;
+        }
+
+        return db.getNearbyVets(lat, lng, input.radiusKm);
+      }),
+
+    getVetSlots: protectedProcedure
+      .input(z.object({ vetId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getVetSlots(input.vetId);
+      }),
+
+    bookAppointment: protectedProcedure
+      .input(
+        z.object({
+          dogId: z.number(),
+          vetId: z.number().optional(),
+          customVetName: z.string().optional(),
+          appointmentTime: z.date(),
+          reason: z.string().min(5),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const dogObj = await db.getDogById(input.dogId);
+        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can book vet appointments" });
+        }
+
+        const id = await db.createVetAppointment(ctx.user.id, input);
+        if (!id) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to book appointment" });
+        }
+
+        const webhookUrl = process.env.N8N_WEBHOOK_URL;
+        if (webhookUrl && ctx.user.phoneNumber) {
+          try {
+            await fetch(webhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                event: "appointment.booked",
+                dogName: dogObj.name,
+                appointmentTime: input.appointmentTime,
+                reason: input.reason,
+                recipient: ctx.user.phoneNumber,
+              }),
+              signal: AbortSignal.timeout(5000),
+            });
+            console.log(`[Webhook] Sent appointment confirmation to n8n for user ${ctx.user.id}.`);
+          } catch (e: any) {
+            console.error("[Webhook] Failed to send appointment confirmation to n8n:", e.message);
+          }
+        }
+
+        return { success: true, appointmentId: id };
+      }),
+
+    cancelAppointment: protectedProcedure
+      .input(z.object({ appointmentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const success = await db.cancelVetAppointment(input.appointmentId, ctx.user.id);
+        if (!success) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot cancel this appointment" });
+        }
+        return { success: true, message: "Appointment cancelled" };
+      }),
+  }),
+
   // Reviews & Ratings System
   reviews: router({
     createReview: protectedProcedure

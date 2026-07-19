@@ -81,6 +81,15 @@ describe("conversations / messages", () => {
         expect(error.message).toBeDefined();
       }
     });
+
+    it("rejects a user not part of the match", async () => {
+      const { ctx } = createAuthContext(999); // User 999 is not in match 1
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.message.sendMessage({ matchId: 1, content: "Hello!" })
+      ).rejects.toThrow();
+    });
   });
 
   describe("message.getMessages", () => {
