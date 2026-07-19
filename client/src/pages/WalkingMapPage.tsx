@@ -6,7 +6,7 @@ import { MapView } from '@/components/Map';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, Settings, Star, AlertTriangle, MessageSquare, Heart, Clock, Award } from 'lucide-react';
+import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, Settings, Star, AlertTriangle, MessageSquare, Heart, Clock, Award, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import WalkingMapFilters from '@/components/WalkingMapFilters';
 import { createDogMarkerIcon, getDefaultMarkerIcon } from '@/lib/dogMarkerUtils';
@@ -28,6 +28,9 @@ export default function WalkingMapPage() {
   const { user } = useAuth();
   const isShareEnabled = user?.isShareLocationActive;
   const [map, setMap] = useState<maplibregl.Map | null>(null);
+
+  // Toggle control panel visibility on mobile/desktop
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
 
   // Markers stored in refs to avoid React infinite re-render loops (error #185)
   const walkersMarkersRef = useRef<maplibregl.Marker[]>([]);
@@ -345,7 +348,7 @@ export default function WalkingMapPage() {
 
     const newMarkers = nearbyVets.map(vet => {
       const el = document.createElement('div');
-      el.className = 'cursor-pointer hover:scale-110 transition-transform flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-emerald-50 shadow-[2px_2px_0px_rgba(0,0,0,1)]';
+      el.className = 'cursor-pointer hover:scale-110 transition-transform flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-[#E6F4EA] shadow-[2px_2px_0px_rgba(0,0,0,1)]';
       el.innerHTML = `<span class="text-base">🏥</span>`;
       
       el.addEventListener('click', () => {
@@ -557,7 +560,7 @@ export default function WalkingMapPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9] font-sans">
+    <div className="relative w-full h-[calc(100vh-4rem)] bg-[#FFFDF9] font-sans overflow-hidden">
       <Dialog open={hasAskedAboutPrivacy} onOpenChange={() => {}}>
         <DialogContent className="max-w-md border-3 border-black rounded-none shadow-[6px_6px_0px_rgba(0,0,0,1)] bg-[#FFFDF9]">
           <DialogHeader>
@@ -770,253 +773,215 @@ export default function WalkingMapPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="h-screen flex flex-col">
-        <div className="flex-1 relative">
-          <WalkingMapFilters
-            isOpen={filtersOpen}
-            onToggle={() => setFiltersOpen(!filtersOpen)}
-            onFilterChange={setFilters}
-          />
+      {/* Map occupies 100% of viewport */}
+      <div className="absolute inset-0 w-full h-full z-0">
+        <MapView
+          onMapReady={(mapInstance: maplibregl.Map) => {
+            setMap(mapInstance);
+            if (currentLat && currentLon) {
+              mapInstance.setCenter([currentLon, currentLat]);
+              mapInstance.setZoom(15);
+            }
 
-          <MapView
-            onMapReady={(mapInstance: maplibregl.Map) => {
-              setMap(mapInstance);
-              if (currentLat && currentLon) {
-                mapInstance.setCenter([currentLon, currentLat]);
-                mapInstance.setZoom(15);
+            mapInstance.on("click", (e) => {
+              if (settingHome) {
+                const { lat, lng } = e.lngLat;
+                setHomeLocation(lat, lng);
+                setSettingHome(false);
               }
+            });
+          }}
+          className="w-full h-full"
+        />
+      </div>
 
-              mapInstance.on("click", (e) => {
-                if (settingHome) {
-                  const { lat, lng } = e.lngLat;
-                  setHomeLocation(lat, lng);
-                  setSettingHome(false);
-                }
-              });
-            }}
-            className="w-full h-full"
-          />
-        </div>
+      {/* Floating Filters Button */}
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <Button
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          className="bg-[#FFFDF9] text-black hover:bg-gray-50 border-2 border-black font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] uppercase text-xs rounded-none"
+        >
+          🔍 Filtres carte
+        </Button>
+        <WalkingMapFilters
+          isOpen={filtersOpen}
+          onToggle={() => setFiltersOpen(!filtersOpen)}
+          onFilterChange={setFilters}
+        />
+      </div>
 
-        <div className="bg-background border-t-3 border-black p-4 md:p-6 space-y-4">
-          {!isShareEnabled && (
-            <Card className="p-4 border-2 border-amber-500 bg-amber-50 flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
-              <EyeOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="font-black text-xs uppercase tracking-wider text-amber-900 mb-1">
-                  🔒 Partage de position désactivé (RGPD)
-                </h4>
-                <p className="text-xs text-amber-800 font-semibold leading-relaxed mb-2">
-                  Vous ne verrez pas les autres maîtres en balade sur la carte, et votre position ne leur est pas partagée. Activez le partage dans votre profil pour rejoindre la communauté.
+      {/* Floating Warnings, Controls and KPIs Overlay (Desktop: Left, Mobile: Bottom) */}
+      <div className="absolute bottom-4 left-4 right-4 md:right-auto md:w-96 z-10 flex flex-col gap-3 max-h-[85vh] overflow-y-auto pr-1">
+        
+        {/* Toggle Stats Card Button */}
+        <Button
+          onClick={() => setShowStatsPanel(!showStatsPanel)}
+          className="w-full bg-black text-white hover:bg-gray-900 border-2 border-black font-black rounded-none shadow-[3px_3px_0px_rgba(0,0,0,1)] uppercase text-xs flex justify-between items-center py-2"
+        >
+          <span>📊 Tableau de Bord & Objectifs</span>
+          {showStatsPanel ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </Button>
+
+        {/* Collapsable KPIs and Warnings */}
+        {showStatsPanel && (
+          <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 duration-200">
+            {/* RGPD Disclaimer */}
+            {!isShareEnabled && (
+              <Card className="p-3 border-2 border-amber-500 bg-amber-50 flex items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
+                <EyeOff className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-black text-[10px] uppercase tracking-wider text-amber-900 mb-0.5">
+                    🔒 RGPD Position désactivée
+                  </h4>
+                  <p className="text-[10px] text-amber-800 font-semibold leading-relaxed">
+                    Activez le partage dans votre profil pour voir les autres maîtres et être visible.
+                  </p>
+                </div>
+              </Card>
+            )}
+
+            {/* Privacy Zone Indicator */}
+            <Card className="p-3 border-2 border-black bg-[#E6F4EA] flex items-start gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-black text-[10px] uppercase tracking-wider text-emerald-950">Zone Confidentielle Active</h4>
+                <p className="text-[9px] text-emerald-900 font-semibold leading-relaxed mt-0.5">
+                  Votre position exacte est brouillée dans un rayon de 200m autour de votre domicile.
                 </p>
-                <a href="/profile" className="inline-flex items-center gap-1 text-xs font-black text-amber-900 underline underline-offset-2 hover:text-amber-700">
-                  <Settings className="w-3 h-3" /> Activer dans mon profil →
-                </a>
               </div>
             </Card>
+
+            {/* Detailed KPIs & Stats Panel */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Walkers Count */}
+              <Card className="p-3 border-2 border-black shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white rounded-none">
+                <h4 className="font-black uppercase text-[9px] text-gray-500 flex items-center gap-1 mb-1">
+                  <Navigation className="w-3 h-3" /> Promeneurs
+                </h4>
+                <p className="text-lg font-black text-black">{activeWalkers?.length || 0}</p>
+              </Card>
+
+              {/* Dangers Count */}
+              <Card className="p-3 border-2 border-black shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white rounded-none">
+                <h4 className="font-black uppercase text-[9px] text-gray-500 flex items-center gap-1 mb-1">
+                  <AlertTriangle className="w-3 h-3 text-rose-500" /> Dangers
+                </h4>
+                <p className="text-lg font-black text-rose-600">{activeDangers?.length || 0}</p>
+              </Card>
+
+              {/* Weekly Goals Progress */}
+              <Card className="p-3 border-2 border-black shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white rounded-none col-span-2 space-y-2">
+                <h4 className="font-black uppercase text-[10px] text-black flex items-center gap-1 border-b pb-1">
+                  <Award className="w-3.5 h-3.5 text-amber-500" /> Objectifs de la semaine
+                </h4>
+                <div className="text-[10px] font-semibold space-y-1.5">
+                  <div>
+                    <div className="flex justify-between text-[9px] mb-0.5">
+                      <span>Distance</span>
+                      <span className="font-black text-pink-500">{(weeklyMeters / 1000).toFixed(1)} / {(targetMeters / 1000).toFixed(0)} km</span>
+                    </div>
+                    <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
+                      <div className="h-full bg-pink-500" style={{ width: `${distPercent}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[9px] mb-0.5">
+                      <span>Temps</span>
+                      <span className="font-black text-pink-500">{(weeklySeconds / 3600).toFixed(1)} / {(targetSeconds / 3600).toFixed(0)} h</span>
+                    </div>
+                    <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
+                      <div className="h-full bg-pink-500" style={{ width: `${durPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Main Action Card (Always visible, extremely compact) */}
+        <Card className="p-3.5 border-2 border-black bg-[#FFFDF9] shadow-[4px_4px_0px_rgba(0,0,0,1)] rounded-none space-y-3">
+          {isTracking && (
+            <div className="flex justify-between items-center text-[10px] font-bold text-pink-500 bg-pink-50/50 border border-pink-200 px-2.5 py-1">
+              <span className="flex items-center gap-1 animate-pulse">
+                <Clock className="w-3 h-3" /> Balade en cours...
+              </span>
+              <span>{path.length} points GPS</span>
+            </div>
           )}
 
-          <Card className="p-4 border-2 border-black bg-[#E6F4EA] flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-black text-xs uppercase tracking-wider text-emerald-950">Zone de Protection Confidentielle</h4>
-              <p className="text-xs text-emerald-900 mt-1 font-semibold leading-relaxed">
-                Afin de garantir votre sécurité physique, votre position exacte est masquée dans un rayon de 200 mètres autour de votre domicile. Une position brouillée et approximative est montrée aux autres utilisateurs.
-              </p>
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Status Card */}
-            <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-1">
-                <h3 className="font-black uppercase text-xs text-foreground flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Statut du suivi
-                </h3>
-                <div className={`w-3 h-3 rounded-full ${isTracking ? 'bg-green-500 animate-pulse' : 'bg-gray-400'} border border-black`} />
-              </div>
-              <div className="text-xs space-y-2 font-semibold">
-                <p>
-                  <span className="text-muted-foreground">Position :</span>
-                  {currentLat && currentLon ? (
-                    <span className="ml-2 font-mono text-[10px] bg-muted px-1.5 py-0.5 border border-black rounded">{currentLat.toFixed(4)}, {currentLon.toFixed(4)}</span>
-                  ) : (
-                    <span className="ml-2 text-muted-foreground font-bold">Non disponible</span>
-                  )}
-                </p>
-                {homeLat && homeLon && distanceToHome !== null && (
-                  <p>
-                    <span className="text-muted-foreground">Distance domicile :</span>
-                    <span className={`ml-2 font-bold ${isNearHome ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {Math.round(distanceToHome)}m
-                    </span>
-                  </p>
-                )}
-                {isTracking && (
-                  <p className="text-[10px] text-pink-500 font-bold animate-pulse">
-                    Traceur GPS actif ({path.length} coordonnées stockées)
-                  </p>
-                )}
-              </div>
-            </Card>
-
-            {/* Active Walkers Card */}
-            <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-1">
-                <h3 className="font-black uppercase text-xs text-foreground flex items-center gap-1">
-                  <Navigation className="w-3.5 h-3.5" /> Maîtres en balade
-                </h3>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 border-2 border-black rounded bg-pink-500 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  {activeWalkers?.length || 0}
-                </span>
-              </div>
-              <div className="text-xs space-y-2 max-h-24 overflow-y-auto">
-                {!isTracking ? (
-                  <p className="text-muted-foreground text-[10px] font-bold">Démarrez votre balade pour chercher les autres maîtres</p>
-                ) : !shareLocationPref ? (
-                  <p className="text-muted-foreground text-[10px] font-bold">Mode privé activé (autres maîtres masqués)</p>
-                ) : activeWalkers && activeWalkers.length > 0 ? (
-                  activeWalkers.map((walker) => (
-                    <div key={walker.id} className="flex items-center gap-2 p-1.5 border border-black bg-[#FFFDF9] rounded shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                      <MapPin className="w-3.5 h-3.5 text-pink-500" />
-                      <div className="flex-1">
-                        <p className="font-black text-[10px]">{walker.name}</p>
-                        <p className="text-[9px] text-muted-foreground font-semibold">{walker.dogs?.[0]?.name || 'Chien'}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground text-[10px] font-bold">Aucun maître actif à proximité</p>
-                )}
-              </div>
-            </Card>
-
-            {/* Dangers & POI Status Card */}
-            <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-1">
-                <h3 className="font-black uppercase text-xs text-foreground flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Lieux & Dangers
-                </h3>
-              </div>
-              <div className="text-xs font-semibold space-y-1.5">
-                <p className="flex justify-between">
-                  <span>Dangers signalés :</span>
-                  <span className="font-black text-rose-500">{activeDangers?.length || 0}</span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Lieux dog-friendly :</span>
-                  <span className="font-black text-emerald-700">{nearbyPlaces?.length || 0}</span>
-                </p>
-              </div>
-            </Card>
-
-            {/* Weekly KPIs and Goals Card */}
-            <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-1">
-                <h3 className="font-black uppercase text-xs text-foreground flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5 text-amber-500" /> Objectifs Hebdo
-                </h3>
-              </div>
-              <div className="text-[10px] font-semibold space-y-1.5">
-                <div>
-                  <div className="flex justify-between mb-0.5">
-                    <span>Distance</span>
-                    <span className="font-black">{(weeklyMeters / 1000).toFixed(1)} / {(targetMeters / 1000).toFixed(0)} km</span>
-                  </div>
-                  <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
-                    <div className="h-full bg-pink-500" style={{ width: `${distPercent}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-0.5">
-                    <span>Temps</span>
-                    <span className="font-black">{(weeklySeconds / 3600).toFixed(1)} / {(targetSeconds / 3600).toFixed(0)} h</span>
-                  </div>
-                  <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
-                    <div className="h-full bg-pink-500" style={{ width: `${durPercent}%` }} />
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-3 pt-1">
+          <div className="flex flex-col gap-2">
             {!isTracking ? (
-              <div className="flex flex-col gap-3 flex-1">
-                <div className="flex items-center gap-2 px-1">
-                  <input
-                    type="checkbox"
-                    id="shareLocationPref"
-                    checked={shareLocationPref}
-                    onChange={(e) => setShareLocationPref(e.target.checked)}
-                    className="w-4 h-4 border-2 border-black rounded-none text-pink-500 focus:ring-0"
-                  />
-                  <label htmlFor="shareLocationPref" className="text-xs font-black text-foreground cursor-pointer select-none">
-                    Partager ma position sur la map avec les autres maîtres
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => startTracking(shareLocationPref)}
-                    className="flex-1 gap-2 bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600 border-2 border-black text-white font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase rounded-none"
-                  >
-                    <Navigation className="w-4 h-4" /> Démarrer la balade
-                  </Button>
-                  <Button
-                    onClick={() => setIsDangerReportOpen(true)}
-                    className="bg-rose-500 hover:bg-rose-600 border-2 border-black text-white font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase rounded-none"
-                  >
-                    <AlertTriangle className="w-4 h-4" /> Signaler Danger
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2 flex-1">
+              <div className="flex gap-2">
                 <Button
-                  onClick={handleStopTracking}
-                  className="flex-1 gap-2 bg-rose-600 hover:bg-rose-700 text-white font-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase rounded-none"
+                  onClick={() => startTracking(shareLocationPref)}
+                  className="flex-1 gap-1.5 bg-pink-500 hover:bg-pink-600 border-2 border-black text-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_rgba(0,0,0,1)] transition-all uppercase text-[10px] rounded-none py-2"
                 >
-                  <X className="w-4 h-4" /> Arrêter le suivi & Enregistrer
+                  <Navigation className="w-3.5 h-3.5" /> Démarrer
                 </Button>
                 <Button
                   onClick={() => setIsDangerReportOpen(true)}
-                  className="bg-rose-500 hover:bg-rose-600 border-2 border-black text-white font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase rounded-none"
+                  className="bg-rose-500 hover:bg-rose-600 border-2 border-black text-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_rgba(0,0,0,1)] transition-all uppercase text-[10px] rounded-none py-2 px-3"
                 >
-                  <AlertTriangle className="w-4 h-4" /> Signaler Danger
+                  <AlertTriangle className="w-3.5 h-3.5" /> Danger
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleStopTracking}
+                  className="flex-1 gap-1.5 bg-rose-600 hover:bg-rose-700 border-2 border-black text-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_rgba(0,0,0,1)] transition-all uppercase text-[10px] rounded-none py-2"
+                >
+                  <X className="w-3.5 h-3.5" /> Arrêter & Sauver
+                </Button>
+                <Button
+                  onClick={() => setIsDangerReportOpen(true)}
+                  className="bg-rose-500 hover:bg-rose-600 border-2 border-black text-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_rgba(0,0,0,1)] transition-all uppercase text-[10px] rounded-none py-2 px-3"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" /> Danger
                 </Button>
               </div>
             )}
 
-            {!homeLat || !homeLon ? (
-              <Button
-                onClick={() => setSettingHome(true)}
-                className="flex-1 gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all bg-white font-black uppercase rounded-none text-black hover:bg-gray-50"
-              >
-                <Home className="w-4 h-4" /> Définir le domicile
-              </Button>
-            ) : (
+            <div className="flex gap-2">
               <Button
                 onClick={() => setSettingHome(!settingHome)}
-                className="flex-1 gap-2 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all bg-white font-black uppercase rounded-none text-black hover:bg-gray-50"
+                className="flex-1 gap-1 border-2 border-black shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white text-black font-black uppercase text-[10px] rounded-none py-1.5"
               >
-                <Home className="w-4 h-4" /> {settingHome ? 'Annuler' : 'Modifier domicile'}
+                <Home className="w-3 h-3" />
+                {settingHome ? 'Annuler' : homeLat && homeLon ? 'Editer Domicile' : 'Domicile'}
               </Button>
-            )}
+              
+              <div className="flex items-center gap-1.5 flex-1 px-1">
+                <input
+                  type="checkbox"
+                  id="shareLocationPref"
+                  checked={shareLocationPref}
+                  onChange={(e) => setShareLocationPref(e.target.checked)}
+                  className="w-3.5 h-3.5 border-2 border-black rounded-none text-pink-500 focus:ring-0 cursor-pointer"
+                />
+                <label htmlFor="shareLocationPref" className="text-[9px] font-black text-foreground cursor-pointer select-none leading-none">
+                  Partager position
+                </label>
+              </div>
+            </div>
           </div>
 
           {settingHome && (
-            <div className="p-3 bg-emerald-50 border-2 border-black rounded-none shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-              <p className="text-xs text-emerald-950 font-black uppercase">
-                🎯 Cliquez sur la carte pour définir votre domicile
+            <div className="p-2 bg-emerald-50 border border-emerald-500 rounded-none text-center">
+              <p className="text-[9px] text-emerald-950 font-black uppercase tracking-wider">
+                🎯 Cliquez sur la carte pour placer votre domicile
               </p>
             </div>
           )}
 
-          <div className="space-y-2 pt-2">
-            <label className="text-xs font-black uppercase tracking-wide text-foreground">
-              Rayon de recherche : {radiusKm} km
-            </label>
+          {/* Compact Search Radius Slider */}
+          <div className="space-y-1 border-t border-gray-100 pt-2">
+            <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
+              <span>Rayon de recherche</span>
+              <span className="text-black">{radiusKm} km</span>
+            </div>
             <input
               type="range"
               min="1"
@@ -1024,10 +989,10 @@ export default function WalkingMapPage() {
               step="1"
               value={radiusKm}
               onChange={(e) => setRadiusKm(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-200 appearance-none cursor-pointer accent-black"
+              className="w-full h-1 bg-gray-200 appearance-none cursor-pointer accent-black"
             />
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
