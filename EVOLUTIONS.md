@@ -9,6 +9,8 @@ Ce carnet répertorie toutes les évolutions techniques, migrations de base de d
 *   `da8b79d` : Correction des conditions de course de date dans la suite de tests `lostDogs.test.ts`.
 *   `a1d91c1` : Restriction stricte des chiens visibles par un profil de Dogsitter aux seuls chiens ayant l'option gardiennage activée.
 *   `7ef05af` - `e961808` : Améliorations de l'infrastructure de déploiement VPS,pm2 restart, SSL et rebaptisation en **Woofyz**.
+*   **Correction Bug Cartographie & Rendu** : Résolution de l'erreur React `Maximum update depth exceeded` (erreur #185) en migrant l'ensemble des marqueurs cartographiques (lieux, vétérinaires, dangers, promeneurs) vers des références stables (`useRef`) et en mémoïsant les filtres de rendu.
+*   **Intégration KPIs Carte** : Ajout d'un widget récapitulant les objectifs hebdomadaires de distance et de durée (ainsi que la progression réelle de la semaine glissante) directement sur le tableau de bord de la carte (`WalkingMapPage.tsx`).
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
 import { useWalkingTracking } from '@/hooks/useWalkingTracking';
@@ -6,7 +6,7 @@ import { MapView } from '@/components/Map';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, Settings, Star, AlertTriangle, MessageSquare, Heart, Clock } from 'lucide-react';
+import { MapPin, Navigation, Home, AlertCircle, Check, X, ShieldCheck, EyeOff, Settings, Star, AlertTriangle, MessageSquare, Heart, Clock, Award } from 'lucide-react';
 import { toast } from 'sonner';
 import WalkingMapFilters from '@/components/WalkingMapFilters';
 import { createDogMarkerIcon, getDefaultMarkerIcon } from '@/lib/dogMarkerUtils';
@@ -28,10 +28,12 @@ export default function WalkingMapPage() {
   const { user } = useAuth();
   const isShareEnabled = user?.isShareLocationActive;
   const [map, setMap] = useState<maplibregl.Map | null>(null);
-  const [markers, setMarkers] = useState<maplibregl.Marker[]>([]);
-  const [placesMarkers, setPlacesMarkers] = useState<maplibregl.Marker[]>([]);
-  const [vetsMarkers, setVetsMarkers] = useState<maplibregl.Marker[]>([]);
-  const [dangersMarkers, setDangersMarkers] = useState<maplibregl.Marker[]>([]);
+
+  // Markers stored in refs to avoid React infinite re-render loops (error #185)
+  const walkersMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const placesMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const vetsMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const dangersMarkersRef = useRef<maplibregl.Marker[]>([]);
   
   const [userMarker, setUserMarker] = useState<maplibregl.Marker | null>(null);
   const [homeMarker, setHomeMarker] = useState<maplibregl.Marker | null>(null);
@@ -120,18 +122,55 @@ export default function WalkingMapPage() {
     radiusKm,
   });
 
-  const filteredWalkers = activeWalkers?.filter((walker: any) => {
-    if (filters.breed && walker.dogs?.[0]?.breed !== filters.breed) return false;
-    if (filters.size && walker.dogs?.[0]?.size !== filters.size) return false;
-    return true;
-  }) || [];
+  // Load walks and goals for KPIs
+  const { data: walksList, refetch: refetchWalksList } = trpc.walks.getMyWalks.useQuery();
+  const { data: currentGoals } = trpc.walks.getCurrentGoals.useQuery();
 
-  const filteredPlaces = nearbyPlaces?.filter((place: any) => {
-    if (filters.type && place.placeType !== filters.type) return false;
-    return true;
-  }) || [];
+  const now = useMemo(() => new Date(), [isTracking]);
+  const sevenDaysAgo = useMemo(() => new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), [now]);
 
-  // Refetch walkers every 10 seconds when tracking
+  const weeklyMeters = useMemo(() => {
+    return walksList
+      ? walksList
+          .filter(w => new Date(w.startedAt) >= sevenDaysAgo)
+          .reduce((sum, w) => sum + w.distanceMeters, 0)
+      : 0;
+  }, [walksList, sevenDaysAgo]);
+
+  const weeklySeconds = useMemo(() => {
+    return walksList
+      ? walksList
+          .filter(w => new Date(w.startedAt) >= sevenDaysAgo)
+          .reduce((sum, w) => sum + w.durationSeconds, 0)
+      : 0;
+  }, [walksList, sevenDaysAgo]);
+
+  const distanceGoal = currentGoals?.find(g => g.goalType === "distance");
+  const durationGoal = currentGoals?.find(g => g.goalType === "duration");
+
+  const targetMeters = distanceGoal?.targetValue ?? 15000;
+  const targetSeconds = durationGoal?.targetValue ?? 36000;
+
+  const distPercent = Math.min(100, Math.round((weeklyMeters / targetMeters) * 100));
+  const durPercent = Math.min(100, Math.round((weeklySeconds / targetSeconds) * 100));
+
+  // Memoized filters to prevent unstable references causing loops
+  const filteredWalkers = useMemo(() => {
+    return activeWalkers?.filter((walker: any) => {
+      if (filters.breed && walker.dogs?.[0]?.breed !== filters.breed) return false;
+      if (filters.size && walker.dogs?.[0]?.size !== filters.size) return false;
+      return true;
+    }) || [];
+  }, [activeWalkers, filters.breed, filters.size]);
+
+  const filteredPlaces = useMemo(() => {
+    return nearbyPlaces?.filter((place: any) => {
+      if (filters.type && place.placeType !== filters.type) return false;
+      return true;
+    }) || [];
+  }, [nearbyPlaces, filters.type]);
+
+  // Refetch walkers and dangers
   useEffect(() => {
     if (!isTracking) return;
     const interval = setInterval(() => {
@@ -188,14 +227,15 @@ export default function WalkingMapPage() {
     }
   }, [map, isTracking, path]);
 
-  // Create markers with dog photos (active walkers)
+  // Update Walkers Markers
   useEffect(() => {
-    if (!map || !activeWalkers) return;
+    if (!map) return;
 
-    markers.forEach(marker => marker.remove());
-    const newMarkers: maplibregl.Marker[] = [];
+    walkersMarkersRef.current.forEach(marker => marker.remove());
+    walkersMarkersRef.current = [];
 
     const createMarkers = async () => {
+      const newMarkers: maplibregl.Marker[] = [];
       for (const walker of filteredWalkers) {
         if (!walker.latitude || !walker.longitude) continue;
 
@@ -236,7 +276,6 @@ export default function WalkingMapPage() {
         }
 
         const el = document.createElement("div");
-        el.className = "cursor-pointer hover:scale-110 transition-transform";
         el.style.width = "50px";
         el.style.height = "50px";
         el.style.backgroundImage = `url(${iconUrl})`;
@@ -258,17 +297,18 @@ export default function WalkingMapPage() {
 
         newMarkers.push(marker);
       }
-      setMarkers(newMarkers);
+      walkersMarkersRef.current = newMarkers;
     };
 
     createMarkers();
-  }, [map, filteredWalkers, activeWalkers]);
+  }, [map, filteredWalkers]);
 
-  // Create / update Places markers
+  // Update Places Markers
   useEffect(() => {
-    if (!map || !nearbyPlaces) return;
+    if (!map) return;
 
-    placesMarkers.forEach(m => m.remove());
+    placesMarkersRef.current.forEach(m => m.remove());
+    placesMarkersRef.current = [];
 
     const newMarkers = filteredPlaces.map(place => {
       const el = document.createElement('div');
@@ -293,14 +333,15 @@ export default function WalkingMapPage() {
       return marker;
     });
 
-    setPlacesMarkers(newMarkers);
-  }, [map, filteredPlaces, nearbyPlaces]);
+    placesMarkersRef.current = newMarkers;
+  }, [map, filteredPlaces]);
 
-  // Create / update Vet markers
+  // Update Vet Markers
   useEffect(() => {
     if (!map || !nearbyVets) return;
 
-    vetsMarkers.forEach(m => m.remove());
+    vetsMarkersRef.current.forEach(m => m.remove());
+    vetsMarkersRef.current = [];
 
     const newMarkers = nearbyVets.map(vet => {
       const el = document.createElement('div');
@@ -319,14 +360,15 @@ export default function WalkingMapPage() {
       return marker;
     });
 
-    setVetsMarkers(newMarkers);
+    vetsMarkersRef.current = newMarkers;
   }, [map, nearbyVets]);
 
-  // Create / update Danger markers
+  // Update Danger Markers
   useEffect(() => {
     if (!map || !activeDangers) return;
 
-    dangersMarkers.forEach(m => m.remove());
+    dangersMarkersRef.current.forEach(m => m.remove());
+    dangersMarkersRef.current = [];
 
     const newMarkers = activeDangers.map(danger => {
       const el = document.createElement('div');
@@ -345,7 +387,7 @@ export default function WalkingMapPage() {
       return marker;
     });
 
-    setDangersMarkers(newMarkers);
+    dangersMarkersRef.current = newMarkers;
   }, [map, activeDangers]);
 
   // Add current user marker
@@ -367,35 +409,6 @@ export default function WalkingMapPage() {
       marker.remove();
     };
   }, [map, currentLat, currentLon]);
-
-  const createGeoJSONCircle = (center: [number, number], radiusInKm: number, points: number = 64) => {
-    const coords = {
-      latitude: center[1],
-      longitude: center[0]
-    };
-
-    const km = radiusInKm;
-    const ret: [number, number][] = [];
-    const distanceX = km / (111.32 * Math.cos((coords.latitude * Math.PI) / 180));
-    const distanceY = km / 110.57;
-
-    for (let i = 0; i < points; i++) {
-      const theta = (i / points) * (2 * Math.PI);
-      const x = distanceX * Math.cos(theta);
-      const y = distanceY * Math.sin(theta);
-      ret.push([coords.longitude + x, coords.latitude + y]);
-    }
-    ret.push(ret[0]);
-
-    return {
-      type: "Feature" as const,
-      geometry: {
-        type: "Polygon" as const,
-        coordinates: [ret]
-      },
-      properties: {}
-    };
-  };
 
   // Add home marker & privacy circle
   useEffect(() => {
@@ -467,7 +480,6 @@ export default function WalkingMapPage() {
   const handleSyncWalk = async () => {
     if (path.length < 2) return;
     
-    // Calculate total duration & distance
     const totalDist = path.reduce((acc, curr, idx) => {
       if (idx === 0) return acc;
       const prev = path[idx - 1];
@@ -485,6 +497,7 @@ export default function WalkingMapPage() {
       toast.success("Balade enregistrée et synchronisée avec succès !");
       clearPathCache();
       setIsSyncModalOpen(false);
+      refetchWalksList();
     } catch (err: any) {
       toast.error(err.message || "Erreur de synchronisation");
     }
@@ -803,7 +816,7 @@ export default function WalkingMapPage() {
             </Card>
           )}
 
-          <Card className="p-4 border-2 border-black bg-emerald-50/70 flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
+          <Card className="p-4 border-2 border-black bg-[#E6F4EA] flex items-start gap-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] rounded-none">
             <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
             <div>
               <h4 className="font-black text-xs uppercase tracking-wider text-emerald-950">Zone de Protection Confidentielle</h4>
@@ -813,7 +826,7 @@ export default function WalkingMapPage() {
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Status Card */}
             <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
               <div className="flex items-center justify-between border-b border-gray-100 pb-1">
@@ -894,6 +907,36 @@ export default function WalkingMapPage() {
                   <span>Lieux dog-friendly :</span>
                   <span className="font-black text-emerald-700">{nearbyPlaces?.length || 0}</span>
                 </p>
+              </div>
+            </Card>
+
+            {/* Weekly KPIs and Goals Card */}
+            <Card className="p-4 space-y-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white rounded-none">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-1">
+                <h3 className="font-black uppercase text-xs text-foreground flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-amber-500" /> Objectifs Hebdo
+                </h3>
+              </div>
+              <div className="text-[10px] font-semibold space-y-1.5">
+                <div>
+                  <div className="flex justify-between mb-0.5">
+                    <span>Distance</span>
+                    <span className="font-black">{(weeklyMeters / 1000).toFixed(1)} / {(targetMeters / 1000).toFixed(0)} km</span>
+                  </div>
+                  <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
+                    <div className="h-full bg-pink-500" style={{ width: `${distPercent}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-0.5">
+                    <span>Temps</span>
+                    <span className="font-black">{(weeklySeconds / 3600).toFixed(1)} / {(targetSeconds / 3600).toFixed(0)} h</span>
+                  </div>
+                  <div className="w-full h-2 border border-black bg-gray-100 p-0.5">
+                    <div className="h-full bg-pink-500" style={{ width: `${durPercent}%` }} />
+                  </div>
+                </div>
               </div>
             </Card>
           </div>
@@ -988,4 +1031,33 @@ export default function WalkingMapPage() {
       </div>
     </div>
   );
+}
+
+function createGeoJSONCircle(center: [number, number], radiusInKm: number, points: number = 64) {
+  const coords = {
+    latitude: center[1],
+    longitude: center[0]
+  };
+
+  const km = radiusInKm;
+  const ret: [number, number][] = [];
+  const distanceX = km / (111.32 * Math.cos((coords.latitude * Math.PI) / 180));
+  const distanceY = km / 110.57;
+
+  for (let i = 0; i < points; i++) {
+    const theta = (i / points) * (2 * Math.PI);
+    const x = distanceX * Math.cos(theta);
+    const y = distanceY * Math.sin(theta);
+    ret.push([coords.longitude + x, coords.latitude + y]);
+  }
+  ret.push(ret[0]);
+
+  return {
+    type: "Feature" as const,
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [ret]
+    },
+    properties: {}
+  };
 }
