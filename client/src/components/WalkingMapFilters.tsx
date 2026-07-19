@@ -70,13 +70,13 @@ export default function WalkingMapFilters({
     <div className="absolute top-4 left-4 z-10">
       <Button
         onClick={onToggle}
-        className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold mb-2"
+        className="bg-[#FFFDF9] text-black hover:bg-gray-50 border-2 border-black font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] uppercase text-xs rounded-none mb-2"
       >
-        {isOpen ? '✕ Fermer filtres' : '⚙️ Filtres'}
+        {isOpen ? '✕ Fermer' : '⚙️ Filtres'}
       </Button>
 
       {isOpen && (
-        <Card className="w-80 p-6 border-2 border-primary/30 shadow-lg">
+        <Card className="w-80 p-6 border-2 border-black bg-[#FFFDF9] shadow-[6px_6px_0px_rgba(0,0,0,1)] rounded-none">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-black">Filtrer les maîtres</h3>
             <button
@@ -90,11 +90,11 @@ export default function WalkingMapFilters({
           <div className="space-y-4">
             {/* Breed Filter */}
             <div>
-              <label className="block text-sm font-semibold text-black mb-2">
+              <label className="block text-xs font-black uppercase mb-1 text-black">
                 Race du chien
               </label>
               <Select value={breed} onValueChange={handleBreedChange}>
-                <SelectTrigger className="border-2 border-primary/30">
+                <SelectTrigger className="border-2 border-black rounded-none">
                   <SelectValue placeholder="Sélectionner une race..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -106,11 +106,11 @@ export default function WalkingMapFilters({
                 </SelectContent>
               </Select>
               {breed && (
-                <div className="mt-2 inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold">
+                <div className="mt-2 inline-block bg-pink-100 border border-black text-black px-2.5 py-0.5 rounded-none text-xs font-black uppercase">
                   {breed}
                   <button
                     onClick={() => handleBreedChange(breed)}
-                    className="ml-2 hover:text-primary/70"
+                    className="ml-2 hover:text-rose-600"
                   >
                     ✕
                   </button>
@@ -120,11 +120,11 @@ export default function WalkingMapFilters({
 
             {/* Size Filter */}
             <div>
-              <label className="block text-sm font-semibold text-black mb-2">
+              <label className="block text-xs font-black uppercase mb-1 text-black">
                 Taille du chien
               </label>
               <Select value={size} onValueChange={handleSizeChange}>
-                <SelectTrigger className="border-2 border-primary/30">
+                <SelectTrigger className="border-2 border-black rounded-none">
                   <SelectValue placeholder="Sélectionner une taille..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -136,11 +136,11 @@ export default function WalkingMapFilters({
                 </SelectContent>
               </Select>
               {size && (
-                <div className="mt-2 inline-block bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-semibold">
+                <div className="mt-2 inline-block bg-pink-100 border border-black text-black px-2.5 py-0.5 rounded-none text-xs font-black uppercase">
                   {DOG_SIZES.find((s) => s.value === size)?.label}
                   <button
                     onClick={() => handleSizeChange(size)}
-                    className="ml-2 hover:text-primary/70"
+                    className="ml-2 hover:text-rose-600"
                   >
                     ✕
                   </button>
@@ -153,14 +153,14 @@ export default function WalkingMapFilters({
               <Button
                 onClick={handleReset}
                 variant="outline"
-                className="w-full border-2 border-primary text-primary hover:bg-primary/10"
+                className="w-full border-2 border-black bg-white text-black hover:bg-gray-50 font-bold rounded-none shadow-[2px_2px_0px_rgba(0,0,0,1)]"
               >
                 Réinitialiser les filtres
               </Button>
             )}
           </div>
 
-          <div className="mt-4 p-3 bg-peach-50 rounded-lg border border-primary/20">
+          <div className="mt-4 p-3 bg-amber-50 rounded-none border border-black">
             <p className="text-xs text-gray-600">
               💡 <strong>Conseil :</strong> Utilisez les filtres pour trouver des maîtres avec des chiens compatibles à vos préférences.
             </p>

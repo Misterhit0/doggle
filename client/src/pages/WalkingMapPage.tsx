@@ -796,19 +796,11 @@ export default function WalkingMapPage() {
       </div>
 
       {/* Floating Filters Button */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
-        <Button
-          onClick={() => setFiltersOpen(!filtersOpen)}
-          className="bg-[#FFFDF9] text-black hover:bg-gray-50 border-2 border-black font-black shadow-[3px_3px_0px_rgba(0,0,0,1)] uppercase text-xs rounded-none"
-        >
-          🔍 Filtres carte
-        </Button>
-        <WalkingMapFilters
-          isOpen={filtersOpen}
-          onToggle={() => setFiltersOpen(!filtersOpen)}
-          onFilterChange={setFilters}
-        />
-      </div>
+      <WalkingMapFilters
+        isOpen={filtersOpen}
+        onToggle={() => setFiltersOpen(!filtersOpen)}
+        onFilterChange={setFilters}
+      />
 
       {/* Floating Warnings, Controls and KPIs Overlay (Desktop: Left, Mobile: Bottom) */}
       <div className="absolute bottom-4 left-4 right-4 md:right-auto md:w-96 z-10 flex flex-col gap-3 max-h-[85vh] overflow-y-auto pr-1">
