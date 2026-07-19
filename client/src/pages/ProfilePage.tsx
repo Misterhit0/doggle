@@ -27,6 +27,126 @@ const parseJsonArray = (val: any): any[] => {
   return [];
 };
 
+function WalkingStatsWidget() {
+  const { data: walksList, refetch: refetchWalks } = trpc.walks.getMyWalks.useQuery();
+  const { data: currentGoals, refetch: refetchGoals } = trpc.walks.getCurrentGoals.useQuery();
+  const setGoalMutation = trpc.walks.setOrUpdateGoal.useMutation();
+
+  const [distGoalInput, setDistGoalInput] = useState(15);
+  const [durGoalInput, setDurGoalInput] = useState(10);
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const weeklyMeters = walksList
+    ? walksList
+        .filter(w => new Date(w.startedAt) >= sevenDaysAgo)
+        .reduce((sum, w) => sum + w.distanceMeters, 0)
+    : 0;
+
+  const weeklySeconds = walksList
+    ? walksList
+        .filter(w => new Date(w.startedAt) >= sevenDaysAgo)
+        .reduce((sum, w) => sum + w.durationSeconds, 0)
+    : 0;
+
+  const distanceGoal = currentGoals?.find(g => g.goalType === "distance");
+  const durationGoal = currentGoals?.find(g => g.goalType === "duration");
+
+  const targetMeters = distanceGoal?.targetValue ?? 15000;
+  const targetSeconds = durationGoal?.targetValue ?? 36000;
+
+  const distPercent = Math.min(100, Math.round((weeklyMeters / targetMeters) * 100));
+  const durPercent = Math.min(100, Math.round((weeklySeconds / targetSeconds) * 100));
+
+  const handleUpdateGoals = async () => {
+    try {
+      await setGoalMutation.mutateAsync({
+        goalType: "distance",
+        targetValue: distGoalInput * 1000,
+        period: "weekly",
+      });
+      await setGoalMutation.mutateAsync({
+        goalType: "duration",
+        targetValue: durGoalInput * 3600,
+        period: "weekly",
+      });
+      toast.success("Objectifs mis à jour !");
+      refetchGoals();
+    } catch (err: any) {
+      toast.error(err.message || "Erreur de mise à jour");
+    }
+  };
+
+  return (
+    <Card className="p-8 mb-8 border-2 border-accent bg-[#FFFDF9] shadow-[4px_4px_0px_rgba(0,0,0,1)] rounded-none">
+      <h2 className="text-2xl font-black uppercase tracking-wider mb-6 text-black">Objectifs & Balades</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="space-y-2">
+          <div className="flex justify-between font-black text-xs uppercase">
+            <span>Distance (7j glissants)</span>
+            <span className="text-pink-500">{(weeklyMeters / 1000).toFixed(1)} / {(targetMeters / 1000).toFixed(0)} km</span>
+          </div>
+          <div className="w-full h-4 border-2 border-black bg-white rounded-none overflow-hidden p-0.5">
+            <div className="h-full bg-pink-500 transition-all duration-500" style={{ width: `${distPercent}%` }} />
+          </div>
+          <p className="text-[10px] font-black text-gray-500 uppercase">{distPercent}% de l'objectif atteint</p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between font-black text-xs uppercase">
+            <span>Temps de balade</span>
+            <span className="text-pink-500">{(weeklySeconds / 3600).toFixed(1)} / {(targetSeconds / 3600).toFixed(0)} h</span>
+          </div>
+          <div className="w-full h-4 border-2 border-black bg-white rounded-none overflow-hidden p-0.5">
+            <div className="h-full bg-pink-500 transition-all duration-500" style={{ width: `${durPercent}%` }} />
+          </div>
+          <p className="text-[10px] font-black text-gray-500 uppercase">{durPercent}% de l'objectif atteint</p>
+        </div>
+      </div>
+
+      <div className="bg-white border-2 border-black p-4 mb-6 space-y-4 shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+        <h3 className="font-black text-xs uppercase text-black">Ajuster mes objectifs</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] font-black uppercase mb-1">Objectif Distance (km)</label>
+            <input type="number" min="1" value={distGoalInput} onChange={e => setDistGoalInput(Number(e.target.value))} className="w-full p-2 border border-black font-bold text-xs" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase mb-1">Objectif Temps (heures)</label>
+            <input type="number" min="1" value={durGoalInput} onChange={e => setDurGoalInput(Number(e.target.value))} className="w-full p-2 border border-black font-bold text-xs" />
+          </div>
+        </div>
+        <Button onClick={handleUpdateGoals} size="sm" className="w-full bg-black text-white hover:bg-gray-900 border border-black font-bold text-xs uppercase">
+          Enregistrer les objectifs
+        </Button>
+      </div>
+
+      <div>
+        <h3 className="font-black text-sm uppercase mb-3 text-black">Historique récent</h3>
+        <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+          {walksList && walksList.length > 0 ? (
+            walksList.slice(0, 5).map(w => (
+              <div key={w.id} className="p-3 border border-black bg-white shadow-[2px_2px_0px_rgba(0,0,0,1)] text-xs flex justify-between items-center">
+                <div>
+                  <p className="font-black text-black">{new Date(w.startedAt).toLocaleDateString()} à {new Date(w.startedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                  <p className="text-gray-500 font-semibold mt-0.5">{(w.distanceMeters / 1000).toFixed(2)} km • {Math.round(w.durationSeconds / 60)} minutes</p>
+                </div>
+                <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-500 px-2 py-0.5">
+                  Synchronisé
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground font-semibold">Aucune balade enregistrée pour le moment.</p>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const [_, setLocation] = useLocation();
@@ -256,6 +376,9 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </Card>
+            
+            {/* Walking Goals & Statistics Section */}
+            <WalkingStatsWidget />
 
             {/* Dogs Section */}
             <Card className="p-8 border-2 border-accent">

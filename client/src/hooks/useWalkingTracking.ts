@@ -14,11 +14,9 @@ interface WalkingTrackingState {
   distanceToHome: number | null;
   isNearHome: boolean;
   hasAskedAboutPrivacy: boolean;
+  path: { lat: number; lon: number; timestamp: number }[];
 }
 
-/**
- * Calculate distance between two coordinates using Haversine formula (in meters)
- */
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000; // Earth's radius in meters
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -42,6 +40,7 @@ export function useWalkingTracking() {
     distanceToHome: null,
     isNearHome: false,
     hasAskedAboutPrivacy: false,
+    path: [],
   });
 
   const watchIdRef = useRef<number | null>(null);
@@ -49,6 +48,27 @@ export function useWalkingTracking() {
   const toggleLocationMutation = trpc.user.toggleLocationSharing.useMutation();
   const updateLocationMutation = trpc.user.updateLocation.useMutation();
   const setHomeMutation = trpc.user.setHomeLocation.useMutation();
+
+  // Load saved path on start to resume from offline/network loss
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('woofyz_active_walk_path');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setState(prev => ({
+            ...prev,
+            path: parsed,
+            isTracking: true,
+            currentLat: parsed[parsed.length - 1].lat,
+            currentLon: parsed[parsed.length - 1].lon,
+          }));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse active walk path:', e);
+    }
+  }, []);
 
   // Initialize home location from user profile
   useEffect(() => {
@@ -70,17 +90,23 @@ export function useWalkingTracking() {
 
     // Toggle sharing status based on selection
     await toggleLocationMutation.mutateAsync({ isActive: shareLocation });
+    localStorage.removeItem('woofyz_active_walk_path');
 
     // Get initial position
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        const initialPoint = { lat: latitude, lon: longitude, timestamp: Date.now() };
+        
         setState(prev => ({
           ...prev,
           currentLat: latitude,
           currentLon: longitude,
           isTracking: true,
+          path: [initialPoint],
         }));
+
+        localStorage.setItem('woofyz_active_walk_path', JSON.stringify([initialPoint]));
 
         // Update server location
         updateLocationMutation.mutate({ latitude, longitude });
@@ -89,13 +115,19 @@ export function useWalkingTracking() {
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
-            setState(prev => ({
-              ...prev,
-              currentLat: latitude,
-              currentLon: longitude,
-            }));
+            setState(prev => {
+              const newPoint = { lat: latitude, lon: longitude, timestamp: Date.now() };
+              const newPath = [...prev.path, newPoint];
+              localStorage.setItem('woofyz_active_walk_path', JSON.stringify(newPath));
+              return {
+                ...prev,
+                currentLat: latitude,
+                currentLon: longitude,
+                path: newPath,
+              };
+            });
 
-            // Update server location every 30 seconds
+            // Update server location
             updateLocationMutation.mutate({ latitude, longitude });
           },
           (error) => {
@@ -130,6 +162,12 @@ export function useWalkingTracking() {
     privacyAlertShownRef.current = false;
     toggleLocationMutation.mutate({ isActive: false });
   }, [toggleLocationMutation]);
+
+  // Clear path cache after saving walk
+  const clearPathCache = useCallback(() => {
+    localStorage.removeItem('woofyz_active_walk_path');
+    setState(prev => ({ ...prev, path: [] }));
+  }, []);
 
   // Monitor distance to home and show privacy alert
   useEffect(() => {
@@ -190,6 +228,7 @@ export function useWalkingTracking() {
     ...state,
     startTracking,
     stopTracking,
+    clearPathCache,
     confirmPrivacyStop,
     continueSharing,
     setHomeLocation,

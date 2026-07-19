@@ -21,6 +21,7 @@ import PublicProfilePage from "./pages/PublicProfilePage";
 import VerificationPage from "./pages/VerificationPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import PetHealthPage from "./pages/PetHealthPage";
 import AppNav from "./components/AppNav";
 import FeaturesPage from "./pages/FeaturesPage";
 import PricingPage from "./pages/PricingPage";
@@ -57,6 +58,7 @@ function Router() {
           <Route path="/events" component={EventsPage} />
           <Route path="/lost-dogs" component={LostDogsPage} />
           <Route path="/walking-map" component={WalkingMapPage} />
+          <Route path="/pet-health" component={PetHealthPage} />
           <Route path="/review/:userId" component={ReviewPage} />
           <Route path="/profile/:userId" component={PublicProfilePage} />
           <Route path="/verification" component={VerificationPage} />

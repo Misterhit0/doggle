@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Dog,
   MessageSquare,
+  Activity,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { label: 'Découverte', href: '/discovery', icon: Compass },
   { label: 'Matchs', href: '/matches', icon: Heart },
   { label: 'Mes chiens', href: '/dogs', icon: HomeIcon },
+  { label: 'Santé / Vétos', href: '/pet-health', icon: Activity },
   { label: 'Événements', href: '/events', icon: Calendar },
   { label: 'Chiens perdus', href: '/lost-dogs', icon: AlertCircle },
   { label: 'Carte de balade', href: '/walking-map', icon: Map },
@@ -138,6 +140,12 @@ export default function AppNav() {
                     <a href="/dogs" className="cursor-pointer flex items-center font-bold">
                       <HomeIcon className="w-4 h-4 mr-2" />
                       Mes chiens
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="md:hidden">
+                    <a href="/pet-health" className="cursor-pointer flex items-center font-bold">
+                      <Activity className="w-4 h-4 mr-2" />
+                      Santé & Vétos
                     </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="md:hidden">
