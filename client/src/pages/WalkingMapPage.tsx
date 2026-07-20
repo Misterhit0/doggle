@@ -43,7 +43,14 @@ export default function WalkingMapPage() {
   const [settingHome, setSettingHome] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<{ breed?: string; size?: string; type?: string }>({});
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [filters, setFilters] = useState<MapFilterOptions>({
+    showPlaces: true,
+    placeTypes: ['park', 'beach', 'restaurant', 'hotel', 'other'],
+    showVets: true,
+    showDangers: true,
+    showWalkers: true,
+  });
   const [shareLocationPref, setShareLocationPref] = useState(false);
   const markerIconsRef = useRef<Map<string, string>>(new Map());
 
@@ -84,6 +91,10 @@ export default function WalkingMapPage() {
     setHomeLocation,
   } = useWalkingTracking();
 
+  // Dynamic coordinates for queries based on GPS or Map Center
+  const queryLat = currentLat || mapCenter?.lat || 43.2964;
+  const queryLng = currentLon || mapCenter?.lng || 5.3697;
+
   // Mutations
   const reportDangerMutation = trpc.dangerAlerts.reportDanger.useMutation();
   const resolveDangerMutation = trpc.dangerAlerts.resolveDanger.useMutation();
@@ -98,31 +109,31 @@ export default function WalkingMapPage() {
 
   // Get active walkers
   const { data: activeWalkers, refetch: refetchWalkers } = trpc.discovery.getActiveWalkers.useQuery(
-    currentLat && currentLon
-      ? { latitude: currentLat, longitude: currentLon, radiusKm }
-      : { latitude: 0, longitude: 0, radiusKm },
-    { enabled: !!currentLat && !!currentLon && isTracking && shareLocationPref }
+    queryLat && queryLng
+      ? { latitude: queryLat, longitude: queryLng, radiusKm: 50 }
+      : { latitude: 0, longitude: 0, radiusKm: 50 },
+    { enabled: !!queryLat && !!queryLng && isTracking && shareLocationPref }
   );
 
   // Load dog friendly places
   const { data: nearbyPlaces, refetch: refetchPlaces } = trpc.dogFriendlyPlaces.getNearbyPlaces.useQuery({
-    latitude: currentLat || undefined,
-    longitude: currentLon || undefined,
-    radiusKm,
+    latitude: queryLat,
+    longitude: queryLng,
+    radiusKm: 50,
   });
 
   // Load vets
   const { data: nearbyVets } = trpc.vetAppointments.searchVets.useQuery({
-    latitude: currentLat || undefined,
-    longitude: currentLon || undefined,
-    radiusKm,
+    latitude: queryLat,
+    longitude: queryLng,
+    radiusKm: 50,
   });
 
   // Load dangers
   const { data: activeDangers, refetch: refetchDangers } = trpc.dangerAlerts.getNearbyDangers.useQuery({
-    latitude: currentLat || undefined,
-    longitude: currentLon || undefined,
-    radiusKm,
+    latitude: queryLat,
+    longitude: queryLng,
+    radiusKm: 50,
   });
 
   // Load walks and goals for KPIs
@@ -157,21 +168,35 @@ export default function WalkingMapPage() {
   const distPercent = Math.min(100, Math.round((weeklyMeters / targetMeters) * 100));
   const durPercent = Math.min(100, Math.round((weeklySeconds / targetSeconds) * 100));
 
-  // Memoized filters to prevent unstable references causing loops
+  // Memoized filters
   const filteredWalkers = useMemo(() => {
+    if (filters.showWalkers === false) return [];
     return activeWalkers?.filter((walker: any) => {
       if (filters.breed && walker.dogs?.[0]?.breed !== filters.breed) return false;
       if (filters.size && walker.dogs?.[0]?.size !== filters.size) return false;
       return true;
     }) || [];
-  }, [activeWalkers, filters.breed, filters.size]);
+  }, [activeWalkers, filters.showWalkers, filters.breed, filters.size]);
 
   const filteredPlaces = useMemo(() => {
+    if (filters.showPlaces === false) return [];
     return nearbyPlaces?.filter((place: any) => {
-      if (filters.type && place.placeType !== filters.type) return false;
+      if (filters.placeTypes && filters.placeTypes.length > 0) {
+        return filters.placeTypes.includes(place.placeType);
+      }
       return true;
     }) || [];
-  }, [nearbyPlaces, filters.type]);
+  }, [nearbyPlaces, filters.showPlaces, filters.placeTypes]);
+
+  const filteredVets = useMemo(() => {
+    if (filters.showVets === false) return [];
+    return nearbyVets || [];
+  }, [nearbyVets, filters.showVets]);
+
+  const filteredDangers = useMemo(() => {
+    if (filters.showDangers === false) return [];
+    return activeDangers || [];
+  }, [activeDangers, filters.showDangers]);
 
   // Refetch walkers and dangers
   useEffect(() => {
@@ -341,12 +366,12 @@ export default function WalkingMapPage() {
 
   // Update Vet Markers
   useEffect(() => {
-    if (!map || !nearbyVets) return;
+    if (!map || !filteredVets) return;
 
     vetsMarkersRef.current.forEach(m => m.remove());
     vetsMarkersRef.current = [];
 
-    const newMarkers = nearbyVets.map(vet => {
+    const newMarkers = filteredVets.map(vet => {
       const el = document.createElement('div');
       el.className = 'cursor-pointer hover:scale-110 transition-transform flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-[#E6F4EA] shadow-[2px_2px_0px_rgba(0,0,0,1)]';
       el.innerHTML = `<span class="text-base">🏥</span>`;
@@ -364,16 +389,16 @@ export default function WalkingMapPage() {
     });
 
     vetsMarkersRef.current = newMarkers;
-  }, [map, nearbyVets]);
+  }, [map, filteredVets]);
 
   // Update Danger Markers
   useEffect(() => {
-    if (!map || !activeDangers) return;
+    if (!map || !filteredDangers) return;
 
     dangersMarkersRef.current.forEach(m => m.remove());
     dangersMarkersRef.current = [];
 
-    const newMarkers = activeDangers.map(danger => {
+    const newMarkers = filteredDangers.map(danger => {
       const el = document.createElement('div');
       el.className = 'cursor-pointer hover:scale-110 transition-transform flex items-center justify-center w-8 h-8 rounded-full border-2 border-black bg-rose-50 shadow-[2px_2px_0px_rgba(0,0,0,1)] animate-bounce';
       el.innerHTML = `<span class="text-base">⚠️</span>`;
@@ -391,7 +416,7 @@ export default function WalkingMapPage() {
     });
 
     dangersMarkersRef.current = newMarkers;
-  }, [map, activeDangers]);
+  }, [map, filteredDangers]);
 
   // Add current user marker
   useEffect(() => {
@@ -782,6 +807,11 @@ export default function WalkingMapPage() {
               mapInstance.setCenter([currentLon, currentLat]);
               mapInstance.setZoom(15);
             }
+
+            mapInstance.on("moveend", () => {
+              const center = mapInstance.getCenter();
+              setMapCenter({ lat: center.lat, lng: center.lng });
+            });
 
             mapInstance.on("click", (e) => {
               if (settingHome) {
