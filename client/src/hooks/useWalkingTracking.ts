@@ -45,9 +45,13 @@ export function useWalkingTracking() {
 
   const watchIdRef = useRef<number | null>(null);
   const privacyAlertShownRef = useRef(false);
+  const lastServerUpdateRef = useRef<number>(0);
   const toggleLocationMutation = trpc.user.toggleLocationSharing.useMutation();
   const updateLocationMutation = trpc.user.updateLocation.useMutation();
   const setHomeMutation = trpc.user.setHomeLocation.useMutation();
+
+  const updateLocationRef = useRef(updateLocationMutation.mutate);
+  updateLocationRef.current = updateLocationMutation.mutate;
 
   // Load saved path on start to resume from offline/network loss
   useEffect(() => {
@@ -70,14 +74,13 @@ export function useWalkingTracking() {
     }
   }, []);
 
-  // Fetch current GPS position on mount to locate the user immediately
+  // Fetch current GPS position on mount to locate the user immediately (RUN ONCE ONLY)
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           setState(prev => {
-            // Keep active path if we are already tracking
             if (prev.isTracking) return prev;
             return {
               ...prev,
@@ -86,14 +89,14 @@ export function useWalkingTracking() {
             };
           });
           // Update location on server
-          updateLocationMutation.mutate({ latitude, longitude });
+          updateLocationRef.current({ latitude, longitude });
         },
         (error) => {
           console.warn('[Geolocation] Initial mount position fetch skipped/denied:', error);
         }
       );
     }
-  }, [updateLocationMutation]);
+  }, []);
 
   // Initialize home location from user profile
   useEffect(() => {
@@ -134,14 +137,16 @@ export function useWalkingTracking() {
         localStorage.setItem('woofyz_active_walk_path', JSON.stringify([initialPoint]));
 
         // Update server location
-        updateLocationMutation.mutate({ latitude, longitude });
+        updateLocationRef.current({ latitude, longitude });
+        lastServerUpdateRef.current = Date.now();
 
         // Set up continuous tracking
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
+            const now = Date.now();
             setState(prev => {
-              const newPoint = { lat: latitude, lon: longitude, timestamp: Date.now() };
+              const newPoint = { lat: latitude, lon: longitude, timestamp: now };
               const newPath = [...prev.path, newPoint];
               localStorage.setItem('woofyz_active_walk_path', JSON.stringify(newPath));
               return {
@@ -152,8 +157,11 @@ export function useWalkingTracking() {
               };
             });
 
-            // Update server location
-            updateLocationMutation.mutate({ latitude, longitude });
+            // Throttle server location updates to at most once every 10 seconds
+            if (now - lastServerUpdateRef.current > 10000) {
+              lastServerUpdateRef.current = now;
+              updateLocationRef.current({ latitude, longitude });
+            }
           },
           (error) => {
             console.error('Geolocation error:', error);
@@ -171,7 +179,7 @@ export function useWalkingTracking() {
         toast.error('Permission de géolocalisation refusée');
       }
     );
-  }, [updateLocationMutation, toggleLocationMutation]);
+  }, [toggleLocationMutation]);
 
   // Stop tracking
   const stopTracking = useCallback(() => {
@@ -207,11 +215,17 @@ export function useWalkingTracking() {
       state.homeLon
     );
 
-    setState(prev => ({
-      ...prev,
-      distanceToHome: distance,
-      isNearHome: distance <= PRIVACY_RADIUS_M,
-    }));
+    setState(prev => {
+      const isNear = distance <= PRIVACY_RADIUS_M;
+      if (prev.distanceToHome === distance && prev.isNearHome === isNear) {
+        return prev;
+      }
+      return {
+        ...prev,
+        distanceToHome: distance,
+        isNearHome: isNear,
+      };
+    });
 
     // Show privacy alert when approaching home
     if (distance <= PRIVACY_RADIUS_M && !privacyAlertShownRef.current && state.isTracking) {
