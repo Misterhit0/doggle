@@ -70,6 +70,31 @@ export function useWalkingTracking() {
     }
   }, []);
 
+  // Fetch current GPS position on mount to locate the user immediately
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setState(prev => {
+            // Keep active path if we are already tracking
+            if (prev.isTracking) return prev;
+            return {
+              ...prev,
+              currentLat: latitude,
+              currentLon: longitude,
+            };
+          });
+          // Update location on server
+          updateLocationMutation.mutate({ latitude, longitude });
+        },
+        (error) => {
+          console.warn('[Geolocation] Initial mount position fetch skipped/denied:', error);
+        }
+      );
+    }
+  }, [updateLocationMutation]);
+
   // Initialize home location from user profile
   useEffect(() => {
     if (user?.homeLatitude && user?.homeLongitude) {
