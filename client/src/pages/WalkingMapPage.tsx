@@ -330,7 +330,7 @@ export default function WalkingMapPage() {
       });
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([place.longitude, place.latitude])
+        .setLngLat([Number(place.longitude), Number(place.latitude)])
         .addTo(map);
 
       return marker;
@@ -384,7 +384,7 @@ export default function WalkingMapPage() {
       });
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([danger.longitude, danger.latitude])
+        .setLngLat([Number(danger.longitude), Number(danger.latitude)])
         .addTo(map);
 
       return marker;
