@@ -1660,6 +1660,16 @@ export const _appRouterBase = router({
         }
         return { success: true, message: "Appointment cancelled" };
       }),
+
+    getAppointments: protectedProcedure
+      .input(z.object({ dogId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const allowed = await db.canUserAccessPetHealth(input.dogId, ctx.user.id);
+        if (!allowed) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access restricted" });
+        }
+        return db.getVetAppointments(input.dogId);
+      }),
   }),
 
   // Reviews & Ratings System

@@ -2998,6 +2998,13 @@ export async function cancelVetAppointment(appointmentId: number, userId: number
   return result[0].affectedRows > 0;
 }
 
+export async function getVetAppointments(dogId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(vetAppointments).where(eq(vetAppointments.dogId, dogId)).orderBy(desc(vetAppointments.appointmentTime));
+}
+
 
 
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { Heart, Activity, FileText, Calendar, ShieldCheck, Plus, Trash2, Clock, Check, AlertCircle } from "lucide-react";
+import { Heart, Activity, FileText, Calendar, ShieldCheck, Plus, Trash2, Clock, Check, AlertCircle, Sparkles } from "lucide-react";
 
 export default function PetHealthPage() {
   const { data: myDogs, isLoading: isDogsLoading } = trpc.dog.getMyDogs.useQuery();
@@ -28,6 +28,11 @@ export default function PetHealthPage() {
   );
 
   const { data: documents, refetch: refetchDocs } = trpc.petHealth.getDocuments.useQuery(
+    { dogId: activeDogId! },
+    { enabled: !!activeDogId }
+  );
+
+  const { data: appointments, refetch: refetchAppointments } = trpc.vetAppointments.getAppointments.useQuery(
     { dogId: activeDogId! },
     { enabled: !!activeDogId }
   );
@@ -65,6 +70,84 @@ export default function PetHealthPage() {
   const [allergiesInput, setAllergiesInput] = useState("");
   const [historyInput, setHistoryInput] = useState("");
   const [treatmentInput, setTreatmentInput] = useState("");
+
+  // Populate inputs with current healthRecord values when active dog changes
+  useEffect(() => {
+    if (healthRecord) {
+      setWeightInput(healthRecord.weight ? String(healthRecord.weight) : "");
+      setAllergiesInput(healthRecord.allergies || "");
+      setHistoryInput(healthRecord.medicalHistory || "");
+      setTreatmentInput(healthRecord.treatmentInfo || "");
+    } else {
+      setWeightInput("");
+      setAllergiesInput("");
+      setHistoryInput("");
+      setTreatmentInput("");
+    }
+  }, [healthRecord]);
+
+  // Unified timeline computed list
+  const timelineEvents = useMemo(() => {
+    const list: Array<{
+      id: string;
+      date: Date;
+      type: "vaccine" | "document" | "appointment";
+      title: string;
+      subtitle: string;
+      details?: string;
+      statusText?: string;
+      colorClass: string;
+    }> = [];
+
+    if (vaccines) {
+      vaccines.forEach(v => {
+        list.push({
+          id: `vac-${v.id}`,
+          date: new Date(v.administeredDate),
+          type: "vaccine",
+          title: `💉 Vaccin : ${v.name}`,
+          subtitle: `Injecté le ${new Date(v.administeredDate).toLocaleDateString()}`,
+          details: `Prochain rappel : ${new Date(v.nextBoosterDate).toLocaleDateString()}`,
+          statusText: v.status === "active" ? "A jour" : "Rappel en retard",
+          colorClass: v.status === "active" ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-rose-500 bg-rose-50 text-rose-800",
+        });
+      });
+    }
+
+    if (documents) {
+      documents.forEach(d => {
+        list.push({
+          id: `doc-${d.id}`,
+          date: new Date(d.createdAt),
+          type: "document",
+          title: `📄 Fichier : ${d.documentName}`,
+          subtitle: `Type : ${d.documentType === 'prescription' ? 'Ordonnance' : d.documentType === 'certificate' ? 'Certificat' : 'Autre document'}`,
+          details: d.documentUrl,
+          statusText: "Archivé",
+          colorClass: "border-blue-500 bg-blue-50 text-blue-800",
+        });
+      });
+    }
+
+    if (appointments) {
+      appointments.forEach(a => {
+        const vetName = a.customVetName || (nearbyVets?.find(v => v.id === a.vetId)?.name) || "Vétérinaire";
+        list.push({
+          id: `appt-${a.id}`,
+          date: new Date(a.appointmentTime),
+          type: "appointment",
+          title: `🏥 Consultation : ${a.reason}`,
+          subtitle: `Prévu le ${new Date(a.appointmentTime).toLocaleString()} avec ${vetName}`,
+          details: a.notes || undefined,
+          statusText: a.status === "scheduled" ? "Programmé" : a.status === "completed" ? "Effectué" : "Annulé",
+          colorClass: a.status === "scheduled" ? "border-amber-500 bg-amber-50 text-amber-800" : a.status === "completed" ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-400 bg-gray-50 text-gray-700",
+        });
+      });
+    }
+
+    // Sort descending by date
+    return list.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [vaccines, documents, appointments, nearbyVets]);
 
   const handleUpdateHealth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +259,7 @@ export default function PetHealthPage() {
       setReason("");
       setNotes("");
       setBookingVetId(null);
+      refetchAppointments();
     } catch (err: any) {
       toast.error(err.message || "Erreur de réservation");
     }
@@ -241,19 +325,19 @@ export default function PetHealthPage() {
               <form onSubmit={handleUpdateHealth} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="block text-[10px] font-black uppercase mb-1">Poids actuel (kg)</Label>
-                  <Input type="number" step="0.1" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder={healthRecord?.weight || "Ex: 14.5"} className="border-2 border-black rounded-none font-bold" />
+                  <Input type="number" step="0.1" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder="Ex: 14.5" className="border-2 border-black rounded-none font-bold" />
                 </div>
                 <div>
                   <Label className="block text-[10px] font-black uppercase mb-1">Allergies connues</Label>
-                  <Input value={allergiesInput} onChange={e => setAllergiesInput(e.target.value)} placeholder={healthRecord?.allergies || "Ex: Poulet, Boeuf"} className="border-2 border-black rounded-none font-bold" />
+                  <Input value={allergiesInput} onChange={e => setAllergiesInput(e.target.value)} placeholder="Ex: Poulet, Boeuf" className="border-2 border-black rounded-none font-bold" />
                 </div>
                 <div className="md:col-span-2">
                   <Label className="block text-[10px] font-black uppercase mb-1">Antécédents médicaux</Label>
-                  <Textarea value={historyInput} onChange={e => setHistoryInput(e.target.value)} placeholder={healthRecord?.medicalHistory || "Opérations, maladies passées..."} rows={2} className="border-2 border-black rounded-none font-semibold" />
+                  <Textarea value={historyInput} onChange={e => setHistoryInput(e.target.value)} placeholder="Opérations, maladies passées..." rows={2} className="border-2 border-black rounded-none font-semibold" />
                 </div>
                 <div className="md:col-span-2">
                   <Label className="block text-[10px] font-black uppercase mb-1">Traitements en cours</Label>
-                  <Textarea value={treatmentInput} onChange={e => setTreatmentInput(e.target.value)} placeholder={healthRecord?.treatmentInfo || "Médicaments, vermifuge..."} rows={2} className="border-2 border-black rounded-none font-semibold" />
+                  <Textarea value={treatmentInput} onChange={e => setTreatmentInput(e.target.value)} placeholder="Médicaments, vermifuge..." rows={2} className="border-2 border-black rounded-none font-semibold" />
                 </div>
                 <Button type="submit" className="md:col-span-2 bg-black text-white hover:bg-gray-900 border-2 border-black font-black uppercase text-xs py-2 rounded-none">
                   Enregistrer les modifications
@@ -435,6 +519,59 @@ export default function PetHealthPage() {
             </Card>
 
           </div>
+        </div>
+
+        {/* Unified timeline / Journal de Santé history */}
+        <div className="mt-12">
+          <Card className="p-6 border-2 border-black rounded-none shadow-[6px_6px_0px_rgba(0,0,0,1)] bg-white">
+            <h2 className="text-xl font-black uppercase tracking-wider mb-6 border-b-2 border-black pb-2 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" /> Journal de Santé & Historique des Actions
+            </h2>
+
+            {timelineEvents.length > 0 ? (
+              <div className="relative border-l-2 border-black ml-4 pl-6 space-y-6 py-2">
+                {timelineEvents.map(event => (
+                  <div key={event.id} className="relative">
+                    {/* Circle bullet node */}
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-black bg-white flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-black" />
+                    </div>
+
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-4 border-2 border-black bg-[#FFFDF9] shadow-[3px_3px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_rgba(0,0,0,1)] transition-all">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-black text-sm text-black">{event.title}</h4>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 border border-black ${event.colorClass}`}>
+                            {event.statusText}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 font-bold">{event.subtitle}</p>
+                        {event.details && (
+                          <p className="text-xs text-gray-700 font-semibold mt-1">
+                            {event.type === "document" ? (
+                              <a href={event.details} target="_blank" rel="noreferrer" className="text-pink-500 underline">
+                                Voir le fichier associé
+                              </a>
+                            ) : (
+                              event.details
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-gray-400 self-start md:self-center whitespace-nowrap">
+                        {event.date.toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Clock className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+                <p className="text-sm font-bold text-gray-500">Aucune action enregistrée pour le moment.</p>
+              </div>
+            )}
+          </Card>
         </div>
 
       </div>
