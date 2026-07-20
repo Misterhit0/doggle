@@ -1164,7 +1164,7 @@ export async function getWalkersByFilters(options: {
 
       let query = `
         SELECT DISTINCT u.id FROM users u
-        JOIN dogs d ON u.id = d.ownerId
+        JOIN dogs d ON u.id = d.userId
         WHERE u.id IN (${userIds.map(() => '?').join(',')})
       `;
       const params: any[] = [...userIds];
@@ -2771,7 +2771,7 @@ export async function canUserAccessPetHealth(dogId: number, userId: number) {
   if (!db) return false;
 
   const [dog] = await db.select().from(dogs).where(eq(dogs.id, dogId));
-  if (dog && dog.ownerId === userId) return true;
+  if (dog && dog.userId === userId) return true;
 
   const pool = getPool();
   if (pool) {
@@ -2803,9 +2803,9 @@ export async function upsertHealthRecord(dogId: number, data: {
     await db.update(petHealthRecords)
       .set({
         weight: data.weight !== undefined ? String(data.weight) : undefined,
-        allergies: data.allergies ?? null,
-        medicalHistory: data.medicalHistory ?? null,
-        treatmentInfo: data.treatmentInfo ?? null,
+        allergies: data.allergies !== undefined ? data.allergies : undefined,
+        medicalHistory: data.medicalHistory !== undefined ? data.medicalHistory : undefined,
+        treatmentInfo: data.treatmentInfo !== undefined ? data.treatmentInfo : undefined,
       })
       .where(eq(petHealthRecords.dogId, dogId));
     return existing[0].id;
