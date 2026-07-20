@@ -1480,7 +1480,7 @@ export const _appRouterBase = router({
       )
       .mutation(async ({ ctx, input }) => {
         const dogObj = await db.getDogById(input.dogId);
-        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+        if (!dogObj || dogObj.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can modify pet health record" });
         }
         const recordId = await db.upsertHealthRecord(input.dogId, input);
@@ -1508,7 +1508,7 @@ export const _appRouterBase = router({
       )
       .mutation(async ({ ctx, input }) => {
         const dogObj = await db.getDogById(input.dogId);
-        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+        if (!dogObj || dogObj.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can add vaccines" });
         }
         const vaccineId = await db.addVaccine(input.dogId, input);
@@ -1558,7 +1558,7 @@ export const _appRouterBase = router({
       )
       .mutation(async ({ ctx, input }) => {
         const dogObj = await db.getDogById(input.dogId);
-        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+        if (!dogObj || dogObj.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can add documents" });
         }
         const documentId = await db.addDocument(input.dogId, input);
@@ -1618,7 +1618,7 @@ export const _appRouterBase = router({
       )
       .mutation(async ({ ctx, input }) => {
         const dogObj = await db.getDogById(input.dogId);
-        if (!dogObj || dogObj.ownerId !== ctx.user.id) {
+        if (!dogObj || dogObj.userId !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only the owner can book vet appointments" });
         }
 
