@@ -1,6 +1,8 @@
 import { eq, and, sql, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import fs from "fs";
+import path from "path";
 import { InsertUser, users, dogs, Dog, InsertDog, matches, swipes, messages, notifications, reviews, verifications, Review, Verification, InsertReview, InsertVerification, payments, walkingServices, walkingBookings, sponsorships, dogFriendlyPlaces, placeReviews, walks, walkGoals, dangerAlerts, petHealthRecords, petVaccines, petDocuments, veterinarians, vetSlots, vetAppointments } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { logger } from "./_core/logger";
@@ -2523,20 +2525,49 @@ export async function createDogFriendlyPlace(data: {
   return result[0].insertId;
 }
 
-export async function getNearbyDogFriendlyPlaces(latitude: number, longitude: number, radiusKm: number = 25) {
-  const connection = getPool();
-  if (!connection) return [];
-
+function loadDogFriendlyFrance(): any[] {
   try {
-    const [places] = await connection.execute(
-      `SELECT dfp.*,
-              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(dfp.latitude)) * cos(radians(dfp.longitude) - radians(?)) + sin(radians(?)) * sin(radians(dfp.latitude)), -1), 1))) as distance
-       FROM dog_friendly_places dfp
-       WHERE (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(dfp.latitude)) * cos(radians(dfp.longitude) - radians(?)) + sin(radians(?)) * sin(radians(dfp.latitude)), -1), 1))) <= ?
-       ORDER BY distance ASC`,
-      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
-    );
-    return places || [];
+    const filePath = path.resolve(process.cwd(), "dog_friendly_france.json");
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error("Failed to load dog_friendly_france.json:", e);
+  }
+  return [];
+}
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export async function getNearbyDogFriendlyPlaces(latitude: number, longitude: number, radiusKm: number = 25) {
+  try {
+    const items = loadDogFriendlyFrance();
+    return items
+      .map((item, index) => ({
+        id: index + 1,
+        name: item.name,
+        placeType: item.placeType,
+        latitude: String(item.latitude),
+        longitude: String(item.longitude),
+        address: item.address || null,
+        description: item.description || null,
+        isDogsAllowed: item.isDogsAllowed !== false,
+        attributes: item.attributes || {},
+        distance: getDistance(latitude, longitude, item.latitude, item.longitude)
+      }))
+      .filter(item => item.placeType !== "vet" && item.distance <= radiusKm)
+      .sort((a, b) => a.distance - b.distance);
   } catch (error) {
     console.error("[Database] Failed to get nearby dog friendly places:", error);
     return [];
@@ -2544,22 +2575,36 @@ export async function getNearbyDogFriendlyPlaces(latitude: number, longitude: nu
 }
 
 export async function getPlaceDetails(placeId: number) {
-  const db = await getDb();
-  if (!db) return null;
+  try {
+    const items = loadDogFriendlyFrance();
+    const item = items[placeId - 1];
+    if (!item) return null;
 
-  const places = await db.select().from(dogFriendlyPlaces).where(eq(dogFriendlyPlaces.id, placeId));
-  if (places.length === 0) return null;
+    const db = await getDb();
+    const reviewsList = db
+      ? await db.select().from(placeReviews).where(eq(placeReviews.placeId, placeId))
+      : [];
+    const avgRating = reviewsList.length > 0
+      ? reviewsList.reduce((acc, curr) => acc + curr.rating, 0) / reviewsList.length
+      : 0;
 
-  const reviewsList = await db.select().from(placeReviews).where(eq(placeReviews.placeId, placeId));
-  const avgRating = reviewsList.length > 0
-    ? reviewsList.reduce((acc, curr) => acc + curr.rating, 0) / reviewsList.length
-    : 0;
-
-  return {
-    ...places[0],
-    averageRating: parseFloat(avgRating.toFixed(1)),
-    reviewsCount: reviewsList.length,
-  };
+    return {
+      id: placeId,
+      name: item.name,
+      placeType: item.placeType,
+      latitude: String(item.latitude),
+      longitude: String(item.longitude),
+      address: item.address || null,
+      description: item.description || null,
+      isDogsAllowed: item.isDogsAllowed !== false,
+      attributes: item.attributes || {},
+      averageRating: parseFloat(avgRating.toFixed(1)),
+      reviewsCount: reviewsList.length,
+    };
+  } catch (error) {
+    console.error("[Database] Failed to get place details:", error);
+    return null;
+  }
 }
 
 export async function addPlaceReview(placeId: number, userId: number, rating: number, comment?: string) {
@@ -2919,20 +2964,27 @@ export async function createVetSlot(vetId: number, slotTime: Date) {
 }
 
 export async function getNearbyVets(latitude: number, longitude: number, radiusKm: number = 10) {
-  const connection = getPool();
-  if (!connection) return [];
-
   try {
-    const [vets] = await connection.execute(
-      `SELECT v.*,
-              (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(v.latitude)) * cos(radians(v.longitude) - radians(?)) + sin(radians(?)) * sin(radians(v.latitude)), -1), 1))) as distance
-       FROM veterinarians v
-       WHERE v.latitude IS NOT NULL AND v.longitude IS NOT NULL
-         AND (6371 * acos(LEAST(GREATEST(cos(radians(?)) * cos(radians(v.latitude)) * cos(radians(v.longitude) - radians(?)) + sin(radians(?)) * sin(radians(v.latitude)), -1), 1))) <= ?
-       ORDER BY distance ASC`,
-      [latitude, longitude, latitude, latitude, longitude, latitude, radiusKm]
-    );
-    return vets || [];
+    const items = loadDogFriendlyFrance();
+    return items
+      .map((item, index) => ({
+        id: index + 1,
+        name: item.name,
+        specialty: "Généraliste",
+        clinicName: item.name,
+        address: item.address || "",
+        latitude: String(item.latitude),
+        longitude: String(item.longitude),
+        phoneNumber: "04 91 00 00 00",
+        email: null,
+        isPartner: true,
+        distance: getDistance(latitude, longitude, item.latitude, item.longitude)
+      }))
+      .filter(item => {
+        const rawItem = items[item.id - 1];
+        return rawItem.placeType === "vet" && item.distance <= radiusKm;
+      })
+      .sort((a, b) => a.distance - b.distance);
   } catch (error) {
     console.error("[Database] Failed to get nearby vets:", error);
     return [];

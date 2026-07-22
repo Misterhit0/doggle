@@ -1,0 +1,1484 @@
+[
+  {
+    "name": "ACDV",
+    "placeType": "vet",
+    "latitude": 48.830643,
+    "longitude": 2.331181,
+    "address": "1 Rue Sophie Germain, 75014 Paris",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Argos",
+    "placeType": "vet",
+    "latitude": 48.875607,
+    "longitude": 2.348928,
+    "address": "53 Rue de Paradis, 75010 Paris",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Argos",
+    "placeType": "vet",
+    "latitude": 48.850508,
+    "longitude": 2.337333,
+    "address": "17 Rue de Tournon, 75006 Paris",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Cabinet vétérinaire",
+    "placeType": "vet",
+    "latitude": 48.839287,
+    "longitude": 2.41665,
+    "address": "5 Rue Guynemer, 94160 Saint-Mandé",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Veterinaire Du Village",
+    "placeType": "vet",
+    "latitude": 48.886909,
+    "longitude": 2.270396,
+    "address": "89 Rue Perronet, 92200 Neuilly-sur-Seine",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Prince de Galles",
+    "placeType": "hotel",
+    "latitude": 48.869127,
+    "longitude": 2.300766,
+    "address": "33 Avenue George V, 75008 Paris",
+    "description": "Hébergement dont les données cartographiques signalent l’accueil des chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Café Père Tanguy",
+    "placeType": "restaurant",
+    "latitude": 48.879437,
+    "longitude": 2.337513,
+    "address": "2 Place Gustave Toudouze, 75009 Paris",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Kiez Kanal",
+    "placeType": "restaurant",
+    "latitude": 48.88742,
+    "longitude": 2.379129,
+    "address": "90 Quai de la Loire, 75019 Paris 19eme Arrondissement",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les BerthoM",
+    "placeType": "restaurant",
+    "latitude": 48.864574,
+    "longitude": 2.369179,
+    "address": "35 Boulevard Voltaire, 75011 Paris",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Levantine",
+    "placeType": "restaurant",
+    "latitude": 48.871566,
+    "longitude": 2.368138,
+    "address": "36 Rue Bichat, 75010 Paris",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les Belles Truffes",
+    "placeType": "other",
+    "latitude": 48.879728,
+    "longitude": 2.240444,
+    "address": "1 Rue Mars et Roty, 92800 Puteaux",
+    "description": "Pension ou service animalier explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Wash Dog (toiletteur chien)",
+    "placeType": "other",
+    "latitude": 48.842377,
+    "longitude": 2.277997,
+    "address": "19 Rue Cauchy, 75015 Paris",
+    "description": "Service ou équipement d’intérêt explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Pelouse de l’espérance",
+    "placeType": "other",
+    "latitude": 48.852267,
+    "longitude": 2.238323,
+    "address": "43 Route de la Seine à la Butte Mortemart, 75016 Paris",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Caniparc",
+    "placeType": "other",
+    "latitude": 48.873879,
+    "longitude": 2.421329,
+    "address": "144 Avenue Gambetta, 93170 Bagnolet",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Ibis Budget",
+    "placeType": "hotel",
+    "latitude": 43.2953,
+    "longitude": 5.40096,
+    "address": "73 Rue lieutenant j b meschi, 13005 Marseille",
+    "description": "Hébergement dont les données cartographiques signalent l’accueil des chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Borély",
+    "placeType": "vet",
+    "latitude": 43.264189,
+    "longitude": 5.39052,
+    "address": "17 Avenue Alexandre Dumas, 13008 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire de Château Gombert",
+    "placeType": "vet",
+    "latitude": 43.348276,
+    "longitude": 5.429957,
+    "address": "283 Chem. de Château Gombert, 13013 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de la Fourragère",
+    "placeType": "vet",
+    "latitude": 43.300933,
+    "longitude": 5.431335,
+    "address": "2 Avenue de la Fourragère, 13012 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de la Plaine",
+    "placeType": "vet",
+    "latitude": 43.295674,
+    "longitude": 5.38757,
+    "address": "23 Place Jean Jaurès, 13005 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de Saint-Barnabé",
+    "placeType": "vet",
+    "latitude": 43.303369,
+    "longitude": 5.411993,
+    "address": "32 Impasse du Groenland, 13012 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Montolivet",
+    "placeType": "vet",
+    "latitude": 43.317915,
+    "longitude": 5.439203,
+    "address": "234 Rue Charles Kaddouz, 13012 Marseille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Dog Street Access",
+    "placeType": "other",
+    "latitude": 43.291921,
+    "longitude": 5.372561,
+    "address": "62a Rue sainte, 13001 Marseille",
+    "description": "Service ou équipement d’intérêt explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Distridog",
+    "placeType": "other",
+    "latitude": 43.293532,
+    "longitude": 5.495213,
+    "address": "Rond-Point mtee st menet tse la buzine, 13011 Marseille",
+    "description": "Service ou équipement d’intérêt explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Amour canin",
+    "placeType": "other",
+    "latitude": 43.253271,
+    "longitude": 5.42273,
+    "address": "114 Boulevard du redon, 13009 Marseille",
+    "description": "Service ou équipement d’intérêt explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les BerThoM",
+    "placeType": "restaurant",
+    "latitude": 43.292369,
+    "longitude": 5.372702,
+    "address": "31 Cours d'Estienne d'Orves, 13001 Marseille",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Cali Kitchen",
+    "placeType": "restaurant",
+    "latitude": 43.294564,
+    "longitude": 5.377058,
+    "address": "5 Rue haxo, 13001 Marseille",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Decousu / Estève",
+    "placeType": "vet",
+    "latitude": 45.71382,
+    "longitude": 4.810686,
+    "address": "50 Rue Fleury, 69600 Oullins-Pierre-Bénite",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Vétérinaires 2 toute urgence",
+    "placeType": "vet",
+    "latitude": 45.705946,
+    "longitude": 4.912338,
+    "address": "7 Rue Jean Zay, 69800 Saint-Priest",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Cabinet Vétérinaire du Crayon",
+    "placeType": "vet",
+    "latitude": 45.759423,
+    "longitude": 4.843937,
+    "address": "19 Rue de la Part-Dieu, 69003 Lyon",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Dr Forsans",
+    "placeType": "vet",
+    "latitude": 45.729182,
+    "longitude": 4.829711,
+    "address": "4 Place des Pavillons, 69007 Lyon",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire de Champagne au Mont d'or",
+    "placeType": "vet",
+    "latitude": 45.794364,
+    "longitude": 4.792222,
+    "address": "3 Rue Louis Juttet, 69410 Champagne-au-Mont-d'Or",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Agapé",
+    "placeType": "vet",
+    "latitude": 45.76579,
+    "longitude": 4.84357,
+    "address": "39 Rue Pierre Corneille, 69006 Lyon",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc à chiens",
+    "placeType": "other",
+    "latitude": 45.760504,
+    "longitude": 4.777712,
+    "address": "139 Avenue Charles de Gaulle, 69160 Tassin-la-Demi-Lune",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Aire de déjection canine",
+    "placeType": "other",
+    "latitude": 45.776155,
+    "longitude": 4.810706,
+    "address": "Petit Parc Serin, 69004 Lyon",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Espace Canin",
+    "placeType": "other",
+    "latitude": 45.747288,
+    "longitude": 4.893516,
+    "address": "Impasse Duret, 69003 Lyon",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Café Malzieu",
+    "placeType": "restaurant",
+    "latitude": 45.77776,
+    "longitude": 4.835871,
+    "address": "9 Rue Dumont d'Urville, 69004 Lyon",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Au Bureau",
+    "placeType": "restaurant",
+    "latitude": 45.765195,
+    "longitude": 4.921884,
+    "address": "17 Avenue de Böhlen, 69120 Vaulx-en-Velin",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Old Wild West",
+    "placeType": "restaurant",
+    "latitude": 45.765229,
+    "longitude": 4.922091,
+    "address": "19 Avenue de Böhlen, 69120 Vaulx-en-Velin",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "3 Brasseurs",
+    "placeType": "restaurant",
+    "latitude": 45.718256,
+    "longitude": 4.879877,
+    "address": "3 Rue Simone Veil, 69200 Vénissieux",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clos du Cardinal",
+    "placeType": "park",
+    "latitude": 45.737437,
+    "longitude": 4.804727,
+    "address": "Allée Beausoleil, 69110 Sainte-Foy-lès-Lyon",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc de la Tête d'Or",
+    "placeType": "park",
+    "latitude": 45.778609,
+    "longitude": 4.852163,
+    "address": "Allée du Grand Camp, 69006 Lyon",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Amicale Blagnacaise du Chien d'Utilité",
+    "placeType": "other",
+    "latitude": 43.640104,
+    "longitude": 1.400836,
+    "address": "37 Chemin des Ramiers, 31700 Blagnac",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Toulouse Veto Agility",
+    "placeType": "other",
+    "latitude": 43.607105,
+    "longitude": 1.387461,
+    "address": "75 Chemin des Capelles, 31300 Toulouse",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Bep Chay",
+    "placeType": "restaurant",
+    "latitude": 43.598567,
+    "longitude": 1.441817,
+    "address": "22 Rue des Couteliers, 31000 Toulouse",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc des tours de Seysses",
+    "placeType": "park",
+    "latitude": 43.569577,
+    "longitude": 1.415746,
+    "address": "Chemin des Martyrs de Bordelongue, 31100 Toulouse",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Jardin de l'Observatoire",
+    "placeType": "park",
+    "latitude": 43.612305,
+    "longitude": 1.462984,
+    "address": "14 Rue Johannes Kepler, 31500 Toulouse",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Jardin Sacarin",
+    "placeType": "park",
+    "latitude": 43.601862,
+    "longitude": 1.463403,
+    "address": "1 Rue Firmin Larroque, 31500 Toulouse",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "AzurVet",
+    "placeType": "vet",
+    "latitude": 43.689973,
+    "longitude": 7.185028,
+    "address": "769 Avenue Pierre et Marie Curie, 06700 Saint-Laurent-du-Var",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Pasteur",
+    "placeType": "vet",
+    "latitude": 43.722741,
+    "longitude": 7.286208,
+    "address": "8 Avenue Antonia Augusta, 06000 Nice",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Dr Jérome Camus & Dr Carolle Chantrelle",
+    "placeType": "vet",
+    "latitude": 43.684605,
+    "longitude": 7.224888,
+    "address": "73 Boulevard Napoleon III, 06200 Nice",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire",
+    "placeType": "vet",
+    "latitude": 43.717791,
+    "longitude": 7.261518,
+    "address": "1 Avenue Saint-Maurice, 06100 Nice",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de l'Acropolis",
+    "placeType": "vet",
+    "latitude": 43.704477,
+    "longitude": 7.281491,
+    "address": "36 Boulevard Risso, 06300 Nice",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Dog's Land",
+    "placeType": "other",
+    "latitude": 43.706327,
+    "longitude": 7.283142,
+    "address": "8 Avenue de la République, 06300 Nice",
+    "description": "Pension ou service animalier explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Plage des chiens Brigitte Bardot",
+    "placeType": "beach",
+    "latitude": 43.689211,
+    "longitude": 7.243089,
+    "address": "143 Promenade des Anglais, 06200 Nice",
+    "description": "Plage ou zone de baignade dont l’accès des chiens est explicitement signalé.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire de l'Ouest",
+    "placeType": "vet",
+    "latitude": 47.262362,
+    "longitude": -1.672921,
+    "address": "55 Rue de Bretagne, 44880 Sautron",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire des Alizés",
+    "placeType": "vet",
+    "latitude": 47.261629,
+    "longitude": -1.667179,
+    "address": "22 Rue de Bretagne, 44880 Sautron",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire du Petit Chantilly",
+    "placeType": "vet",
+    "latitude": 47.252967,
+    "longitude": -1.594983,
+    "address": "10 Avenue Alexandre Goupil, 44700 Orvault",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Hermeland",
+    "placeType": "vet",
+    "latitude": 47.213074,
+    "longitude": -1.655471,
+    "address": "65 Rue Vincent Auriol, 44800 Saint-Herblain",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Cabinet Vétérinaire Médico-Chirurgical",
+    "placeType": "vet",
+    "latitude": 47.265594,
+    "longitude": -1.44259,
+    "address": "15 Rue de Nantes, 44470 Thouaré-sur-Loire",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire du Cèdre Bleu",
+    "placeType": "vet",
+    "latitude": 47.294796,
+    "longitude": -1.495908,
+    "address": "41 Rue Jules Verne, 44470 Carquefou",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Ker Wouf",
+    "placeType": "other",
+    "latitude": 47.238942,
+    "longitude": -1.533898,
+    "address": "7 Place Don Bosco, 44300 NANTES",
+    "description": "Pension ou service animalier explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Caniparc",
+    "placeType": "other",
+    "latitude": 47.199151,
+    "longitude": -1.584458,
+    "address": "1Bis 1Bis Boulevard de Cardiff, 44100 Nantes",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien. Espace signalé comme accessible sans laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc de la Houssais",
+    "placeType": "park",
+    "latitude": 47.174696,
+    "longitude": -1.553654,
+    "address": "9 Avenue des Pyrénées, 44400 Rezé",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "parc en bas de chez moha keita",
+    "placeType": "park",
+    "latitude": 47.237011,
+    "longitude": -1.519702,
+    "address": "20 Rue Alfred Nobel, 44300 NANTES",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Espace vert",
+    "placeType": "park",
+    "latitude": 47.253927,
+    "longitude": -1.471997,
+    "address": "Rue de la Gare, 44980 sainte luce sur loire",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire des Halles",
+    "placeType": "vet",
+    "latitude": 48.586221,
+    "longitude": 7.739926,
+    "address": "28 Rue du Faubourg de Saverne, 67000 Strasbourg",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Argos Strasbourg les Platanes",
+    "placeType": "vet",
+    "latitude": 48.590711,
+    "longitude": 7.741361,
+    "address": "13 Rue de Wissembourg, 67000 Strasbourg",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire des Tilleuls",
+    "placeType": "vet",
+    "latitude": 48.678778,
+    "longitude": 7.778577,
+    "address": "3 Rue de l'Innovation, 67720 Hœrdt",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Le Club Canin École de Chiots",
+    "placeType": "other",
+    "latitude": 48.605209,
+    "longitude": 7.800698,
+    "address": "160 Rue Mélanie, 67000 Strasbourg",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les BerThoM",
+    "placeType": "restaurant",
+    "latitude": 48.580155,
+    "longitude": 7.749244,
+    "address": "18 Rue des Tonneliers, 67000 Strasbourg",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "The People",
+    "placeType": "restaurant",
+    "latitude": 48.581413,
+    "longitude": 7.757591,
+    "address": "7 Rue de la Krutenau, 67000 Strasbourg",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Cul de Sac",
+    "placeType": "other",
+    "latitude": 43.572417,
+    "longitude": 3.919129,
+    "address": "14 impasse des rossignols, 34970 Lattes",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Elevage - Pension Canine Montpellier Domaine Du Salaison",
+    "placeType": "other",
+    "latitude": 43.672734,
+    "longitude": 3.932065,
+    "address": "Chemin de Transide et Cabrie, 34820 Teyran",
+    "description": "Pension ou service animalier explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "3 Brasseurs",
+    "placeType": "restaurant",
+    "latitude": 43.603682,
+    "longitude": 3.916249,
+    "address": "1 Place de France, 34000 Montpellier",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les BerThoM",
+    "placeType": "restaurant",
+    "latitude": 43.608339,
+    "longitude": 3.880804,
+    "address": "5 Rue Boussairolles, 34000 Montpellier",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc René Dumont",
+    "placeType": "park",
+    "latitude": 43.601041,
+    "longitude": 3.876098,
+    "address": "Avenue de Maurin, 34000 Montpellier",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc de Boirargues",
+    "placeType": "park",
+    "latitude": 43.59024,
+    "longitude": 3.924062,
+    "address": "117 Plan de Rome, 34970 Lattes",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire",
+    "placeType": "vet",
+    "latitude": 44.862403,
+    "longitude": -0.490107,
+    "address": "8 Place du Parc, 33370 Artigues-près-Bordeaux",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Alfavet",
+    "placeType": "vet",
+    "latitude": 44.863538,
+    "longitude": -0.618588,
+    "address": "407 Avenue d'Eysines, 33110 Le Bouscat",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire des Vignes",
+    "placeType": "vet",
+    "latitude": 44.788822,
+    "longitude": -0.566955,
+    "address": "457 Route de Toulouse, 33140 Villenave-d'Ornon",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire du Sud Parempuyre - Sevetys",
+    "placeType": "vet",
+    "latitude": 44.959794,
+    "longitude": -0.627492,
+    "address": "127 Rue de Landegrand, 33290 Le Pian-Médoc",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Filovet",
+    "placeType": "vet",
+    "latitude": 44.766826,
+    "longitude": -0.484901,
+    "address": "13 Route des Cités, 33360 Camblanes-et-Meynac",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Haut Brion",
+    "placeType": "vet",
+    "latitude": 44.811245,
+    "longitude": -0.619618,
+    "address": "1 Avenue du Docteur Nancel Pénard, 33600 Pessac",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Maison PIP;Maison Pip",
+    "placeType": "restaurant",
+    "latitude": 44.80232,
+    "longitude": -0.556816,
+    "address": "48 Rue Ferdinand Buisson, 33130 Bègles",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Heiko",
+    "placeType": "restaurant",
+    "latitude": 44.84638,
+    "longitude": -0.579537,
+    "address": "35 Rue Fondaudege, 33000 Bordeaux",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Café Ériu",
+    "placeType": "restaurant",
+    "latitude": 44.8483,
+    "longitude": -0.582216,
+    "address": "119 Rue Fondaudege, 33000 Bordeaux",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc des Sœurs",
+    "placeType": "park",
+    "latitude": 44.80207,
+    "longitude": -0.568561,
+    "address": "38 bis Avenue Salvador Allende, 33130 Bègles",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc du Renard",
+    "placeType": "park",
+    "latitude": 44.844225,
+    "longitude": -0.665032,
+    "address": "Rue Charles Despiau, 33700 Mérignac",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Jardin Public",
+    "placeType": "park",
+    "latitude": 44.848836,
+    "longitude": -0.578622,
+    "address": "5 Place Bardineau, 33000 Bordeaux",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire du Coeur Joyeux",
+    "placeType": "vet",
+    "latitude": 50.640814,
+    "longitude": 3.017577,
+    "address": "6bis Avenue de la République, 59160 Lille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire les Alizés",
+    "placeType": "vet",
+    "latitude": 50.608879,
+    "longitude": 3.165972,
+    "address": "292 Rue des Fusillés, 59493 Villeneuve-d'Ascq",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Vétérinaires 2 toute urgence",
+    "placeType": "vet",
+    "latitude": 50.581992,
+    "longitude": 3.101217,
+    "address": "11 Rue Paul Dubrule, 59810 Lesquin",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "AniCura",
+    "placeType": "vet",
+    "latitude": 50.60745,
+    "longitude": 2.956643,
+    "address": "260 Rue des Bourreliers, 59320 Hallennes-lez-Haubourdin",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique du Molinel",
+    "placeType": "vet",
+    "latitude": 50.686217,
+    "longitude": 3.114718,
+    "address": "60 Rue du Molinel, 59290 Wasquehal",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Bourbouze-Beloeil",
+    "placeType": "vet",
+    "latitude": 50.63185,
+    "longitude": 3.050795,
+    "address": "195 Rue Nationale, 59800 Lille",
+    "description": "Clinique ou cabinet vétérinaire accueillant les chiens pour les consultations et soins.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Sous la patte de Mama",
+    "placeType": "other",
+    "latitude": 50.601864,
+    "longitude": 2.996201,
+    "address": "27 Rue du 3e Régiment de Zouaves, 59320 Haubourdin",
+    "description": "Pension ou service animalier explicitement destiné aux chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Chenil de Santes",
+    "placeType": "other",
+    "latitude": 50.586938,
+    "longitude": 2.945315,
+    "address": "Rue Anatole France, 59211 Santes",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Caniparc",
+    "placeType": "other",
+    "latitude": 50.654341,
+    "longitude": 3.023853,
+    "address": "3 Rue de Verlinghem, 59130 Lambersart",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Caniparc",
+    "placeType": "other",
+    "latitude": 50.637079,
+    "longitude": 3.078226,
+    "address": "777BIS 777BIS Pont de Flandres, 59800 Lille",
+    "description": "Espace canin ou caniparc dédié aux promenades et activités avec chien.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Happy Fox",
+    "placeType": "restaurant",
+    "latitude": 50.642329,
+    "longitude": 3.087004,
+    "address": "189 Rue du Faubourg de Roubaix, 59800 Lille",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Les Sales Gosses",
+    "placeType": "restaurant",
+    "latitude": 50.641928,
+    "longitude": 3.084927,
+    "address": "149 Rue du Faubourg de Roubaix, 59800 Lille",
+    "description": "Restaurant, bar ou café signalé comme accueillant les chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Parc Saint-Sauveur",
+    "placeType": "park",
+    "latitude": 50.625597,
+    "longitude": 3.078104,
+    "address": "Rue de Cambrai, 59000 Lille",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Square Henri Ghesquière",
+    "placeType": "park",
+    "latitude": 50.624142,
+    "longitude": 3.05101,
+    "address": "Rue d'Iéna, 59000 Lille",
+    "description": "Parc public dont l’accès des chiens est explicitement signalé dans les données cartographiques. Chiens admis en laisse.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": true,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Plage de Lenval",
+    "placeType": "beach",
+    "latitude": 43.690557,
+    "longitude": 7.24611,
+    "address": "Promenade des Anglais, face à l'Hôpital Lenval, 06000 Nice",
+    "description": "Plage canine aménagée ; les chiens de catégorie 3 peuvent y circuler librement et se baigner.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Plage de la Lanterne",
+    "placeType": "beach",
+    "latitude": 43.683978,
+    "longitude": 7.234566,
+    "address": "386 Promenade des Anglais, 06000 Nice",
+    "description": "Plage canine aménagée ; les chiens de catégorie 3 peuvent y circuler librement et se baigner.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Centre Hospitalier Vétérinaire Languedocia",
+    "placeType": "vet",
+    "latitude": 43.618675,
+    "longitude": 3.82497,
+    "address": "470 rue Favre de Saint-Castor, 34080 Montpellier",
+    "description": "Centre hospitalier vétérinaire accueillant les chiens, avec urgences 24 h/24 et 7 j/7.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Univet Montpellier – Millénaire",
+    "placeType": "vet",
+    "latitude": 43.610405,
+    "longitude": 3.900539,
+    "address": "12 rue Claude Chappe, 34000 Montpellier",
+    "description": "Clinique vétérinaire accueillant les chiens, chats et NAC sur rendez-vous.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire Vet’Ecusson",
+    "placeType": "vet",
+    "latitude": 43.609085,
+    "longitude": 3.872864,
+    "address": "11 boulevard Ledru Rollin, 34000 Montpellier",
+    "description": "Clinique vétérinaire de centre-ville assurant notamment les soins et consultations pour chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire du Grand M",
+    "placeType": "vet",
+    "latitude": 43.592036,
+    "longitude": 3.858504,
+    "address": "1235 avenue de Toulouse, 34070 Montpellier",
+    "description": "Clinique vétérinaire accueillant les chiens, avec prise en charge des urgences de jour.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire de l'Autan",
+    "placeType": "vet",
+    "latitude": 43.585619,
+    "longitude": 1.525586,
+    "address": "4 route de Castres, 31130 Quint-Fonsegrives",
+    "description": "Clinique vétérinaire pour animaux de compagnie, avec service d’urgence signalé.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de Garonne",
+    "placeType": "vet",
+    "latitude": 43.601898,
+    "longitude": 1.440147,
+    "address": "3 rue Jean Suau, 31000 Toulouse",
+    "description": "Clinique vétérinaire de proximité pour les soins des chiens et autres animaux de compagnie.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire Argos",
+    "placeType": "vet",
+    "latitude": 43.57379,
+    "longitude": 1.484317,
+    "address": "2 impasse Gaston Génin, 31400 Toulouse",
+    "description": "Clinique vétérinaire accueillant les chiens pour les consultations et soins courants.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique vétérinaire de l'Hers",
+    "placeType": "vet",
+    "latitude": 43.608212,
+    "longitude": 1.480562,
+    "address": "17 rue Louis Plana, 31500 Toulouse",
+    "description": "Clinique vétérinaire de quartier accueillant les chiens sur rendez-vous.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  },
+  {
+    "name": "Clinique Vétérinaire de la Patte d'Oie",
+    "placeType": "vet",
+    "latitude": 43.596195,
+    "longitude": 1.421219,
+    "address": "28 avenue de Lombez, 31300 Toulouse",
+    "description": "Clinique vétérinaire de proximité pour la santé et le suivi des chiens.",
+    "isDogsAllowed": true,
+    "attributes": {
+      "leashRequired": false,
+      "waterAvailable": false
+    }
+  }
+]
